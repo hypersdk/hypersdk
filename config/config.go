@@ -26,6 +26,93 @@ type Config struct {
 	ShowETA         bool
 	RefreshRate     time.Duration
 	DaemonAddr      string // Daemon API server address
+
+	// Connection pool configuration (Phase 1.1)
+	ConnectionPool *ConnectionPoolConfig
+
+	// Webhook configuration (Phase 1.2)
+	Webhooks []WebhookConfig `yaml:"webhooks"`
+
+	// Database path for persistence (Phase 2.3)
+	DatabasePath string `yaml:"database_path"`
+
+	// AWS configuration (Phase 4.1)
+	AWS *AWSConfig `yaml:"aws"`
+
+	// Azure configuration (Phase 4.2)
+	Azure *AzureConfig `yaml:"azure"`
+
+	// GCP configuration (Phase 4.3)
+	GCP *GCPConfig `yaml:"gcp"`
+
+	// Hyper-V configuration (Phase 4.4)
+	HyperV *HyperVConfig `yaml:"hyperv"`
+}
+
+// AWSConfig holds AWS-specific settings
+type AWSConfig struct {
+	Region       string `yaml:"region"`
+	AccessKey    string `yaml:"access_key"`
+	SecretKey    string `yaml:"secret_key"`
+	S3Bucket     string `yaml:"s3_bucket"`
+	ExportFormat string `yaml:"export_format"` // vmdk, vhd, raw
+	Enabled      bool   `yaml:"enabled"`
+}
+
+// AzureConfig holds Azure-specific settings
+type AzureConfig struct {
+	SubscriptionID string `yaml:"subscription_id"`
+	TenantID       string `yaml:"tenant_id"`
+	ClientID       string `yaml:"client_id"`
+	ClientSecret   string `yaml:"client_secret"`
+	ResourceGroup  string `yaml:"resource_group"`
+	Location       string `yaml:"location"`
+	StorageAccount string `yaml:"storage_account"`
+	Container      string `yaml:"container"`
+	ContainerURL   string `yaml:"container_url"`
+	ExportFormat   string `yaml:"export_format"` // vhd, image
+	Enabled        bool   `yaml:"enabled"`
+}
+
+// GCPConfig holds GCP-specific settings
+type GCPConfig struct {
+	ProjectID       string `yaml:"project_id"`
+	Zone            string `yaml:"zone"`
+	Region          string `yaml:"region"`
+	CredentialsJSON string `yaml:"credentials_json"` // Path to service account JSON
+	GCSBucket       string `yaml:"gcs_bucket"`
+	ExportFormat    string `yaml:"export_format"` // vmdk, image
+	Enabled         bool   `yaml:"enabled"`
+}
+
+// HyperVConfig holds Hyper-V-specific settings
+type HyperVConfig struct {
+	Host         string `yaml:"host"`          // Hyper-V host (empty for local)
+	Username     string `yaml:"username"`      // Windows username
+	Password     string `yaml:"password"`      // Windows password
+	UseWinRM     bool   `yaml:"use_winrm"`     // Use WinRM for remote
+	WinRMPort    int    `yaml:"winrm_port"`    // WinRM port (5985/5986)
+	UseHTTPS     bool   `yaml:"use_https"`     // Use HTTPS for WinRM
+	ExportFormat string `yaml:"export_format"` // vhdx, vhd, hyperv
+	Enabled      bool   `yaml:"enabled"`
+}
+
+// ConnectionPoolConfig holds connection pool settings
+type ConnectionPoolConfig struct {
+	Enabled             bool          `yaml:"enabled"`
+	MaxConnections      int           `yaml:"max_connections"`
+	IdleTimeout         time.Duration `yaml:"idle_timeout"`
+	HealthCheckInterval time.Duration `yaml:"health_check_interval"`
+}
+
+// WebhookConfig holds webhook endpoint configuration
+type WebhookConfig struct {
+	URL     string            `yaml:"url" json:"url"`
+	Events  []string          `yaml:"events" json:"events"`
+	Headers map[string]string `yaml:"headers" json:"headers"`
+	Timeout time.Duration     `yaml:"timeout" json:"timeout"`
+	Retry   int               `yaml:"retry" json:"retry"`
+	Enabled bool              `yaml:"enabled" json:"enabled"`
 }
 
 func FromEnvironment() *Config {
@@ -92,6 +179,115 @@ func FromFile(path string) (*Config, error) {
 	}
 	if cfg.DaemonAddr == "" {
 		cfg.DaemonAddr = "localhost:8080"
+	}
+
+	// Connection pool defaults
+	if cfg.ConnectionPool == nil {
+		cfg.ConnectionPool = &ConnectionPoolConfig{
+			Enabled:             false, // Disabled by default
+			MaxConnections:      5,
+			IdleTimeout:         5 * time.Minute,
+			HealthCheckInterval: 30 * time.Second,
+		}
+	} else {
+		if cfg.ConnectionPool.MaxConnections == 0 {
+			cfg.ConnectionPool.MaxConnections = 5
+		}
+		if cfg.ConnectionPool.IdleTimeout == 0 {
+			cfg.ConnectionPool.IdleTimeout = 5 * time.Minute
+		}
+		if cfg.ConnectionPool.HealthCheckInterval == 0 {
+			cfg.ConnectionPool.HealthCheckInterval = 30 * time.Second
+		}
+	}
+
+	// Database path default
+	if cfg.DatabasePath == "" {
+		cfg.DatabasePath = "./hypersdk.db"
+	}
+
+	// Webhook defaults
+	for i := range cfg.Webhooks {
+		if cfg.Webhooks[i].Timeout == 0 {
+			cfg.Webhooks[i].Timeout = 10 * time.Second
+		}
+		if cfg.Webhooks[i].Retry == 0 {
+			cfg.Webhooks[i].Retry = 3
+		}
+	}
+
+	// AWS defaults
+	if cfg.AWS == nil {
+		cfg.AWS = &AWSConfig{
+			Region:       "us-east-1",
+			ExportFormat: "vmdk",
+			Enabled:      false, // Disabled by default
+		}
+	} else {
+		if cfg.AWS.Region == "" {
+			cfg.AWS.Region = "us-east-1"
+		}
+		if cfg.AWS.ExportFormat == "" {
+			cfg.AWS.ExportFormat = "vmdk"
+		}
+	}
+
+	// Azure defaults
+	if cfg.Azure == nil {
+		cfg.Azure = &AzureConfig{
+			Location:     "eastus",
+			ExportFormat: "image",
+			Enabled:      false, // Disabled by default
+		}
+	} else {
+		if cfg.Azure.Location == "" {
+			cfg.Azure.Location = "eastus"
+		}
+		if cfg.Azure.ExportFormat == "" {
+			cfg.Azure.ExportFormat = "image"
+		}
+	}
+
+	// GCP defaults
+	if cfg.GCP == nil {
+		cfg.GCP = &GCPConfig{
+			Zone:         "us-central1-a",
+			Region:       "us-central1",
+			ExportFormat: "vmdk",
+			Enabled:      false, // Disabled by default
+		}
+	} else {
+		if cfg.GCP.Zone == "" {
+			cfg.GCP.Zone = "us-central1-a"
+		}
+		if cfg.GCP.Region == "" {
+			cfg.GCP.Region = "us-central1"
+		}
+		if cfg.GCP.ExportFormat == "" {
+			cfg.GCP.ExportFormat = "vmdk"
+		}
+	}
+
+	// Hyper-V defaults
+	if cfg.HyperV == nil {
+		cfg.HyperV = &HyperVConfig{
+			UseWinRM:     false, // Local by default
+			WinRMPort:    5985,
+			UseHTTPS:     false,
+			ExportFormat: "vhdx",
+			Enabled:      false, // Disabled by default
+		}
+	} else {
+		if cfg.HyperV.WinRMPort == 0 {
+			if cfg.HyperV.UseHTTPS {
+				cfg.HyperV.WinRMPort = 5986
+			} else {
+				cfg.HyperV.WinRMPort = 5985
+			}
+		}
+		if cfg.HyperV.ExportFormat == "" {
+			cfg.HyperV.ExportFormat = "vhdx"
+		}
 	}
 
 	return cfg, nil

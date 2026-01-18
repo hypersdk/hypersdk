@@ -21,13 +21,17 @@ import (
 
 // Config holds Azure provider configuration
 type Config struct {
-	SubscriptionID string
-	TenantID       string
-	ClientID       string
-	ClientSecret   string
-	ResourceGroup  string
-	Location       string
-	Timeout        time.Duration
+	SubscriptionID   string
+	TenantID         string
+	ClientID         string
+	ClientSecret     string
+	ResourceGroup    string
+	Location         string
+	StorageAccount   string // Storage account name for blob storage
+	Container        string // Container name for VHD exports
+	ContainerURL     string // Full container URL
+	ExportFormat     string // "image" or "vhd"
+	Timeout          time.Duration
 }
 
 // Client represents an Azure Compute client for VM operations
@@ -217,6 +221,27 @@ func (c *Client) ExportVM(ctx context.Context, vmName, outputPath string, report
 	}
 
 	c.logger.Info("managed image created", "imageName", imageName, "imageID", *imageResult.ID)
+
+	// Export to VHD if configured
+	if c.config.ExportFormat == "vhd" && c.config.ContainerURL != "" {
+		if reporter != nil {
+			reporter.Describe("Exporting disks to VHD format")
+		}
+
+		vhdResults, err := c.ExportVMToVHD(ctx, vmName, c.config.ContainerURL, outputPath, reporter)
+		if err != nil {
+			c.logger.Error("VHD export failed", "error", err)
+		} else {
+			c.logger.Info("VHD export complete", "disks_exported", len(vhdResults))
+
+			// Create manifest file for multi-disk exports
+			if len(vhdResults) > 0 {
+				if err := CreateExportManifest(vmName, vhdResults, outputPath); err != nil {
+					c.logger.Warn("failed to create export manifest", "error", err)
+				}
+			}
+		}
+	}
 
 	// Save metadata
 	metadataPath := filepath.Join(outputPath, fmt.Sprintf("%s-metadata.json", vmName))

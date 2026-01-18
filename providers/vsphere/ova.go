@@ -4,6 +4,7 @@ package vsphere
 
 import (
 	"archive/tar"
+	"compress/gzip"
 	"fmt"
 	"io"
 	"os"
@@ -14,8 +15,9 @@ import (
 )
 
 // CreateOVA packages an OVF export into a single OVA file
-func CreateOVA(ovfDir string, ovaPath string, log logger.Logger) error {
-	log.Info("Creating OVA package", "ovfDir", ovfDir, "ovaPath", ovaPath)
+// Set compress to true for gzip compression, compressionLevel 0-9 (0=no compression, 6=default, 9=best)
+func CreateOVA(ovfDir string, ovaPath string, compress bool, compressionLevel int, log logger.Logger) error {
+	log.Info("Creating OVA package", "ovfDir", ovfDir, "ovaPath", ovaPath, "compress", compress)
 
 	// Find all files to package
 	files, err := findExportFiles(ovfDir)
@@ -36,7 +38,24 @@ func CreateOVA(ovfDir string, ovaPath string, log logger.Logger) error {
 	}
 	defer ovaFile.Close()
 
-	tw := tar.NewWriter(ovaFile)
+	var tw *tar.Writer
+	if compress {
+		// Set compression level (default to 6 if invalid)
+		if compressionLevel < gzip.NoCompression || compressionLevel > gzip.BestCompression {
+			compressionLevel = gzip.DefaultCompression
+		}
+
+		log.Info("Enabling gzip compression", "level", compressionLevel)
+		gzw, err := gzip.NewWriterLevel(ovaFile, compressionLevel)
+		if err != nil {
+			return fmt.Errorf("failed to create gzip writer: %w", err)
+		}
+		gzw.Header.Name = filepath.Base(ovaPath)
+		defer gzw.Close()
+		tw = tar.NewWriter(gzw)
+	} else {
+		tw = tar.NewWriter(ovaFile)
+	}
 	defer tw.Close()
 
 	// OVF must be first file in OVA (per OVF spec)
@@ -159,7 +178,30 @@ func ExtractOVA(ovaPath string, destDir string, log logger.Logger) error {
 	}
 	defer ovaFile.Close()
 
-	tr := tar.NewReader(ovaFile)
+	// Detect gzip compression by reading magic bytes
+	magic := make([]byte, 2)
+	_, err = ovaFile.Read(magic)
+	if err != nil {
+		return fmt.Errorf("failed to read file header: %w", err)
+	}
+
+	// Reset file pointer to beginning
+	ovaFile.Seek(0, 0)
+
+	var tr *tar.Reader
+	isGzipped := magic[0] == 0x1f && magic[1] == 0x8b
+
+	if isGzipped {
+		log.Info("Detected gzip compression")
+		gzr, err := gzip.NewReader(ovaFile)
+		if err != nil {
+			return fmt.Errorf("failed to create gzip reader: %w", err)
+		}
+		defer gzr.Close()
+		tr = tar.NewReader(gzr)
+	} else {
+		tr = tar.NewReader(ovaFile)
+	}
 
 	// Extract all files
 	for {

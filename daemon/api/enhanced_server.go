@@ -66,9 +66,8 @@ type jobExecutorAdapter struct {
 	manager *jobs.Manager
 }
 
-func (a *jobExecutorAdapter) SubmitJob(definition models.JobDefinition) error {
-	_, err := a.manager.SubmitJob(definition)
-	return err
+func (a *jobExecutorAdapter) SubmitJob(definition models.JobDefinition) (string, error) {
+	return a.manager.SubmitJob(definition)
 }
 
 // NewEnhancedServer creates a new enhanced API server with all Phase 1 features
@@ -270,14 +269,15 @@ func (es *EnhancedServer) registerEnhancedRoutes() {
 	// WebSocket endpoint for real-time updates
 	mux.HandleFunc("/ws", es.handleWebSocket)
 
-	// Serve web dashboard (static files) - can be disabled via config or --disable-web flag
-	// By default (web.disabled=false), web dashboard is enabled for backwards compatibility
+	// Serve React dashboard (static files) - can be disabled via config or --disable-web flag
+	// By default (web.disabled=false), React dashboard is enabled
 	if !es.config.Web.Disabled {
-		// Web dashboard enabled (default)
-		webDir := filepath.Join(".", "web", "dashboard")
-		fileServer := http.FileServer(http.Dir(webDir))
-		mux.Handle("/web/dashboard/", http.StripPrefix("/web/dashboard/", fileServer))
-		// Redirect root to dashboard
+		// React dashboard (production build)
+		reactDir := filepath.Join(".", "daemon", "dashboard", "static-react")
+		reactFileServer := http.FileServer(http.Dir(reactDir))
+		mux.Handle("/web/dashboard/", http.StripPrefix("/web/dashboard/", reactFileServer))
+
+		// Redirect root to React dashboard
 		mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 			if r.URL.Path == "/" {
 				http.Redirect(w, r, "/web/dashboard/", http.StatusFound)
@@ -285,13 +285,13 @@ func (es *EnhancedServer) registerEnhancedRoutes() {
 			}
 			http.NotFound(w, r)
 		})
-		// Web dashboard enabled and serving on /web/dashboard/
+		es.logger.Info("React web dashboard enabled", "url", "/web/dashboard/")
 	} else {
 		// Web dashboard disabled (API-only mode)
 		mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 			http.NotFound(w, r)
 		})
-		// API-only mode - web dashboard disabled
+		es.logger.Info("web dashboard disabled - API-only mode")
 	}
 
 	// Schedule management endpoints

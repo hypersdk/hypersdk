@@ -1,0 +1,18 @@
+[Unit]
+Description=HyperSDK VM Export Daemon
+After=network.target
+
+[Service]
+Type=simple
+User=hypersdk
+Group=hypersdk
+WorkingDirectory=/opt/hypersdk
+ExecStart=/opt/hypersdk/hypervisord --config /etc/hypersdk/config.yaml
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=hypervisord
+
+[Install]
+WantedBy=multi-user.target

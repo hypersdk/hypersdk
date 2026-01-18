@@ -37,6 +37,17 @@ type Manager struct {
 	cancel          context.CancelFunc
 	wg              sync.WaitGroup // Track running goroutines
 	exporterFactory *exporters.ExporterFactory
+	webhookManager  WebhookManager // Interface for webhooks (can be nil)
+}
+
+// WebhookManager defines the interface for webhook notifications
+type WebhookManager interface {
+	SendJobCreated(job *models.Job)
+	SendJobStarted(job *models.Job)
+	SendJobCompleted(job *models.Job)
+	SendJobFailed(job *models.Job)
+	SendJobCancelled(job *models.Job)
+	SendJobProgress(job *models.Job)
 }
 
 // NewManager creates a new job manager
@@ -50,13 +61,23 @@ func NewManager(log logger.Logger, detector *capabilities.Detector) *Manager {
 		ctx:             ctx,
 		cancel:          cancel,
 		exporterFactory: factory,
+		webhookManager:  nil, // Set later via SetWebhookManager if needed
+	}
+}
+
+// SetWebhookManager sets the webhook manager for job event notifications
+func (m *Manager) SetWebhookManager(webhookMgr WebhookManager) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.webhookManager = webhookMgr
+	if webhookMgr != nil {
+		m.logger.Info("webhook manager configured")
 	}
 }
 
 // SubmitJob submits a new job for execution
 func (m *Manager) SubmitJob(def models.JobDefinition) (string, error) {
 	m.mu.Lock()
-	defer m.mu.Unlock()
 
 	// Generate ID if not provided
 	if def.ID == "" {
@@ -65,6 +86,7 @@ func (m *Manager) SubmitJob(def models.JobDefinition) (string, error) {
 
 	// Check if job already exists
 	if _, exists := m.jobs[def.ID]; exists {
+		m.mu.Unlock()
 		return "", fmt.Errorf("job with ID %s already exists", def.ID)
 	}
 
@@ -80,6 +102,14 @@ func (m *Manager) SubmitJob(def models.JobDefinition) (string, error) {
 
 	m.jobs[def.ID] = job
 	m.logger.Info("job submitted", "id", def.ID, "name", def.Name, "vm", def.VMPath)
+
+	// Send webhook notification for job creation
+	if m.webhookManager != nil {
+		m.webhookManager.SendJobCreated(job)
+	}
+
+	// Unlock before starting goroutine to avoid holding lock during execution
+	m.mu.Unlock()
 
 	// Start job in goroutine with WaitGroup tracking
 	m.wg.Add(1)
@@ -219,6 +249,11 @@ func (m *Manager) CancelJob(id string) error {
 
 	m.logger.Info("job cancelled", "id", id)
 
+	// Send webhook notification for job cancellation
+	if m.webhookManager != nil {
+		m.webhookManager.SendJobCancelled(job)
+	}
+
 	return nil
 }
 
@@ -290,16 +325,22 @@ func (m *Manager) executeJob(jobID string) {
 	job.Progress = &models.JobProgress{
 		Phase: "connecting",
 	}
+
+	// Send webhook notification for job start
+	webhookMgr := m.webhookManager // Capture webhook manager before unlock
 	m.mu.Unlock()
 
 	m.logger.Info("job started", "id", jobID, "vm", job.Definition.VMPath)
+
+	if webhookMgr != nil {
+		webhookMgr.SendJobStarted(job)
+	}
 
 	// Execute the export
 	err := m.runExport(jobID, &job.Definition)
 
 	// Update final status
 	m.mu.Lock()
-	defer m.mu.Unlock()
 
 	endTime := time.Now()
 	job.CompletedAt = &endTime
@@ -309,10 +350,22 @@ func (m *Manager) executeJob(jobID string) {
 		job.Status = models.JobStatusFailed
 		job.Error = err.Error()
 		m.logger.Error("job failed", "id", jobID, "error", err)
+
+		// Send webhook notification for job failure
+		if m.webhookManager != nil {
+			m.webhookManager.SendJobFailed(job)
+		}
 	} else {
 		job.Status = models.JobStatusCompleted
 		m.logger.Info("job completed", "id", jobID)
+
+		// Send webhook notification for job completion
+		if m.webhookManager != nil {
+			m.webhookManager.SendJobCompleted(job)
+		}
 	}
+
+	m.mu.Unlock()
 }
 
 // runExport performs the actual VM export using capability-aware exporters

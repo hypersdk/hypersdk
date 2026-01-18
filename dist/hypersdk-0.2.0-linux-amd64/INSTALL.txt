@@ -1,0 +1,35 @@
+HyperSDK v0.2.0 - Installation Instructions
+================================================
+
+Directory Structure:
+  bin/                 - Binaries (hypervisord, hyperctl, hyperexport)
+  docs/                - Documentation and configuration files
+  install.sh           - Automated installation script
+  INSTALL.txt          - This file
+
+Quick Install:
+  sudo ./install.sh
+
+Manual Install:
+  1. Copy bin/* to /usr/local/bin/ or /opt/hypersdk/bin/
+  2. Copy docs/config.example.yaml to /etc/hypersdk/config.yaml
+  3. Edit /etc/hypersdk/config.yaml with your settings
+  4. Copy docs/hypervisord.service to /etc/systemd/system/
+  5. Run: sudo systemctl enable --now hypervisord
+
+Documentation (in docs/ directory):
+  - DEPLOYMENT.md: Complete deployment guide
+  - MULTI_CLOUD_GUIDE.md: Multi-cloud setup instructions
+  - README.md: Project overview and features
+  - config.example.yaml: Configuration template
+  - hypervisord.service: Systemd service file
+
+Support:
+  - GitHub: https://github.com/your-org/hypersdk
+  - Documentation: https://docs.hypersdk.io
+  - Email: support@hypersdk.io
+
+Build Information:
+  Version: 0.2.0
+  Build Time: 2026-01-20_14:30:32
+  Git Commit: 427a9d0

@@ -185,13 +185,64 @@ func (c *VSphereClient) ExportOVF(ctx context.Context, vmPath string, opts Expor
 	result := &ExportResult{
 		OutputDir: outputDir,
 		OVFPath:   ovfPath,
+		Format:    opts.Format,
 		Files:     downloadedFiles,
 		TotalSize: totalSize,
 		Duration:  duration,
 	}
 
+	// Create OVA if requested
+	if opts.Format == "ova" {
+		c.logger.Info("packaging OVF export as OVA", "compress", opts.Compress)
+		sanitizedName := sanitizeVMName(vm.Name())
+
+		// Determine file extension based on compression
+		var ovaPath string
+		if opts.Compress {
+			ovaPath = filepath.Join(outputDir, sanitizedName+".ova.gz")
+		} else {
+			ovaPath = filepath.Join(outputDir, sanitizedName+".ova")
+		}
+
+		// Set default compression level if not specified
+		compressionLevel := opts.CompressionLevel
+		if compressionLevel == 0 && opts.Compress {
+			compressionLevel = 6 // gzip.DefaultCompression
+		}
+
+		if err := CreateOVA(outputDir, ovaPath, opts.Compress, compressionLevel, c.logger); err != nil {
+			return nil, fmt.Errorf("create OVA: %w", err)
+		}
+
+		result.OVAPath = ovaPath
+		result.Format = "ova"
+
+		// Optionally cleanup OVF files
+		if opts.CleanupOVF {
+			c.logger.Info("cleaning up intermediate OVF files")
+			for _, file := range downloadedFiles {
+				if err := os.Remove(file); err != nil {
+					c.logger.Warn("failed to remove OVF file", "file", file, "error", err)
+				}
+			}
+			// Also remove the OVF descriptor
+			if err := os.Remove(ovfPath); err != nil {
+				c.logger.Warn("failed to remove OVF descriptor", "error", err)
+			}
+		}
+
+		// Get file size for reporting
+		if fi, err := os.Stat(ovaPath); err == nil {
+			c.logger.Info("OVA package created successfully",
+				"path", ovaPath,
+				"size", fi.Size(),
+				"compressed", opts.Compress)
+		}
+	}
+
 	c.logger.Info("export completed successfully",
 		"vm", vmPath,
+		"format", result.Format,
 		"duration", duration,
 		"totalSize", totalSize,
 		"files", len(downloadedFiles))

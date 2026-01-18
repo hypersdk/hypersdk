@@ -17,7 +17,12 @@ import (
 	"hypersdk/daemon/api"
 	"hypersdk/daemon/capabilities"
 	"hypersdk/daemon/jobs"
+	"hypersdk/daemon/scheduler"
+	"hypersdk/daemon/store"
+	"hypersdk/daemon/webhooks"
 	"hypersdk/logger"
+	"hypersdk/providers"
+	"hypersdk/providers/vsphere"
 )
 
 const (
@@ -96,6 +101,80 @@ func main() {
 	// Create job manager with capability detector
 	manager := jobs.NewManager(log, detector)
 
+	// ===== PHASE 1-3 FEATURE INTEGRATION =====
+
+	// Phase 1.1: Setup Connection Pooling for vSphere
+	var connectionPool *vsphere.ConnectionPool
+	if cfg.ConnectionPool != nil && cfg.ConnectionPool.Enabled {
+		pterm.Info.Println("Initializing vSphere connection pool...")
+		poolConfig := &vsphere.PoolConfig{
+			MaxConnections:      cfg.ConnectionPool.MaxConnections,
+			IdleTimeout:         cfg.ConnectionPool.IdleTimeout,
+			HealthCheckInterval: cfg.ConnectionPool.HealthCheckInterval,
+		}
+		connectionPool = vsphere.NewConnectionPool(cfg, poolConfig, log)
+		pterm.Success.Printfln("Connection pool enabled (max: %d connections)", poolConfig.MaxConnections)
+	}
+
+	// Phase 1.2: Setup Webhook Integration
+	var webhookMgr *webhooks.Manager
+	if len(cfg.Webhooks) > 0 {
+		pterm.Info.Printfln("Configuring webhooks (%d endpoints)...", len(cfg.Webhooks))
+
+		// Convert config webhooks to webhook manager format
+		wh := make([]webhooks.Webhook, len(cfg.Webhooks))
+		for i, w := range cfg.Webhooks {
+			wh[i] = webhooks.Webhook{
+				URL:     w.URL,
+				Events:  w.Events,
+				Headers: w.Headers,
+				Timeout: w.Timeout,
+				Retry:   w.Retry,
+				Enabled: w.Enabled,
+			}
+		}
+
+		webhookMgr = webhooks.NewManager(wh, log)
+		manager.SetWebhookManager(webhookMgr)
+		pterm.Success.Printfln("Webhooks enabled for job notifications")
+	}
+
+	// Phase 2.3: Setup Job Scheduling with Persistence
+	var jobScheduler *scheduler.Scheduler
+	var dbStore *store.SQLiteStore
+	if cfg.DatabasePath != "" {
+		pterm.Info.Printfln("Opening database: %s", cfg.DatabasePath)
+		dbStore, err = store.NewSQLiteStore(cfg.DatabasePath)
+		if err != nil {
+			pterm.Error.Printfln("Failed to open database: %v", err)
+			os.Exit(1)
+		}
+		pterm.Success.Println("Database initialized")
+
+		// Create scheduler with persistence
+		pterm.Info.Println("Initializing job scheduler...")
+		jobScheduler = scheduler.NewScheduler(manager, log)
+		jobScheduler.SetStore(dbStore)
+
+		// Load existing schedules from database
+		if err := jobScheduler.LoadSchedules(); err != nil {
+			pterm.Warning.Printfln("Failed to load schedules: %v", err)
+		} else {
+			schedules := jobScheduler.ListScheduledJobs()
+			pterm.Success.Printfln("Loaded %d scheduled jobs from database", len(schedules))
+		}
+
+		jobScheduler.Start()
+	}
+
+	// Phase 3: Setup Provider Registry
+	pterm.Info.Println("Initializing provider registry...")
+	providerRegistry := providers.NewRegistry()
+	providerRegistry.Register(providers.ProviderVSphere, func(cfg providers.ProviderConfig) (providers.Provider, error) {
+		return vsphere.NewProvider(cfg, log)
+	})
+	pterm.Success.Printfln("Provider registry initialized (%d providers)", len(providerRegistry.ListProviders()))
+
 	// Create API config
 	apiConfig := &api.Config{}
 	apiConfig.Metrics.Enabled = false
@@ -137,15 +216,53 @@ func main() {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 
+		// Shutdown API server
 		if err := server.Shutdown(ctx); err != nil {
 			pterm.Error.Printfln("Server shutdown error: %v", err)
 		}
 
+		// Shutdown scheduler
+		if jobScheduler != nil {
+			pterm.Info.Println("Stopping job scheduler...")
+			jobScheduler.Stop()
+		}
+
+		// Shutdown job manager
+		pterm.Info.Println("Stopping job manager...")
 		manager.Shutdown()
-		pterm.Success.Println("Daemon stopped")
+
+		// Close connection pool
+		if connectionPool != nil {
+			pterm.Info.Println("Closing connection pool...")
+			if err := connectionPool.Close(); err != nil {
+				pterm.Error.Printfln("Connection pool close error: %v", err)
+			}
+			stats := connectionPool.Stats()
+			pterm.Info.Printfln("Pool stats - Created: %d, Reused: %d, Ratio: %.2f%%",
+				stats["total_created"],
+				stats["total_reused"],
+				stats["reuse_ratio"].(float64)*100)
+		}
+
+		// Close database
+		if dbStore != nil {
+			pterm.Info.Println("Closing database...")
+			if err := dbStore.Close(); err != nil {
+				pterm.Error.Printfln("Database close error: %v", err)
+			}
+		}
+
+		pterm.Success.Println("Daemon stopped gracefully")
 
 	case err := <-errCh:
 		pterm.Error.Printfln("Server error: %v", err)
+		// Cleanup on error
+		if connectionPool != nil {
+			connectionPool.Close()
+		}
+		if dbStore != nil {
+			dbStore.Close()
+		}
 		os.Exit(1)
 	}
 }

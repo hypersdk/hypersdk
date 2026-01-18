@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"hypersdk/daemon/scheduler"
+	"hypersdk/daemon/models"
 )
 
 // Handle GET /schedules - List all scheduled jobs
@@ -50,7 +50,7 @@ func (es *EnhancedServer) handleCreateSchedule(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	var schedule scheduler.ScheduledJob
+	var schedule models.ScheduledJob
 	if err := json.Unmarshal(body, &schedule); err != nil {
 		es.errorResponse(w, http.StatusBadRequest, "invalid JSON: %v", err)
 		return
@@ -136,7 +136,7 @@ func (es *EnhancedServer) handleUpdateSchedule(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	var updates scheduler.ScheduledJob
+	var updates models.ScheduledJob
 	if err := json.Unmarshal(body, &updates); err != nil {
 		es.errorResponse(w, http.StatusBadRequest, "invalid JSON: %v", err)
 		return

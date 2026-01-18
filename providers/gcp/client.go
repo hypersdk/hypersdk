@@ -183,15 +183,39 @@ func (c *Client) ExportInstance(ctx context.Context, instanceName, outputPath st
 		reporter.Describe("Creating machine image")
 	}
 
-	// Create machine image (GCP's equivalent of AMI)
-	imageName := fmt.Sprintf("%s-image-%d", instanceName, time.Now().Unix())
+	// Export to GCS if configured
+	var exportResults []*ExportResult
+	if c.config.DestinationBucket != "" {
+		if reporter != nil {
+			reporter.Describe("Exporting instance to GCS as VMDK")
+		}
 
-	// Note: For actual implementation, you would use MachineImagesClient
-	// This is a simplified version using disk snapshots
-	c.logger.Info("machine image creation initiated", "imageName", imageName)
+		results, err := c.ExportInstanceToGCS(ctx, instanceName, c.config.DestinationBucket, outputPath, reporter)
+		if err != nil {
+			c.logger.Error("GCS export failed", "error", err)
+		} else {
+			exportResults = results
+			c.logger.Info("VMDK exported to GCS", "disks_exported", len(results))
+
+			// Create manifest for multi-disk exports
+			if len(results) > 1 {
+				if err := CreateExportManifest(instanceName, results, outputPath); err != nil {
+					c.logger.Warn("failed to create export manifest", "error", err)
+				}
+			}
+		}
+	} else {
+		// Fallback: Create machine image only
+		imageName := fmt.Sprintf("%s-image-%d", instanceName, time.Now().Unix())
+		c.logger.Info("machine image creation initiated (no GCS export)", "imageName", imageName)
+	}
 
 	// Save metadata
 	metadataPath := filepath.Join(outputPath, fmt.Sprintf("%s-metadata.json", instanceName))
+	imageName := "see-manifest"
+	if len(exportResults) > 0 {
+		imageName = exportResults[0].ImageName
+	}
 	if err := c.saveMetadata(vmInfo, imageName, metadataPath); err != nil {
 		c.logger.Warn("failed to save metadata", "error", err)
 	}
@@ -201,7 +225,7 @@ func (c *Client) ExportInstance(ctx context.Context, instanceName, outputPath st
 		reporter.Update(100)
 	}
 
-	c.logger.Info("GCP instance export complete", "instance", instanceName, "image", imageName)
+	c.logger.Info("GCP instance export complete", "instance", instanceName)
 	return nil
 }
 

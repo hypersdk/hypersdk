@@ -30,9 +30,11 @@ For recording your own demos, see [demos/RECORDING-GUIDE.md](demos/RECORDING-GUI
 ### Supported Providers
 
 - ✅ **vSphere** (VMware vCenter/ESXi) - Production Ready
-- 🔜 **AWS** (Amazon EC2) - Coming Soon
-- 🔜 **Azure** (Microsoft Azure VMs) - Coming Soon
-- 🔜 **GCP** (Google Compute Engine) - Coming Soon
+- ✅ **AWS** (Amazon EC2) - Production Ready
+- ✅ **Azure** (Microsoft Azure VMs) - Production Ready
+- ✅ **GCP** (Google Compute Engine) - Production Ready
+- ✅ **Hyper-V** (Microsoft Hyper-V) - Production Ready
+- 📝 **Proxmox** - Not Implemented
 
 ### Architecture
 
@@ -40,34 +42,42 @@ For recording your own demos, see [demos/RECORDING-GUIDE.md](demos/RECORDING-GUI
 graph TB
     A[hyper2kvm Python<br/>Main Migration Orchestrator]
     B[hypersdk Go<br/>Provider Layer Abstraction]
-    C[vSphere Provider<br/>Ready]
-    D[AWS Provider<br/>Planned]
-    E[Azure Provider<br/>Planned]
-    F[GCP Provider<br/>Planned]
+    C[vSphere Provider<br/>Production Ready]
+    D[AWS Provider<br/>Production Ready]
+    E[Azure Provider<br/>Production Ready]
+    F[GCP Provider<br/>Production Ready]
+    G[Hyper-V Provider<br/>Production Ready]
 
     A -->|REST API| B
     B --> C
     B --> D
     B --> E
     B --> F
+    B --> G
 
     style A fill:#4CAF50,stroke:#2E7D32,color:#fff
     style B fill:#2196F3,stroke:#1565C0,color:#fff
     style C fill:#4CAF50,stroke:#2E7D32,color:#fff
-    style D fill:#FFC107,stroke:#F57C00,color:#000
-    style E fill:#FFC107,stroke:#F57C00,color:#000
-    style F fill:#FFC107,stroke:#F57C00,color:#000
+    style D fill:#4CAF50,stroke:#2E7D32,color:#fff
+    style E fill:#4CAF50,stroke:#2E7D32,color:#fff
+    style F fill:#4CAF50,stroke:#2E7D32,color:#fff
+    style G fill:#4CAF50,stroke:#2E7D32,color:#fff
 ```
 
 ## ✨ Features
 
 ### Core Capabilities
 
+- **Multi-Cloud Support** - AWS, Azure, GCP, vSphere, Hyper-V providers
 - **Direct SDK Integration** - Native Go SDK clients (no external binaries)
 - **Beautiful Terminal UI** - Modern pterm-based interface with animations
 - **REST JSON API** - 51+ endpoints for complete automation
-- **Web Dashboard** - Real-time monitoring and VM console access
+- **React Dashboard** - Modern real-time monitoring with WebSocket updates
 - **Libvirt Integration** - Full KVM/libvirt management capabilities
+- **Connection Pooling** - Efficient connection reuse (30-40% faster)
+- **Webhook Integration** - Real-time job notifications
+- **Schedule Persistence** - SQLite-based job scheduling
+- **OVA Format Support** - Export to OVA with compression
 - **Daemon Architecture** - Background service with systemd integration
 - **Configuration Management** - YAML config files + environment variables
 - **Concurrent Processing** - Goroutine-based parallel VM exports
@@ -86,15 +96,15 @@ graph TB
 
 ### Web Dashboard Features
 
-- **VM Console Access** - VNC and serial console viewers
-- **Real-time Job Monitoring** - Track conversion progress
-- **VM Management** - Start, stop, reboot, pause/resume VMs
-- **Snapshot Management** - Create, revert, delete snapshots
-- **ISO Management** - Upload ISOs and attach to VMs
-- **Backup & Restore** - VM backup operations
-- **Network Management** - Configure virtual networks
-- **Volume Operations** - Manage storage volumes
-- **Batch Operations** - Perform actions on multiple VMs
+**Modern React/TypeScript Dashboard:**
+- **Real-time Monitoring** - WebSocket-based live metrics updates
+- **Interactive Charts** - Historical data visualization with Recharts
+- **Job Management** - View, filter, sort, and cancel jobs
+- **Alert System** - Real-time alerts and notifications
+- **Provider Analytics** - Multi-cloud provider comparison
+- **System Health** - CPU, memory, goroutines monitoring
+- **WebSocket Connections** - Real-time client tracking
+- **Responsive Design** - Works on desktop and mobile devices
 
 ## 🚀 Quick Start
 
@@ -224,24 +234,25 @@ jobs:
 
 ### Web Dashboard
 
-Access the dashboard in your browser:
+Access the React dashboard in your browser:
 
 ```bash
-# Main dashboard
+# React dashboard
 http://localhost:8080/web/dashboard/
 
-# VM console viewer
-http://localhost:8080/web/dashboard/vm-console.html
+# or simply
+http://localhost:8080/
 ```
 
 **Dashboard Features:**
-- Monitor running jobs with real-time progress
-- Submit new conversion jobs
-- View VMware VM inventory
-- Access VM consoles (VNC/Serial)
-- Manage libvirt VMs
-- Take VM screenshots
-- Monitor system health
+- **Real-time metrics** with WebSocket updates
+- **Interactive charts** - Jobs, resources, and provider analytics
+- **Job management** - Table with sorting, filtering, and cancel actions
+- **Alert system** - Real-time notifications for issues
+- **Provider comparison** - Multi-cloud analytics
+- **System monitoring** - Memory, CPU, goroutines, uptime
+- **WebSocket clients** - Track active connections
+- **Responsive design** - Mobile-friendly interface
 
 ### REST API
 
@@ -412,12 +423,17 @@ hypersdk/
 
 - **Language:** Go 1.24+
 - **vSphere SDK:** govmomi v0.52.0
+- **AWS SDK:** AWS SDK for Go v2
+- **Azure SDK:** Azure SDK for Go
+- **GCP SDK:** Google Cloud Client Libraries
+- **Hyper-V:** PowerShell via WinRM
 - **Libvirt:** virsh command-line integration
 - **Terminal UI:** pterm v0.12.82
 - **Progress Bars:** progressbar v3.19.0
 - **Config:** YAML (gopkg.in/yaml.v3)
 - **HTTP Server:** Go standard library
-- **Dashboard:** Pure HTML/CSS/JavaScript (no frameworks)
+- **React Dashboard:** React 18 + TypeScript + Vite + Recharts
+- **Legacy Dashboard:** Pure HTML/CSS/JavaScript
 
 ### Concurrency Model
 

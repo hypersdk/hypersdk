@@ -16,6 +16,9 @@ type ExportOptions struct {
 	ValidateChecksum       bool  // renamed from Validate to avoid conflict with Validate() method
 	ShowIndividualProgress bool
 	ShowOverallProgress    bool
+	CleanupOVF             bool  // Remove OVF files after OVA creation
+	Compress               bool  // Enable gzip compression for OVA
+	CompressionLevel       int   // Gzip compression level (0-9, default 6)
 }
 
 func DefaultExportOptions() ExportOptions {

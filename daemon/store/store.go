@@ -92,6 +92,38 @@ func (s *SQLiteStore) initSchema() error {
 
 	CREATE INDEX IF NOT EXISTS idx_job_history_job_id ON job_history(job_id);
 	CREATE INDEX IF NOT EXISTS idx_job_history_timestamp ON job_history(timestamp DESC);
+
+	CREATE TABLE IF NOT EXISTS scheduled_jobs (
+		id TEXT PRIMARY KEY,
+		name TEXT NOT NULL,
+		description TEXT,
+		schedule TEXT NOT NULL,
+		job_template_json TEXT NOT NULL,
+		enabled BOOLEAN NOT NULL DEFAULT 1,
+		created_at TIMESTAMP NOT NULL,
+		updated_at TIMESTAMP NOT NULL,
+		last_run TIMESTAMP,
+		next_run TIMESTAMP,
+		run_count INTEGER DEFAULT 0,
+		tags_json TEXT
+	);
+
+	CREATE INDEX IF NOT EXISTS idx_scheduled_enabled ON scheduled_jobs(enabled);
+	CREATE INDEX IF NOT EXISTS idx_scheduled_next_run ON scheduled_jobs(next_run);
+
+	CREATE TABLE IF NOT EXISTS schedule_executions (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		schedule_id TEXT NOT NULL,
+		job_id TEXT NOT NULL,
+		executed_at TIMESTAMP NOT NULL,
+		status TEXT NOT NULL,
+		duration_seconds REAL,
+		error TEXT,
+		FOREIGN KEY (schedule_id) REFERENCES scheduled_jobs(id) ON DELETE CASCADE
+	);
+
+	CREATE INDEX IF NOT EXISTS idx_execution_schedule ON schedule_executions(schedule_id);
+	CREATE INDEX IF NOT EXISTS idx_execution_time ON schedule_executions(executed_at DESC);
 	`
 
 	_, err := s.db.Exec(schema)

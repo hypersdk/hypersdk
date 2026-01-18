@@ -177,15 +177,20 @@ func (c *Client) ExportInstance(ctx context.Context, instanceID, outputPath stri
 
 	c.logger.Info("AMI is ready", "imageID", imageID)
 
-	// Export AMI to S3 (requires VM Import/Export role)
+	// Export instance to S3 as VMDK (requires VM Import/Export role)
+	var exportResult *ExportResult
 	if c.config.S3Bucket != "" {
 		if reporter != nil {
-			reporter.Describe("Exporting AMI to S3")
+			reporter.Describe("Exporting instance to S3 as VMDK")
 		}
 
-		// Note: Actual export to S3 requires additional setup
-		// This is a placeholder for the export logic
-		c.logger.Info("AMI export to S3 would happen here", "bucket", c.config.S3Bucket)
+		result, err := c.ExportInstanceToS3(ctx, instanceID, outputPath, reporter)
+		if err != nil {
+			c.logger.Error("S3 export failed, continuing with AMI only", "error", err)
+		} else {
+			exportResult = result
+			c.logger.Info("VMDK exported to S3", "path", result.LocalPath, "s3_key", result.S3Key)
+		}
 	}
 
 	// Create metadata file
@@ -318,23 +323,28 @@ func (c *Client) saveMetadata(vmInfo *VMInfo, imageID, path string) error {
 	return os.WriteFile(path, []byte(metadata), 0644)
 }
 
-// DownloadSnapshot downloads an EBS snapshot (placeholder implementation)
+// DownloadSnapshot downloads an EBS snapshot as VMDK via S3
 func (c *Client) DownloadSnapshot(ctx context.Context, snapshotID, outputPath string, reporter progress.ProgressReporter) error {
 	c.logger.Info("downloading EBS snapshot", "snapshotID", snapshotID)
 
-	// Note: Direct snapshot download is not supported by AWS
-	// This would typically involve:
-	// 1. Creating a volume from snapshot
-	// 2. Attaching to a temporary instance
-	// 3. Using tools like dd to copy the data
-	// 4. Or using AWS Import/Export
-
-	if reporter != nil {
-		reporter.Describe("Snapshot download requires additional AWS setup")
-		reporter.Update(0)
+	if c.config.S3Bucket == "" {
+		return fmt.Errorf("S3 bucket required for snapshot export - configure S3Bucket in client config")
 	}
 
-	return fmt.Errorf("snapshot download not yet implemented - requires VM Import/Export setup")
+	// Export snapshot to S3 as VMDK
+	result, err := c.ExportSnapshotToS3(ctx, snapshotID, outputPath, reporter)
+	if err != nil {
+		return fmt.Errorf("export snapshot to S3: %w", err)
+	}
+
+	c.logger.Info("snapshot downloaded successfully", "path", result.LocalPath, "size_bytes", result.Size)
+
+	if reporter != nil {
+		reporter.Describe("Snapshot export complete")
+		reporter.Update(100)
+	}
+
+	return nil
 }
 
 // Close cleans up resources

@@ -23,6 +23,8 @@ type VMInfo struct {
 type ExportResult struct {
 	OutputDir string
 	OVFPath   string
+	OVAPath   string // Path to OVA file (if Format is "ova")
+	Format    string // "ovf" or "ova"
 	Files     []string
 	TotalSize int64
 	Duration  time.Duration
