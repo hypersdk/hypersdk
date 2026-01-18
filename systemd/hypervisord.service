@@ -6,12 +6,12 @@ Wants=network-online.target hyper2kvm-daemon.service
 
 [Service]
 Type=simple
-User=root
-Group=root
-WorkingDirectory=/var/lib/hypervisord
+User=hypersdk
+Group=hypersdk
+WorkingDirectory=/var/lib/hypersdk
 
 # Binary and config
-ExecStart=/usr/local/bin/hypervisord --config /etc/hypervisord/config.yaml
+ExecStart=/usr/bin/hypervisord --config /etc/hypersdk/config.yaml
 ExecReload=/bin/kill -HUP $MAINPID
 
 # Restart policy
@@ -38,7 +38,7 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=/var/lib/hypervisord /var/lib/hyper2kvm /tmp
+ReadWritePaths=/var/lib/hypersdk /var/log/hypersdk /var/lib/hyper2kvm /tmp
 ProtectKernelTunables=true
 ProtectKernelModules=true
 ProtectControlGroups=true
