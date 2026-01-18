@@ -1,0 +1,387 @@
+# Interactive Mode User Guide
+
+The interactive mode provides a powerful Terminal User Interface (TUI) for discovering, filtering, and migrating VMs from vSphere to KVM.
+
+## Table of Contents
+
+- [Getting Started](#getting-started)
+- [Navigation Controls](#navigation-controls)
+- [Search and Filter](#search-and-filter)
+- [Sorting](#sorting)
+- [Selection](#selection)
+- [Detail View](#detail-view)
+- [Dry-Run Mode](#dry-run-mode)
+- [Migration Workflow](#migration-workflow)
+- [Keyboard Reference](#keyboard-reference)
+
+## Getting Started
+
+Launch interactive mode:
+
+```bash
+# Using daemon API
+hyperctl migrate
+
+# Using direct vCenter connection
+export GOVC_URL='https://vcenter.example.com/sdk'
+export GOVC_USERNAME='administrator@vsphere.local'
+export GOVC_PASSWORD='your-password'
+export GOVC_INSECURE=1
+hyperctl migrate
+```
+
+## Navigation Controls
+
+### Basic Movement
+
+- **↑ / k** - Move cursor up
+- **↓ / j** - Move cursor down
+- **Space** - Select/deselect current VM
+- **Enter** - Proceed to next step
+- **Esc / b** - Go back to previous step
+- **q** - Quit
+
+The interface automatically displays a scrolling window when you have more VMs than can fit on screen. The cursor stays centered as you navigate through long lists.
+
+## Search and Filter
+
+### Search (`/` key)
+
+Press `/` to enter search mode. Search is **case-insensitive** and matches against:
+
+- VM name
+- VM path
+- Guest OS type
+
+**Example searches:**
+- `ubuntu` - Finds all VMs with "ubuntu" in name, path, or OS
+- `web-server` - Finds VMs with "web-server" in their name
+- `windows` - Finds all Windows VMs
+
+**Search controls:**
+- Type to search
+- **Backspace** - Delete last character
+- **Enter** - Apply search and return to VM list
+- **Esc** - Cancel search
+
+The search provides **live preview** showing:
+- Number of matching VMs
+- First 10 matching VMs
+- Count of additional matches
+
+### Power State Filter (`f` key)
+
+Press `f` repeatedly to cycle through power state filters:
+
+1. **All VMs** (no filter)
+2. **Powered ON only** - Shows only running VMs
+3. **Powered OFF only** - Shows only stopped VMs
+
+Current filter is shown in the status bar.
+
+### Clear Filters (`c` key)
+
+Press `c` to clear all active filters and searches at once, returning to the full VM list.
+
+## Sorting
+
+Press `s` to cycle through sort modes:
+
+1. **Name** (A-Z) - Alphabetical by VM name
+2. **CPU** - By CPU count (highest first)
+3. **Memory** - By memory allocation (highest first)
+4. **Storage** - By storage size (largest first)
+5. **Power** - Powered ON VMs first, then powered OFF
+
+Current sort mode is displayed in the help text.
+
+**Performance note:** Sorting uses efficient O(n log n) algorithms and is instant even with 1000+ VMs.
+
+## Selection
+
+### Select Individual VMs
+
+- Position cursor on VM
+- Press **Space** to toggle selection
+- Selected VMs are marked with **[✓]**
+- Unselected VMs are marked with **[ ]**
+
+### Bulk Selection
+
+- **a** - Select all visible VMs (respects filters)
+- **n** - Deselect all visible VMs
+
+**Important:** Bulk selection only affects currently visible VMs. If you've applied filters, only the filtered VMs are selected/deselected.
+
+### Selection Status
+
+The status bar shows:
+```
+📊 Total VMs: 50 | Visible: 20 | ✅ Selected: 5
+```
+
+- **Total VMs** - All VMs in vCenter
+- **Visible** - VMs matching current filters
+- **Selected** - VMs selected for migration (across all filters)
+
+## Detail View
+
+Press `d` or `i` to view detailed information about the VM under the cursor.
+
+**Displays:**
+- Full VM name (no truncation)
+- vCenter path
+- Power state
+- Guest OS
+- CPU count
+- Memory (in GB and MB)
+- Storage (formatted and bytes)
+- Selection status
+
+**Controls in detail view:**
+- **Space / Enter** - Toggle selection
+- **Esc / b** - Return to VM list
+
+## Dry-Run Mode
+
+Press `r` to toggle dry-run mode.
+
+**What is dry-run mode?**
+- Preview migration without executing
+- Test filters and selections
+- Verify settings before committing
+- See exactly what would be migrated
+
+**Visual indicators:**
+- `[DRY-RUN]` badge in help text
+- Prominent warnings in confirmation screens
+- Systemd service creation blocked
+
+**Perfect for:**
+- Testing complex filter combinations
+- Verifying multi-VM selections
+- Training and demonstrations
+- Planning migration batches
+
+## Migration Workflow
+
+### 1. VM Selection Screen
+
+**Status Bar:**
+```
+📊 Total VMs: 100 | Visible: 45 | ✅ Selected: 8
+🔍 Search: ubuntu | ⚡ Power: on
+```
+
+**Actions:**
+- Browse, filter, sort, search
+- Select VMs for migration
+- View details
+- Press **Enter** when ready
+
+### 2. Confirmation Screen
+
+**Shows:**
+- List of selected VMs with full details
+- Total resources (CPUs, memory, storage)
+- Export settings
+- Migration pipeline (export → convert → import)
+
+**Controls:**
+- **y/Y** - Confirm and proceed
+- **n/N / Esc / b** - Go back to selection
+- **q** - Quit
+
+### 3. Execution Mode Selection
+
+Choose how to run the migration:
+
+#### Terminal Mode (Interactive)
+```
+✓ Watch progress in real-time
+✓ See immediate feedback
+✓ Requires keeping terminal open
+⚠  Terminal must stay active during migration
+```
+
+**Use when:**
+- You want to monitor progress
+- Migration is short (< 1 hour)
+- You're on a stable connection
+
+#### Systemd Service (Background)
+```
+✓ Runs in background
+✓ Can close terminal and come back later
+✓ Survives SSH disconnections
+✓ Check status with: journalctl -u vm-migration@<job-id>
+ℹ  Perfect for long migrations or remote work
+```
+
+**Use when:**
+- Migration will take hours
+- You're on an unstable connection
+- You need to disconnect and check back later
+
+### 4. Migration Execution
+
+The migration proceeds in stages:
+
+1. **Export** - VM downloaded as OVF from vSphere
+2. **Convert** - OVF converted to qcow2 (if enabled)
+3. **Import** - qcow2 imported to libvirt (if enabled)
+
+## Keyboard Reference
+
+### Navigation
+| Key | Action |
+|-----|--------|
+| ↑ / k | Move up |
+| ↓ / j | Move down |
+| Space | Select/deselect VM |
+| Enter | Continue/confirm |
+| Esc / b | Go back |
+| q | Quit |
+
+### Search & Filter
+| Key | Action |
+|-----|--------|
+| / | Enter search mode |
+| s | Cycle sort mode |
+| f | Toggle power filter |
+| c | Clear all filters |
+
+### View & Selection
+| Key | Action |
+|-----|--------|
+| a | Select all visible |
+| n | Deselect all visible |
+| d / i | Show detail view |
+| r | Toggle dry-run mode |
+
+## Examples
+
+### Example 1: Find and migrate all Ubuntu VMs
+
+1. Press `/`
+2. Type `ubuntu`
+3. Press **Enter**
+4. Review filtered list
+5. Press `a` to select all
+6. Press **Enter** to continue
+
+### Example 2: Migrate only powered-off Windows VMs
+
+1. Press `f` twice (to filter powered OFF)
+2. Press `/`
+3. Type `windows`
+4. Press **Enter**
+5. Press `a` to select all matching
+6. Press **Enter** to continue
+
+### Example 3: Preview large VM migration without executing
+
+1. Press `s` multiple times until sorting by "storage"
+2. Select top 5 VMs (largest storage)
+3. Press `r` to enable dry-run
+4. Press **Enter** to review
+5. Confirm to see what would happen
+6. Press `r` again to disable dry-run if you want to proceed
+
+### Example 4: Detailed inspection before migration
+
+1. Navigate to interesting VM
+2. Press `d` to view details
+3. Review all specs
+4. Press **Space** to select
+5. Press **Esc** to return to list
+6. Repeat for other VMs
+
+## Performance Notes
+
+- **Search/Filter:** Instant for 1000+ VMs
+- **Sorting:** O(n log n) performance, optimized for large lists
+- **Selection:** Map-based lookups for O(n) bulk operations
+- **Rendering:** Shows 20 VMs at a time, scrolls smoothly
+
+## Troubleshooting
+
+### "No VMs found"
+
+**Check:**
+1. Daemon is running: `sudo systemctl status hyper2kvmd`
+2. vCenter credentials are correct
+3. Environment variables are set (for direct connection)
+4. Your user has permission to list VMs
+
+### Search returns no results
+
+**Try:**
+1. Clear filters with `c`
+2. Check search term spelling
+3. Search is case-insensitive, but spelling must match
+4. Try searching by path or OS instead of name
+
+### VMs not visible after filtering
+
+**Solution:**
+- Press `c` to clear all filters
+- VMs may be filtered out by power state or search
+
+### Can't select VMs
+
+**Ensure:**
+- You're in selection mode (not search or detail view)
+- Press **Esc** if you're in another mode
+- Use **Space** on the VM under the cursor
+
+## Best Practices
+
+1. **Start with search/filter** - Narrow down before bulk operations
+2. **Use detail view** - Verify specs before migration
+3. **Test with dry-run** - Always preview first for critical migrations
+4. **Sort strategically** - Use CPU/memory sort to group similar VMs
+5. **Select incrementally** - Filter → select → filter again → select more
+6. **Use systemd service** - For any migration longer than 30 minutes
+
+## Advanced Workflows
+
+### Batch Migration Strategy
+
+1. **Group by size:** Sort by storage
+2. **Migrate small first:** Select bottom 10 VMs
+3. **Test migration:** Run in terminal mode
+4. **If successful:** Migrate larger batches via systemd service
+
+### Staged Migration
+
+1. **Day 1:** Filter powered OFF, migrate all
+2. **Day 2:** Filter by development environment, migrate
+3. **Day 3:** Filter by production, schedule maintenance window
+4. **Migrate:** Use systemd service for production VMs
+
+### Selective Migration
+
+```bash
+# Find all database servers
+Press / → type "mysql" OR "postgres" OR "mongodb"
+
+# Review each
+Press d on each VM to inspect
+
+# Select only production
+Space on each production DB server
+
+# Dry-run to verify
+Press r → Enter → review → Esc
+
+# Execute
+Press r → Enter → y
+```
+
+## See Also
+
+- [Migration Architecture](../architecture.md)
+- [CLI Reference](../cli-reference.md)
+- [Daemon API](../api-reference.md)
+- [Troubleshooting Guide](../troubleshooting.md)

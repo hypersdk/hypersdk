@@ -1,0 +1,31 @@
+{
+  "jobs": [
+    {
+      "name": "export-win2022",
+      "vm_path": "/data/vm/Auto-esx8.0-win2022",
+      "output_path": "/tmp/exports/win2022",
+      "options": {
+        "parallel_downloads": 8,
+        "remove_cdrom": true,
+        "show_individual_progress": true
+      }
+    },
+    {
+      "name": "export-rhel8",
+      "vm_path": "/data/vm/Auto-esx8.0-rhel8.9-with-multiple-snapshots",
+      "output_path": "/tmp/exports/rhel8",
+      "options": {
+        "parallel_downloads": 4,
+        "remove_cdrom": true
+      }
+    },
+    {
+      "name": "export-opensuse",
+      "vm_path": "/data/vm/Auto-esx8.0-opensuse15.6-x86_64-efi",
+      "output_path": "/tmp/exports/opensuse",
+      "options": {
+        "parallel_downloads": 4
+      }
+    }
+  ]
+}

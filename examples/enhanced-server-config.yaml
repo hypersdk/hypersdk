@@ -1,0 +1,107 @@
+# Example configuration for HyperSDK Enhanced Server with Phase 2 features
+
+# Database configuration for job persistence
+database:
+  path: "/var/lib/hypersdk/jobs.db"
+
+# Prometheus metrics configuration
+metrics:
+  enabled: true
+  port: 8080
+
+# Webhook notifications
+webhooks:
+  # Slack webhook example
+  - url: "https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK"
+    events:
+      - job.completed
+      - job.failed
+    enabled: true
+    timeout: 30
+    retry_count: 3
+    headers:
+      Content-Type: "application/json"
+
+  # Custom webhook server example
+  - url: "http://your-server.com/api/hypersdk/webhook"
+    events:
+      - job.started
+      - job.completed
+      - job.failed
+      - schedule.triggered
+    enabled: true
+    timeout: 30
+    retry_count: 3
+    headers:
+      Authorization: "Bearer your-api-token-here"
+      X-Custom-Header: "your-value"
+
+  # Discord webhook example
+  - url: "https://discord.com/api/webhooks/YOUR/DISCORD/WEBHOOK"
+    events:
+      - job.failed  # Only notify on failures
+    enabled: true
+    timeout: 30
+    retry_count: 3
+
+# Example usage:
+# 1. Save this file as config.yaml
+# 2. Start the daemon with enhanced server:
+#    hypervisord --config config.yaml --enhanced
+# 3. Access the dashboard at: http://localhost:8080/dashboard
+# 4. Connect to WebSocket at: ws://localhost:8080/ws
+# 5. View metrics at: http://localhost:8080/metrics
+
+# API Endpoints Available:
+# - GET  /health                    - Health check
+# - GET  /status                    - Daemon status
+# - POST /jobs/submit               - Submit new job
+# - POST /jobs/query                - Query jobs
+# - GET  /jobs/{id}                 - Get specific job
+# - POST /jobs/cancel               - Cancel jobs
+# - GET  /schedules                 - List schedules
+# - POST /schedules                 - Create schedule
+# - GET  /schedules/{id}            - Get schedule
+# - PUT  /schedules/{id}            - Update schedule
+# - DELETE /schedules/{id}          - Delete schedule
+# - POST /schedules/{id}/enable     - Enable schedule
+# - POST /schedules/{id}/disable    - Disable schedule
+# - POST /schedules/{id}/trigger    - Trigger schedule
+# - GET  /schedules/stats           - Schedule statistics
+# - GET  /webhooks                  - List webhooks
+# - POST /webhooks                  - Add webhook
+# - DELETE /webhooks/{index}        - Delete webhook
+# - POST /webhooks/test             - Test webhook
+# - GET  /vms/list                  - List VMs
+# - GET  /vms/info                  - VM information
+# - POST /vms/shutdown              - Shutdown VM
+# - POST /vms/poweroff              - Power off VM
+# - POST /vms/remove-cdrom          - Remove CD-ROM
+# - WS   /ws                        - WebSocket real-time updates
+# - GET  /metrics                   - Prometheus metrics
+
+# Schedule Examples:
+# Cron format: minute hour day month weekday
+# - "0 2 * * *"      - Every day at 2:00 AM
+# - "*/15 * * * *"   - Every 15 minutes
+# - "0 0 * * 0"      - Every Sunday at midnight
+# - "0 9-17 * * 1-5" - Every hour from 9AM to 5PM on weekdays
+# - "0 0 1 * *"      - First day of every month at midnight
+
+# Create schedule via API:
+# curl -X POST http://localhost:8080/schedules \
+#   -H "Content-Type: application/json" \
+#   -d '{
+#     "id": "nightly-backup",
+#     "name": "Nightly VM Backup",
+#     "schedule": "0 2 * * *",
+#     "enabled": true,
+#     "job_template": {
+#       "vm_path": "Datacenter/vm/production/web-server",
+#       "output_path": "/backups/nightly",
+#       "vcenter_url": "vcenter.example.com",
+#       "username": "admin@vsphere.local",
+#       "password": "password",
+#       "datacenter": "Datacenter"
+#     }
+#   }'

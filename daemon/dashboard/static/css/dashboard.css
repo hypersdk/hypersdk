@@ -1,0 +1,367 @@
+:root {
+    --primary-color: #3b82f6;
+    --success-color: #10b981;
+    --warning-color: #f59e0b;
+    --danger-color: #ef4444;
+    --dark-bg: #1f2937;
+    --card-bg: #374151;
+    --text-primary: #f3f4f6;
+    --text-secondary: #9ca3af;
+    --border-color: #4b5563;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    background-color: var(--dark-bg);
+    color: var(--text-primary);
+    line-height: 1.6;
+}
+
+.dashboard {
+    max-width: 1600px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+/* Header */
+.header {
+    background: var(--card-bg);
+    padding: 20px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.header h1 {
+    font-size: 28px;
+    font-weight: 700;
+}
+
+.header-info {
+    display: flex;
+    gap: 20px;
+    align-items: center;
+}
+
+.connection-status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.status-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background-color: var(--danger-color);
+    animation: pulse 2s infinite;
+}
+
+.status-dot.connected {
+    background-color: var(--success-color);
+}
+
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.5;
+    }
+}
+
+.timestamp {
+    color: var(--text-secondary);
+    font-size: 14px;
+}
+
+/* Alerts */
+.alerts-container {
+    margin-bottom: 20px;
+}
+
+.alert {
+    padding: 12px 16px;
+    border-radius: 6px;
+    margin-bottom: 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+    from {
+        transform: translateY(-20px);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+.alert-critical {
+    background-color: rgba(239, 68, 68, 0.2);
+    border-left: 4px solid var(--danger-color);
+}
+
+.alert-warning {
+    background-color: rgba(245, 158, 11, 0.2);
+    border-left: 4px solid var(--warning-color);
+}
+
+.alert-info {
+    background-color: rgba(59, 130, 246, 0.2);
+    border-left: 4px solid var(--primary-color);
+}
+
+.alert-close {
+    cursor: pointer;
+    opacity: 0.7;
+}
+
+.alert-close:hover {
+    opacity: 1;
+}
+
+/* Stats Grid */
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 20px;
+    margin-bottom: 30px;
+}
+
+.stat-card {
+    background: var(--card-bg);
+    padding: 20px;
+    border-radius: 8px;
+    display: flex;
+    gap: 15px;
+    align-items: center;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.stat-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+}
+
+.stat-icon {
+    font-size: 32px;
+}
+
+.stat-content {
+    flex: 1;
+}
+
+.stat-label {
+    font-size: 14px;
+    color: var(--text-secondary);
+    margin-bottom: 5px;
+}
+
+.stat-value {
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+/* Charts */
+.charts-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+    gap: 20px;
+    margin-bottom: 30px;
+}
+
+.chart-card {
+    background: var(--card-bg);
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.chart-card h3 {
+    margin-bottom: 15px;
+    font-size: 18px;
+    color: var(--text-primary);
+}
+
+canvas {
+    max-height: 300px;
+}
+
+/* Jobs Table */
+.jobs-container {
+    background: var(--card-bg);
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    margin-bottom: 20px;
+}
+
+.jobs-container h2 {
+    margin-bottom: 20px;
+    font-size: 20px;
+}
+
+.jobs-table {
+    overflow-x: auto;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+thead {
+    background: var(--dark-bg);
+}
+
+th {
+    padding: 12px;
+    text-align: left;
+    font-weight: 600;
+    color: var(--text-secondary);
+    border-bottom: 2px solid var(--border-color);
+}
+
+td {
+    padding: 12px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+tbody tr {
+    transition: background-color 0.2s;
+}
+
+tbody tr:hover {
+    background-color: rgba(59, 130, 246, 0.1);
+}
+
+.no-data {
+    text-align: center;
+    color: var(--text-secondary);
+    padding: 40px;
+}
+
+/* Status badges */
+.status-badge {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.status-running {
+    background-color: rgba(59, 130, 246, 0.2);
+    color: var(--primary-color);
+}
+
+.status-completed {
+    background-color: rgba(16, 185, 129, 0.2);
+    color: var(--success-color);
+}
+
+.status-failed {
+    background-color: rgba(239, 68, 68, 0.2);
+    color: var(--danger-color);
+}
+
+.status-pending {
+    background-color: rgba(245, 158, 11, 0.2);
+    color: var(--warning-color);
+}
+
+/* Progress bar */
+.progress-bar {
+    width: 100px;
+    height: 8px;
+    background-color: var(--dark-bg);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--primary-color), var(--success-color));
+    transition: width 0.3s ease;
+}
+
+/* Health status */
+.health-healthy {
+    color: var(--success-color);
+    font-weight: 600;
+}
+
+.health-degraded {
+    color: var(--warning-color);
+    font-weight: 600;
+}
+
+.health-unhealthy {
+    color: var(--danger-color);
+    font-weight: 600;
+}
+
+/* Footer */
+.footer {
+    text-align: center;
+    padding: 20px;
+    color: var(--text-secondary);
+    font-size: 14px;
+    border-top: 1px solid var(--border-color);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .header {
+        flex-direction: column;
+        gap: 15px;
+    }
+
+    .stats-grid {
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    }
+
+    .charts-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .jobs-table {
+        font-size: 14px;
+    }
+
+    th, td {
+        padding: 8px;
+    }
+}
+
+/* Animations */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.stat-card, .chart-card, .jobs-container {
+    animation: fadeIn 0.5s ease-out;
+}

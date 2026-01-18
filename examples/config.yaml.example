@@ -1,0 +1,52 @@
+# hyper2kvm-providers configuration file
+# All settings can be overridden with environment variables
+
+# vSphere connection settings
+VCenterURL: "https://vcenter.example.com/sdk"
+Username: "administrator@vsphere.local"
+Password: "your-password"
+Insecure: true  # Skip TLS verification (for self-signed certs)
+Timeout: 3600s  # Connection timeout (3600s = 1 hour)
+
+# Daemon settings
+DaemonAddr: "localhost:8080"  # API server listen address
+LogLevel: "info"  # debug, info, warn, error
+
+# Web Dashboard settings (Phase 2)
+web:
+  disabled: false  # Set to true to disable web dashboard (API-only mode)
+  # Default: false (web dashboard enabled)
+  # Use --disable-web CLI flag to disable without changing config
+
+# Download settings
+DownloadWorkers: 4  # Number of parallel file downloads
+ChunkSize: 33554432  # Download chunk size in bytes (32MB)
+RetryAttempts: 3  # Number of retry attempts for failed downloads
+RetryDelay: 5s  # Delay between retries
+
+# Progress display settings
+ProgressStyle: "bar"  # bar, spinner, quiet
+ShowETA: true  # Show estimated time remaining
+RefreshRate: 100ms  # Progress bar refresh rate
+
+# Example configurations:
+
+# Production with custom port:
+# DaemonAddr: "0.0.0.0:9090"
+# LogLevel: "warn"
+# DownloadWorkers: 8
+
+# Development/Debug:
+# DaemonAddr: "localhost:8080"
+# LogLevel: "debug"
+# DownloadWorkers: 2
+
+# High-performance:
+# DownloadWorkers: 10
+# ChunkSize: 67108864  # 64MB chunks
+# RetryAttempts: 5
+
+# API-only mode (no web dashboard):
+# web:
+#   disabled: true  # Disable web UI for security/embedded systems
+# Or use: ./hypervisord --disable-web

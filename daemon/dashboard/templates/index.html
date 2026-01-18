@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HyperSDK Dashboard</title>
+    <link rel="stylesheet" href="/static/css/dashboard.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+    <div class="dashboard">
+        <header class="header">
+            <h1>🚀 HyperSDK Dashboard</h1>
+            <div class="header-info">
+                <span class="connection-status" id="connectionStatus">
+                    <span class="status-dot" id="statusDot"></span>
+                    <span id="statusText">Connecting...</span>
+                </span>
+                <span class="timestamp" id="timestamp"></span>
+            </div>
+        </header>
+
+        <div class="alerts-container" id="alertsContainer"></div>
+
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-icon">🔄</div>
+                <div class="stat-content">
+                    <div class="stat-label">Active Jobs</div>
+                    <div class="stat-value" id="jobsActive">0</div>
+                </div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-icon">✅</div>
+                <div class="stat-content">
+                    <div class="stat-label">Completed</div>
+                    <div class="stat-value" id="jobsCompleted">0</div>
+                </div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-icon">❌</div>
+                <div class="stat-content">
+                    <div class="stat-label">Failed</div>
+                    <div class="stat-value" id="jobsFailed">0</div>
+                </div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-icon">⏳</div>
+                <div class="stat-content">
+                    <div class="stat-label">Queue Length</div>
+                    <div class="stat-value" id="queueLength">0</div>
+                </div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-icon">🌐</div>
+                <div class="stat-content">
+                    <div class="stat-label">HTTP Requests</div>
+                    <div class="stat-value" id="httpRequests">0</div>
+                </div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-icon">⚡</div>
+                <div class="stat-content">
+                    <div class="stat-label">Avg Response</div>
+                    <div class="stat-value" id="avgResponse">0ms</div>
+                </div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-icon">💾</div>
+                <div class="stat-content">
+                    <div class="stat-label">Memory</div>
+                    <div class="stat-value" id="memoryUsage">0MB</div>
+                </div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-icon">🔧</div>
+                <div class="stat-content">
+                    <div class="stat-label">CPU Usage</div>
+                    <div class="stat-value" id="cpuUsage">0%</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="charts-grid">
+            <div class="chart-card">
+                <h3>Job Status Distribution</h3>
+                <canvas id="jobStatusChart"></canvas>
+            </div>
+
+            <div class="chart-card">
+                <h3>Jobs Over Time</h3>
+                <canvas id="jobsTimeChart"></canvas>
+            </div>
+
+            <div class="chart-card">
+                <h3>Provider Distribution</h3>
+                <canvas id="providerChart"></canvas>
+            </div>
+
+            <div class="chart-card">
+                <h3>System Resources</h3>
+                <canvas id="resourcesChart"></canvas>
+            </div>
+        </div>
+
+        <div class="jobs-container">
+            <h2>Recent Jobs</h2>
+            <div class="jobs-table">
+                <table id="jobsTable">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Name</th>
+                            <th>Status</th>
+                            <th>Progress</th>
+                            <th>Provider</th>
+                            <th>VM Name</th>
+                            <th>Duration</th>
+                            <th>Start Time</th>
+                        </tr>
+                    </thead>
+                    <tbody id="jobsTableBody">
+                        <tr>
+                            <td colspan="8" class="no-data">No jobs yet</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <footer class="footer">
+            <p>HyperSDK Dashboard • <span id="clientCount">0</span> active connections • System Health: <span id="systemHealth" class="health-healthy">Healthy</span></p>
+        </footer>
+    </div>
+
+    <script src="/static/js/dashboard.js"></script>
+</body>
+</html>

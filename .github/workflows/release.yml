@@ -1,0 +1,251 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-binaries:
+    name: Build Release Binaries
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+          - goos: linux
+            goarch: arm64
+          - goos: darwin
+            goarch: amd64
+          - goos: darwin
+            goarch: arm64
+          - goos: windows
+            goarch: amd64
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v6
+      with:
+        go-version: '1.24'
+
+    - name: Get version from tag
+      id: get_version
+      run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+    - name: Build binaries
+      env:
+        GOOS: ${{ matrix.goos }}
+        GOARCH: ${{ matrix.goarch }}
+        CGO_ENABLED: 0
+      run: |
+        VERSION=${{ steps.get_version.outputs.VERSION }}
+        LDFLAGS="-X main.version=${VERSION} -s -w"
+
+        # Build all three binaries
+        go build -ldflags="${LDFLAGS}" -o hyperexport-${{ matrix.goos }}-${{ matrix.goarch }} ./cmd/hyperexport
+        go build -ldflags="${LDFLAGS}" -o hypervisord-${{ matrix.goos }}-${{ matrix.goarch }} ./cmd/hypervisord
+        go build -ldflags="${LDFLAGS}" -o hyperctl-${{ matrix.goos }}-${{ matrix.goarch }} ./cmd/hyperctl
+
+        # Add .exe extension for Windows
+        if [ "${{ matrix.goos }}" = "windows" ]; then
+          mv hyperexport-${{ matrix.goos }}-${{ matrix.goarch }} hyperexport-${{ matrix.goos }}-${{ matrix.goarch }}.exe
+          mv hypervisord-${{ matrix.goos }}-${{ matrix.goarch }} hypervisord-${{ matrix.goos }}-${{ matrix.goarch }}.exe
+          mv hyperctl-${{ matrix.goos }}-${{ matrix.goarch }} hyperctl-${{ matrix.goos }}-${{ matrix.goarch }}.exe
+        fi
+
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: binaries-${{ matrix.goos }}-${{ matrix.goarch }}
+        path: |
+          hyperexport-*
+          hypervisord-*
+          hyperctl-*
+
+  build-rpm:
+    name: Build RPM Package
+    runs-on: ubuntu-latest
+    container: fedora:latest
+
+    steps:
+    - name: Install dependencies
+      run: |
+        dnf install -y rpm-build rpmdevtools golang git tar gzip
+
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Get version from tag
+      id: get_version
+      run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+    - name: Update version in spec file
+      run: |
+        sed -i "s/^Version:.*/Version:        ${{ steps.get_version.outputs.VERSION }}/" hypersdk.spec
+
+    - name: Set up RPM build tree
+      run: |
+        rpmdev-setuptree
+        mkdir -p ~/rpmbuild/SOURCES
+
+    - name: Create source tarball
+      run: |
+        VERSION=${{ steps.get_version.outputs.VERSION }}
+        mkdir -p hypersdk-${VERSION}
+        cp -r * hypersdk-${VERSION}/ 2>/dev/null || true
+        tar czf ~/rpmbuild/SOURCES/hypersdk-${VERSION}.tar.gz hypersdk-${VERSION}
+
+    - name: Build RPM
+      run: |
+        rpmbuild -ba hypersdk.spec
+
+    - name: Find RPMs
+      run: |
+        find ~/rpmbuild/RPMS/ -name "*.rpm" -exec cp {} . \;
+        find ~/rpmbuild/SRPMS/ -name "*.rpm" -exec cp {} . \;
+        ls -lh *.rpm
+
+    - name: Upload RPM artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: rpm-packages
+        path: "*.rpm"
+
+  create-release:
+    name: Create GitHub Release
+    needs: [build-binaries, build-rpm]
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: artifacts
+
+    - name: Organize release files
+      run: |
+        mkdir -p release
+        find artifacts -type f -exec cp {} release/ \;
+        ls -lhR release/
+
+    - name: Generate changelog
+      id: changelog
+      run: |
+        VERSION=${GITHUB_REF#refs/tags/v}
+
+        # Extract changelog for this version from spec file
+        CHANGELOG=$(awk "/^%changelog/,/^* [A-Z]/ {print}" hypersdk.spec | head -20)
+
+        # Create release notes
+        cat > release-notes.md <<EOF
+        # hypersdk ${VERSION}
+
+        High-performance vSphere VM export toolkit
+
+        ## Downloads
+
+        ### Linux (amd64)
+        - \`hyperexport-linux-amd64\` - Interactive export CLI
+        - \`hypervisord-linux-amd64\` - Background daemon
+        - \`hyperctl-linux-amd64\` - Control CLI
+
+        ### Linux (arm64)
+        - \`hyperexport-linux-arm64\` - Interactive export CLI
+        - \`hypervisord-linux-arm64\` - Background daemon
+        - \`hyperctl-linux-arm64\` - Control CLI
+
+        ### macOS (Intel)
+        - \`hyperexport-darwin-amd64\` - Interactive export CLI
+        - \`hypervisord-darwin-amd64\` - Background daemon
+        - \`hyperctl-darwin-amd64\` - Control CLI
+
+        ### macOS (Apple Silicon)
+        - \`hyperexport-darwin-arm64\` - Interactive export CLI
+        - \`hypervisord-darwin-arm64\` - Background daemon
+        - \`hyperctl-darwin-arm64\` - Control CLI
+
+        ### Windows
+        - \`hyperexport-windows-amd64.exe\` - Interactive export CLI
+        - \`hypervisord-windows-amd64.exe\` - Background daemon
+        - \`hyperctl-windows-amd64.exe\` - Control CLI
+
+        ### RPM Package (Fedora/RHEL/CentOS)
+        - \`hypersdk-${VERSION}-1.*.rpm\` - Complete package with systemd service
+
+        ## Installation
+
+        ### Binary Installation
+
+        Download the appropriate binary for your platform and make it executable:
+
+        \`\`\`bash
+        # Linux amd64 example
+        wget https://github.com/ssahani/hypersdk/releases/download/v${VERSION}/hypervisord-linux-amd64
+        chmod +x hypervisord-linux-amd64
+        sudo mv hypervisord-linux-amd64 /usr/local/bin/hypervisord
+        \`\`\`
+
+        ### RPM Installation
+
+        \`\`\`bash
+        # Fedora/RHEL/CentOS
+        sudo dnf install hypersdk-${VERSION}-1.*.rpm
+
+        # Configure vCenter credentials
+        sudo vim /etc/hypersdk/config.yaml
+
+        # Start daemon
+        sudo systemctl enable --now hypervisord
+        \`\`\`
+
+        ## What's Included
+
+        - **hyperexport**: Interactive CLI with beautiful terminal UI for manual VM exports
+        - **hypervisord**: REST API daemon for automation and batch processing
+        - **hyperctl**: Control CLI for job submission and status queries
+
+        ## Quick Start
+
+        See [GETTING-STARTED.md](https://github.com/ssahani/hypersdk/blob/main/GETTING-STARTED.md) for detailed usage instructions.
+
+        ## Changelog
+
+        ${CHANGELOG}
+        EOF
+
+        cat release-notes.md
+
+    - name: Create Release
+      uses: softprops/action-gh-release@v2
+      with:
+        body_path: release-notes.md
+        files: release/*
+        draft: false
+        prerelease: false
+        generate_release_notes: true
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  publish-verification:
+    name: Verify Release
+    needs: create-release
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Download Linux amd64 binary
+      run: |
+        VERSION=${GITHUB_REF#refs/tags/v}
+        wget https://github.com/ssahani/hypersdk/releases/download/v${VERSION}/hypervisord-linux-amd64
+        chmod +x hypervisord-linux-amd64
+        ./hypervisord-linux-amd64 --version || true
+        file hypervisord-linux-amd64

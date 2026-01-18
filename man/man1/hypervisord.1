@@ -1,0 +1,129 @@
+.TH HYPERVISORD 1 "January 2026" "hypervisord 1.0.0" "Hypervisor SDK"
+.SH NAME
+hypervisord \- VM export daemon with REST API
+.SH SYNOPSIS
+.B hypervisord
+[\fB\-\-config\fR \fIFILE\fR]
+[\fB\-\-addr\fR \fIADDRESS\fR]
+[\fB\-\-log\-level\fR \fILEVEL\fR]
+[\fB\-\-version\fR]
+.SH DESCRIPTION
+.B hypervisord
+is a background daemon that provides a REST API for exporting virtual machines
+from VMware vSphere and other hypervisors. It handles job management, concurrent
+exports, and progress tracking.
+.PP
+The daemon connects to vCenter/ESXi using the VMware Go SDK (govmomi) and provides
+endpoints for submitting export jobs, querying status, and managing the export queue.
+.SH OPTIONS
+.TP
+.BR \-\-config " " \fIFILE\fR
+Path to configuration file (default: /etc/hypervisord/config.yaml)
+.TP
+.BR \-\-addr " " \fIADDRESS\fR
+HTTP server listen address (default: localhost:8080)
+.TP
+.BR \-\-log\-level " " \fILEVEL\fR
+Set log level: debug, info, warn, error (default: info)
+.TP
+.BR \-\-version
+Show version information
+.SH CONFIGURATION
+The configuration file uses YAML format and supports the following fields:
+.PP
+.RS 4
+.nf
+VCenterURL: "https://vcenter.example.com/sdk"
+Username: "administrator@vsphere.local"
+Password: "secret"
+Insecure: true
+DaemonAddr: "localhost:8080"
+LogLevel: "info"
+Download Workers: 4
+.fi
+.RE
+.SH ENVIRONMENT
+.TP
+.B GOVC_URL
+vCenter SDK URL (overrides config file)
+.TP
+.B GOVC_USERNAME
+vCenter username
+.TP
+.B GOVC_PASSWORD
+vCenter password
+.TP
+.B GOVC_INSECURE
+Skip TLS verification (1=yes, 0=no)
+.TP
+.B DAEMON_ADDR
+HTTP server listen address
+.TP
+.B LOG_LEVEL
+Logging level (debug|info|warn|error)
+.SH REST API
+The daemon exposes the following endpoints:
+.TP
+.B GET /health
+Health check endpoint
+.TP
+.B GET /status
+Daemon status and statistics
+.TP
+.B POST /jobs/submit
+Submit a new export job
+.TP
+.B POST /jobs/query
+Query job status
+.TP
+.B POST /jobs/cancel
+Cancel running jobs
+.SH EXAMPLES
+Start the daemon with default settings:
+.PP
+.RS 4
+hypervisord
+.RE
+.PP
+Start with custom configuration:
+.PP
+.RS 4
+hypervisord \-\-config /etc/hypervisord/prod.yaml
+.RE
+.PP
+Start with custom listen address:
+.PP
+.RS 4
+hypervisord \-\-addr 0.0.0.0:8080 \-\-log\-level debug
+.RE
+.SH FILES
+.TP
+.I /etc/hypervisord/config.yaml
+Default configuration file
+.TP
+.I /var/lib/hypervisord/
+Working directory for exports
+.TP
+.I /var/log/hypervisord/
+Log directory (when not using systemd journal)
+.SH SYSTEMD
+The daemon can be managed as a systemd service:
+.PP
+.RS 4
+.nf
+sudo systemctl start hypervisord
+sudo systemctl enable hypervisord
+sudo systemctl status hypervisord
+sudo journalctl \-u hypervisord \-f
+.fi
+.RE
+.SH SEE ALSO
+.BR hyperctl (1),
+.BR hyperexport (1)
+.SH AUTHOR
+Written by Susant Sahani <ssahani@gmail.com>
+.SH COPYRIGHT
+Copyright \(co 2026 Susant Sahani.
+License: LGPL-3.0-or-later
+.SH BUGS
+Report bugs at: https://github.com/ssahani/hypersdk/issues

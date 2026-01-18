@@ -1,0 +1,254 @@
+.TH HYPEREXPORT 1 "January 2026" "hyperexport 1.0.0" "Hypervisor SDK"
+.SH NAME
+hyperexport \- interactive VM export CLI
+.SH SYNOPSIS
+.B hyperexport
+[\fB\-\-version\fR]
+.SH DESCRIPTION
+.B hyperexport
+is an interactive command-line tool for exporting virtual machines from
+VMware vSphere with a beautiful terminal UI. It provides VM discovery,
+interactive selection, and real-time progress tracking.
+.PP
+The tool connects directly to vCenter/ESXi using the VMware Go SDK and
+provides a modern, user-friendly interface with:
+.RS 4
+.IP \(bu 2
+Automatic VM discovery
+.IP \(bu 2
+Interactive VM selection with search/filtering
+.IP \(bu 2
+Real-time progress bars and ETAs
+.IP \(bu 2
+Parallel download support
+.IP \(bu 2
+Resumable downloads with automatic retry
+.RE
+.SH OPTIONS
+.TP
+.BR \-\-version
+Show version information and exit
+.SH CONFIGURATION
+.B hyperexport
+uses the same configuration sources as
+.BR hypervisord (1):
+.RS 4
+.IP 1. 3
+Environment variables (highest priority)
+.IP 2. 3
+Configuration file
+.IP 3. 3
+Default values
+.RE
+.SH ENVIRONMENT
+.TP
+.B GOVC_URL
+vCenter SDK URL (required)
+.br
+Example: https://vcenter.example.com/sdk
+.TP
+.B GOVC_USERNAME
+vCenter username (required)
+.br
+Example: administrator@vsphere.local
+.TP
+.B GOVC_PASSWORD
+vCenter password (required)
+.TP
+.B GOVC_INSECURE
+Skip TLS verification (default: 0)
+.br
+Set to 1 for self-signed certificates
+.TP
+.B GOVC_DATACENTER
+Default datacenter (optional)
+.TP
+.B DOWNLOAD_WORKERS
+Number of parallel downloads (default: 4)
+.TP
+.B LOG_LEVEL
+Logging level: debug, info, warn, error (default: info)
+.SH INTERACTIVE MODE
+When launched,
+.B hyperexport
+presents an interactive interface:
+.PP
+.B 1. Connection
+.RS 4
+Connects to vCenter and authenticates
+.RE
+.PP
+.B 2. VM Discovery
+.RS 4
+Scans and lists all available VMs with animated spinner
+.RE
+.PP
+.B 3. VM Selection
+.RS 4
+Interactive list with search/filter capabilities
+.br
+Use arrow keys to navigate, type to search, Enter to select
+.RE
+.PP
+.B 4. Export Configuration
+.RS 4
+Choose output directory and export options
+.RE
+.PP
+.B 5. Progress Tracking
+.RS 4
+Real-time progress bars for each disk
+.br
+Shows download speed, ETA, and completion percentage
+.RE
+.SH EXAMPLES
+.SS Basic Usage
+.PP
+Set credentials and run:
+.RS 4
+.nf
+export GOVC_URL="https://vcenter.example.com/sdk"
+export GOVC_USERNAME="admin@vsphere.local"
+export GOVC_PASSWORD="secret"
+export GOVC_INSECURE=1
+
+hyperexport
+.fi
+.RE
+.SS With Debug Logging
+.PP
+.RS 4
+.nf
+LOG_LEVEL=debug hyperexport
+.fi
+.RE
+.SS Custom Worker Count
+.PP
+For faster downloads on high-bandwidth connections:
+.RS 4
+.nf
+DOWNLOAD_WORKERS=8 hyperexport
+.fi
+.RE
+.SH OUTPUT
+Exports are saved in OVF format with the following structure:
+.PP
+.RS 4
+.nf
+output_directory/
+  vm-name/
+    vm-name.ovf           # OVF descriptor
+    vm-name.mf            # Manifest file
+    disk-0.vmdk          # Virtual disks
+    disk-1.vmdk
+    ...
+.fi
+.RE
+.SH FEATURES
+.SS Beautiful Terminal UI
+.RS 4
+.IP \(bu 2
+Color-coded status indicators
+.IP \(bu 2
+Animated spinners and progress bars
+.IP \(bu 2
+Formatted tables with VM details
+.IP \(bu 2
+Real-time statistics and summaries
+.RE
+.SS Performance
+.RS 4
+.IP \(bu 2
+Parallel disk downloads
+.IP \(bu 2
+Resumable downloads with retry
+.IP \(bu 2
+Exponential backoff on errors
+.IP \(bu 2
+Streaming downloads (low memory usage)
+.RE
+.SS Safety
+.RS 4
+.IP \(bu 2
+Read-only vSphere operations
+.IP \(bu 2
+Automatic cleanup on interrupt
+.IP \(bu 2
+Comprehensive error handling
+.IP \(bu 2
+Detailed logging
+.RE
+.SH KEYBOARD CONTROLS
+In interactive mode:
+.TP
+.B Arrow Keys
+Navigate VM list
+.TP
+.B Type
+Filter/search VMs
+.TP
+.B Enter
+Select VM and proceed
+.TP
+.B Ctrl+C
+Cancel operation and exit
+.SH TROUBLESHOOTING
+.SS Connection Errors
+.PP
+Verify credentials and network:
+.RS 4
+.nf
+# Test URL
+curl \-k $GOVC_URL
+
+# Check firewall allows HTTPS (443)
+telnet vcenter.example.com 443
+.fi
+.RE
+.SS Slow Downloads
+.PP
+Increase worker count:
+.RS 4
+.nf
+DOWNLOAD_WORKERS=8 hyperexport
+.fi
+.RE
+.SS Certificate Errors
+.PP
+For self-signed certificates:
+.RS 4
+.nf
+export GOVC_INSECURE=1
+.fi
+.RE
+.SH FILES
+.TP
+.I /etc/hypervisord/config.yaml
+System-wide configuration file
+.TP
+.I ~/.hyperexport/config.yaml
+User configuration file
+.SH EXIT STATUS
+.TP
+.B 0
+Successful export
+.TP
+.B 1
+Connection or authentication error
+.TP
+.B 2
+Export failed
+.TP
+.B 130
+Interrupted by user (Ctrl+C)
+.SH SEE ALSO
+.BR hypervisord (1),
+.BR hyperctl (1),
+.BR govmomi (7)
+.SH AUTHOR
+Written by Susant Sahani <ssahani@gmail.com>
+.SH COPYRIGHT
+Copyright \(co 2026 Susant Sahani.
+License: LGPL-3.0-or-later
+.SH BUGS
+Report bugs at: https://github.com/ssahani/hypersdk/issues

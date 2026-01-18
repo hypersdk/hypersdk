@@ -1,0 +1,507 @@
+// SPDX-License-Identifier: LGPL-3.0-or-later
+
+package api
+
+import (
+	"context"
+	"crypto/subtle"
+	"net/http"
+	"path/filepath"
+	"strings"
+	"time"
+
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+
+	"hypersdk/daemon/auth"
+	"hypersdk/daemon/capabilities"
+	"hypersdk/daemon/jobs"
+	"hypersdk/daemon/metrics"
+	"hypersdk/daemon/models"
+	"hypersdk/daemon/scheduler"
+	"hypersdk/daemon/store"
+	"hypersdk/daemon/webhooks"
+	"hypersdk/logger"
+)
+
+// Config holds the configuration for the enhanced server
+type Config struct {
+	Webhooks []webhooks.Webhook `yaml:"webhooks" json:"webhooks"`
+	Database struct {
+		Path string `yaml:"path" json:"path"`
+	} `yaml:"database" json:"database"`
+	Metrics struct {
+		Enabled bool `yaml:"enabled" json:"enabled"`
+		Port    int  `yaml:"port" json:"port"`
+	} `yaml:"metrics" json:"metrics"`
+	Web struct {
+		Disabled bool `yaml:"disabled" json:"disabled"` // Disable web dashboard (default: false, web enabled)
+	} `yaml:"web" json:"web"`
+	Security struct {
+		APIKey            string   `yaml:"api_key" json:"-"`                      // API key for authentication
+		AllowedOrigins    []string `yaml:"allowed_origins" json:"allowed_origins"` // Allowed WebSocket origins
+		MaxRequestSizeMB  int      `yaml:"max_request_size_mb" json:"max_request_size_mb"`
+		RateLimitPerMin   int      `yaml:"rate_limit_per_min" json:"rate_limit_per_min"`
+		EnableAuth        bool     `yaml:"enable_auth" json:"enable_auth"`
+		TrustedProxies    []string `yaml:"trusted_proxies" json:"trusted_proxies"`
+		BlockPrivateIPs   bool     `yaml:"block_private_ips" json:"block_private_ips"` // Block private IPs in webhooks
+	} `yaml:"security" json:"security"`
+}
+
+// EnhancedServer extends the base server with new features
+type EnhancedServer struct {
+	*Server
+	scheduler       *scheduler.Scheduler
+	webhookMgr      *webhooks.Manager
+	store           store.JobStore
+	config          *Config
+	wsHub           *WSHub
+	statusTicker    *time.Ticker
+	shutdownCtx     context.Context
+	shutdownCancel  context.CancelFunc
+	authMgr         *auth.AuthManager
+}
+
+// jobExecutorAdapter adapts jobs.Manager to scheduler.JobExecutor interface
+type jobExecutorAdapter struct {
+	manager *jobs.Manager
+}
+
+func (a *jobExecutorAdapter) SubmitJob(definition models.JobDefinition) error {
+	_, err := a.manager.SubmitJob(definition)
+	return err
+}
+
+// NewEnhancedServer creates a new enhanced API server with all Phase 1 features
+func NewEnhancedServer(manager *jobs.Manager, detector *capabilities.Detector, log logger.Logger, addr string, config *Config) (*EnhancedServer, error) {
+	// Apply default security settings if not configured
+	if config.Security.MaxRequestSizeMB == 0 {
+		config.Security.MaxRequestSizeMB = 10 // 10MB default
+	}
+	if len(config.Security.AllowedOrigins) == 0 {
+		// Default to localhost for development
+		config.Security.AllowedOrigins = []string{
+			"http://localhost:8080",
+			"https://localhost:8080",
+		}
+	}
+	if config.Security.BlockPrivateIPs {
+		log.Info("webhook private IP blocking enabled")
+	}
+
+	// Create base server
+	baseServer := NewServer(manager, detector, log, addr)
+
+	// Create shutdown context
+	ctx, cancel := context.WithCancel(context.Background())
+
+	es := &EnhancedServer{
+		Server:         baseServer,
+		config:         config,
+		shutdownCtx:    ctx,
+		shutdownCancel: cancel,
+	}
+
+	// Initialize job store if database path is provided
+	if config.Database.Path != "" {
+		jobStore, err := store.NewSQLiteStore(config.Database.Path)
+		if err != nil {
+			log.Error("failed to initialize job store", "error", err)
+		} else {
+			es.store = jobStore
+			log.Info("job persistence enabled", "dbPath", config.Database.Path)
+		}
+	}
+
+	// Initialize webhook manager if webhooks array exists (even if empty)
+	if config.Webhooks != nil {
+		es.webhookMgr = webhooks.NewManager(config.Webhooks, log)
+		if len(config.Webhooks) > 0 {
+			log.Info("webhooks enabled", "count", len(config.Webhooks))
+		}
+	}
+
+	// Initialize scheduler
+	executor := &jobExecutorAdapter{manager: manager}
+	es.scheduler = scheduler.NewScheduler(executor, log)
+	es.scheduler.Start()
+	log.Info("job scheduler enabled")
+
+	// Set build info for metrics
+	metrics.SetBuildInfo("0.0.1", "go1.24")
+
+	// Initialize WebSocket hub with shutdown context
+	es.wsHub = NewWSHub()
+	es.wsHub.SetLogger(log)
+	go es.wsHub.Run(es.shutdownCtx)
+	es.statusTicker = es.StartStatusBroadcaster(es.shutdownCtx)
+	log.Info("websocket support enabled")
+
+	// Initialize authentication manager
+	es.authMgr = auth.NewAuthManager()
+	log.Info("authentication enabled")
+
+	// Register enhanced routes
+	es.registerEnhancedRoutes()
+
+	return es, nil
+}
+
+// registerEnhancedRoutes adds new API endpoints for Phase 1 features
+func (es *EnhancedServer) registerEnhancedRoutes() {
+	mux := http.NewServeMux()
+
+	// Authentication endpoints (no auth required)
+	mux.HandleFunc("/api/login", es.handleLogin)
+	mux.HandleFunc("/api/logout", es.handleLogout)
+
+	// Copy existing routes from base server
+	mux.HandleFunc("/health", es.handleHealth)
+	mux.HandleFunc("/status", es.handleStatus)
+	mux.HandleFunc("/capabilities", es.handleCapabilities)
+	mux.HandleFunc("/jobs/submit", es.handleSubmitJob)
+	mux.HandleFunc("/jobs/query", es.handleQueryJobs)
+	mux.HandleFunc("/jobs/cancel", es.handleCancelJobs)
+	mux.HandleFunc("/jobs/", es.handleGetJob)
+
+	// VM discovery and management
+	mux.HandleFunc("/vms/list", es.handleListVMs)
+	mux.HandleFunc("/vms/info", es.handleVMInfo)
+	mux.HandleFunc("/vms/shutdown", es.handleVMShutdown)
+	mux.HandleFunc("/vms/poweroff", es.handleVMPowerOff)
+	mux.HandleFunc("/vms/remove-cdrom", es.handleVMRemoveCDROM)
+
+	// Libvirt management (copied from base server)
+	mux.HandleFunc("/libvirt/domains", es.Server.handleListLibvirtDomains)
+	mux.HandleFunc("/libvirt/domain", es.Server.handleGetLibvirtDomain)
+	mux.HandleFunc("/libvirt/domain/start", es.Server.handleStartLibvirtDomain)
+	mux.HandleFunc("/libvirt/domain/shutdown", es.Server.handleShutdownLibvirtDomain)
+	mux.HandleFunc("/libvirt/domain/destroy", es.Server.handleDestroyLibvirtDomain)
+	mux.HandleFunc("/libvirt/domain/reboot", es.Server.handleRebootLibvirtDomain)
+	mux.HandleFunc("/libvirt/domain/pause", es.Server.handlePauseLibvirtDomain)
+	mux.HandleFunc("/libvirt/domain/resume", es.Server.handleResumeLibvirtDomain)
+	mux.HandleFunc("/libvirt/snapshots", es.Server.handleListLibvirtSnapshots)
+	mux.HandleFunc("/libvirt/snapshot/create", es.Server.handleCreateLibvirtSnapshot)
+	mux.HandleFunc("/libvirt/snapshot/revert", es.Server.handleRevertLibvirtSnapshot)
+	mux.HandleFunc("/libvirt/snapshot/delete", es.Server.handleDeleteLibvirtSnapshot)
+	mux.HandleFunc("/libvirt/pools", es.Server.handleListLibvirtPools)
+	mux.HandleFunc("/libvirt/volumes", es.Server.handleListLibvirtVolumes)
+	mux.HandleFunc("/libvirt/console", es.Server.handleGetLibvirtConsole)
+
+	// Network management
+	mux.HandleFunc("/libvirt/networks", es.Server.handleListNetworks)
+	mux.HandleFunc("/libvirt/network", es.Server.handleGetNetwork)
+	mux.HandleFunc("/libvirt/network/create", es.Server.handleCreateNetwork)
+	mux.HandleFunc("/libvirt/network/delete", es.Server.handleDeleteNetwork)
+	mux.HandleFunc("/libvirt/network/start", es.Server.handleStartNetwork)
+	mux.HandleFunc("/libvirt/network/stop", es.Server.handleStopNetwork)
+	mux.HandleFunc("/libvirt/interface/attach", es.Server.handleAttachInterface)
+	mux.HandleFunc("/libvirt/interface/detach", es.Server.handleDetachInterface)
+
+	// Volume operations
+	mux.HandleFunc("/libvirt/volume/info", es.Server.handleGetVolumeInfo)
+	mux.HandleFunc("/libvirt/volume/create", es.Server.handleCreateVolume)
+	mux.HandleFunc("/libvirt/volume/clone", es.Server.handleCloneVolume)
+	mux.HandleFunc("/libvirt/volume/resize", es.Server.handleResizeVolume)
+	mux.HandleFunc("/libvirt/volume/delete", es.Server.handleDeleteVolume)
+	mux.HandleFunc("/libvirt/volume/upload", es.Server.handleUploadVolume)
+	mux.HandleFunc("/libvirt/volume/wipe", es.Server.handleWipeVolume)
+
+	// Resource monitoring
+	mux.HandleFunc("/libvirt/stats", es.Server.handleGetDomainStats)
+	mux.HandleFunc("/libvirt/stats/all", es.Server.handleGetAllDomainStats)
+	mux.HandleFunc("/libvirt/stats/cpu", es.Server.handleGetCPUStats)
+	mux.HandleFunc("/libvirt/stats/memory", es.Server.handleGetMemoryStats)
+	mux.HandleFunc("/libvirt/stats/disk", es.Server.handleGetDiskIOStats)
+	mux.HandleFunc("/libvirt/stats/network", es.Server.handleGetNetworkIOStats)
+
+	// Batch operations
+	mux.HandleFunc("/libvirt/batch/start", es.Server.handleBatchStart)
+	mux.HandleFunc("/libvirt/batch/stop", es.Server.handleBatchStop)
+	mux.HandleFunc("/libvirt/batch/reboot", es.Server.handleBatchReboot)
+	mux.HandleFunc("/libvirt/batch/snapshot", es.Server.handleBatchSnapshot)
+	mux.HandleFunc("/libvirt/batch/delete", es.Server.handleBatchDelete)
+	mux.HandleFunc("/libvirt/batch/pause", es.Server.handleBatchPause)
+	mux.HandleFunc("/libvirt/batch/resume", es.Server.handleBatchResume)
+
+	// VM cloning & templates
+	mux.HandleFunc("/libvirt/clone", es.Server.handleCloneDomain)
+	mux.HandleFunc("/libvirt/clone/multiple", es.Server.handleCloneMultipleDomains)
+	mux.HandleFunc("/libvirt/template/create", es.Server.handleCreateTemplate)
+	mux.HandleFunc("/libvirt/template/deploy", es.Server.handleDeployFromTemplate)
+	mux.HandleFunc("/libvirt/template/list", es.Server.handleListTemplates)
+	mux.HandleFunc("/libvirt/template/export", es.Server.handleExportTemplate)
+
+	// ISO management
+	mux.HandleFunc("/libvirt/isos/list", es.Server.handleListISOs)
+	mux.HandleFunc("/libvirt/isos/upload", es.Server.handleUploadISO)
+	mux.HandleFunc("/libvirt/isos/delete", es.Server.handleDeleteISO)
+	mux.HandleFunc("/libvirt/domain/attach-iso", es.Server.handleAttachISO)
+	mux.HandleFunc("/libvirt/domain/detach-iso", es.Server.handleDetachISO)
+
+	// Backup & restore
+	mux.HandleFunc("/libvirt/backup/create", es.Server.handleCreateBackup)
+	mux.HandleFunc("/libvirt/backup/list", es.Server.handleListBackups)
+	mux.HandleFunc("/libvirt/backup/restore", es.Server.handleRestoreBackup)
+	mux.HandleFunc("/libvirt/backup/verify", es.Server.handleVerifyBackup)
+	mux.HandleFunc("/libvirt/backup/delete", es.Server.handleDeleteBackup)
+
+	// Conversion workflow
+	mux.HandleFunc("/workflow/convert", es.Server.handleConversionWorkflow)
+	mux.HandleFunc("/workflow/status", es.Server.handleWorkflowStatus)
+
+	// Console & display
+	mux.HandleFunc("/console/info", es.Server.handleGetConsoleInfo)
+	mux.HandleFunc("/console/vnc", es.Server.handleVNCProxy)
+	mux.HandleFunc("/console/serial", es.Server.handleSerialConsole)
+	mux.HandleFunc("/console/serial-device", es.Server.handleGetSerialDevice)
+	mux.HandleFunc("/console/screenshot", es.Server.handleScreenshot)
+	mux.HandleFunc("/libvirt/domain/send-key", es.Server.handleSendKeys)
+
+	// Job progress tracking
+	mux.HandleFunc("/jobs/progress/", es.Server.handleGetJobProgress)
+	mux.HandleFunc("/jobs/logs/", es.Server.handleGetJobLogs)
+	mux.HandleFunc("/jobs/eta/", es.Server.handleGetJobETA)
+
+	// Prometheus metrics endpoint
+	if es.config.Metrics.Enabled {
+		mux.Handle("/metrics", promhttp.Handler())
+	}
+
+	// WebSocket endpoint for real-time updates
+	mux.HandleFunc("/ws", es.handleWebSocket)
+
+	// Serve web dashboard (static files) - can be disabled via config or --disable-web flag
+	// By default (web.disabled=false), web dashboard is enabled for backwards compatibility
+	if !es.config.Web.Disabled {
+		// Web dashboard enabled (default)
+		webDir := filepath.Join(".", "web", "dashboard")
+		fileServer := http.FileServer(http.Dir(webDir))
+		mux.Handle("/web/dashboard/", http.StripPrefix("/web/dashboard/", fileServer))
+		// Redirect root to dashboard
+		mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path == "/" {
+				http.Redirect(w, r, "/web/dashboard/", http.StatusFound)
+				return
+			}
+			http.NotFound(w, r)
+		})
+		// Web dashboard enabled and serving on /web/dashboard/
+	} else {
+		// Web dashboard disabled (API-only mode)
+		mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+			http.NotFound(w, r)
+		})
+		// API-only mode - web dashboard disabled
+	}
+
+	// Schedule management endpoints
+	mux.HandleFunc("/schedules", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			es.handleListSchedules(w, r)
+		case http.MethodPost:
+			es.handleCreateSchedule(w, r)
+		default:
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		}
+	})
+	mux.HandleFunc("/schedules/stats", es.handleScheduleStats)
+	mux.HandleFunc("/schedules/", func(w http.ResponseWriter, r *http.Request) {
+		// Handle different operations on specific schedules
+		if r.URL.Path == "/schedules/" {
+			http.Error(w, "schedule ID required", http.StatusBadRequest)
+			return
+		}
+
+		// Check for sub-actions
+		if strings.HasSuffix(r.URL.Path, "/enable") {
+			es.handleEnableSchedule(w, r)
+		} else if strings.HasSuffix(r.URL.Path, "/disable") {
+			es.handleDisableSchedule(w, r)
+		} else if strings.HasSuffix(r.URL.Path, "/trigger") {
+			es.handleTriggerSchedule(w, r)
+		} else {
+			switch r.Method {
+			case http.MethodGet:
+				es.handleGetSchedule(w, r)
+			case http.MethodPut:
+				es.handleUpdateSchedule(w, r)
+			case http.MethodDelete:
+				es.handleDeleteSchedule(w, r)
+			default:
+				http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			}
+		}
+	})
+
+	// Webhook management endpoints
+	mux.HandleFunc("/webhooks", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			es.handleListWebhooks(w, r)
+		case http.MethodPost:
+			es.handleAddWebhook(w, r)
+		default:
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		}
+	})
+	mux.HandleFunc("/webhooks/test", es.handleTestWebhook)
+	mux.HandleFunc("/webhooks/", es.handleDeleteWebhook)
+
+	// Update the HTTP server with middleware chain
+	handler := es.loggingMiddleware(mux)
+	handler = es.requestSizeLimitMiddleware(handler)
+	handler = es.authMiddleware(handler)
+	es.httpServer.Handler = handler
+}
+
+// Shutdown gracefully shuts down the enhanced server
+func (es *EnhancedServer) Shutdown(ctx context.Context) error {
+	es.logger.Info("shutting down enhanced API server")
+
+	// Cancel shutdown context to stop background goroutines
+	if es.shutdownCancel != nil {
+		es.shutdownCancel()
+	}
+
+	// Stop status broadcaster ticker
+	if es.statusTicker != nil {
+		es.statusTicker.Stop()
+		es.logger.Debug("status broadcaster stopped")
+	}
+
+	// Stop scheduler
+	if es.scheduler != nil {
+		es.scheduler.Stop()
+		es.logger.Debug("scheduler stopped")
+	}
+
+	// Close WebSocket hub (close all client connections)
+	if es.wsHub != nil {
+		es.wsHub.Shutdown()
+		es.logger.Debug("websocket hub shutdown")
+	}
+
+	// Close store
+	if es.store != nil {
+		if err := es.store.Close(); err != nil {
+			es.logger.Error("failed to close job store", "error", err)
+		} else {
+			es.logger.Debug("job store closed")
+		}
+	}
+
+	// Shutdown HTTP server with timeout
+	es.logger.Info("shutting down HTTP server")
+	if err := es.httpServer.Shutdown(ctx); err != nil {
+		es.logger.Error("HTTP server shutdown error", "error", err)
+		return err
+	}
+
+	es.logger.Info("enhanced API server shutdown complete")
+	return nil
+}
+
+// authMiddleware checks API authentication
+func (es *EnhancedServer) authMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Skip auth for login/logout endpoints and static files
+		if r.URL.Path == "/api/login" || r.URL.Path == "/health" ||
+			r.URL.Path == "/" || strings.HasPrefix(r.URL.Path, "/web/dashboard/") {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		// Try session token authentication first
+		authHeader := r.Header.Get("Authorization")
+		if strings.HasPrefix(authHeader, "Bearer ") {
+			token := strings.TrimPrefix(authHeader, "Bearer ")
+			_, err := es.authMgr.ValidateSession(token)
+			if err == nil {
+				// Valid session token
+				next.ServeHTTP(w, r)
+				return
+			}
+		}
+
+		// Fall back to API key authentication if configured
+		if es.config.Security.EnableAuth && es.config.Security.APIKey != "" {
+			// Get API key from header or query parameter
+			apiKey := r.Header.Get("X-API-Key")
+			if apiKey == "" {
+				apiKey = r.Header.Get("Authorization")
+				if strings.HasPrefix(apiKey, "Bearer ") {
+					apiKey = strings.TrimPrefix(apiKey, "Bearer ")
+				}
+			}
+			if apiKey == "" {
+				apiKey = r.URL.Query().Get("api_key")
+			}
+
+			// Validate API key using constant-time comparison to prevent timing attacks
+			if apiKey != "" && subtle.ConstantTimeCompare([]byte(apiKey), []byte(es.config.Security.APIKey)) == 1 {
+				next.ServeHTTP(w, r)
+				return
+			}
+		}
+
+		// If auth is not enabled and no valid session, allow through
+		if !es.config.Security.EnableAuth {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		// Unauthorized
+		es.logger.Warn("unauthorized API access attempt",
+			"remote", r.RemoteAddr,
+			"path", r.URL.Path,
+			"method", r.Method)
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+	})
+}
+
+// requestSizeLimitMiddleware limits request body size
+func (es *EnhancedServer) requestSizeLimitMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Body != nil {
+			maxBytes := int64(es.config.Security.MaxRequestSizeMB) * 1024 * 1024
+			r.Body = http.MaxBytesReader(w, r.Body, maxBytes)
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+// Enhanced middleware with metrics
+func (es *EnhancedServer) loggingMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+
+		// Create response writer wrapper to capture status code
+		rw := &responseWriter{ResponseWriter: w, statusCode: http.StatusOK}
+
+		next.ServeHTTP(rw, r)
+
+		duration := time.Since(start).Seconds()
+
+		// Log request
+		es.logger.Debug("http request",
+			"method", r.Method,
+			"path", r.URL.Path,
+			"status", rw.statusCode,
+			"duration", duration)
+
+		// Record metrics
+		metrics.RecordAPIRequest(r.Method, r.URL.Path, http.StatusText(rw.statusCode), duration)
+	})
+}
+
+// responseWriter wraps http.ResponseWriter to capture status code
+type responseWriter struct {
+	http.ResponseWriter
+	statusCode int
+}
+
+func (rw *responseWriter) WriteHeader(code int) {
+	rw.statusCode = code
+	rw.ResponseWriter.WriteHeader(code)
+}

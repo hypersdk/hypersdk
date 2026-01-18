@@ -1,0 +1,10 @@
+{
+  "name": "export-rhel9",
+  "vm_path": "/data/vm/Auto-esx8.0-rhel8.9-with-multiple-snapshots",
+  "output_path": "/tmp/test-export",
+  "options": {
+    "parallel_downloads": 4,
+    "remove_cdrom": true,
+    "show_individual_progress": false
+  }
+}

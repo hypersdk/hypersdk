@@ -1,0 +1,208 @@
+.TH HYPERCTL 1 "January 2026" "hyperctl 1.0.0" "Hypervisor SDK"
+.SH NAME
+hyperctl \- control CLI for hypervisord daemon
+.SH SYNOPSIS
+.B hyperctl
+[\fB\-\-daemon\fR \fIURL\fR]
+.I COMMAND
+[\fIARGS\fR...]
+.br
+.B hyperctl
+[\fB\-\-version\fR]
+.SH DESCRIPTION
+.B hyperctl
+is a command-line interface for managing VM export jobs through the
+.B hypervisord
+daemon. It provides commands for submitting jobs, querying status, and managing
+the export queue.
+.SH OPTIONS
+.TP
+.BR \-\-daemon " " \fIURL\fR
+Daemon URL (default: http://localhost:8080)
+.TP
+.BR \-\-version
+Show version information
+.SH COMMANDS
+.SS VM Operations
+.TP
+.B list
+List all VMs from vCenter
+.TP
+.B list \-json
+List VMs in JSON format
+.TP
+.B list \-filter \fINAME\fR
+Filter VMs by name pattern
+.TP
+.B vm \-op \fIOPERATION\fR \-path \fIPATH\fR
+Perform VM operation (shutdown|poweroff|remove-cdrom|info)
+.SS Job Management
+.TP
+.B submit \-vm \fIPATH\fR \-output \fIDIR\fR
+Submit a single VM export job
+.TP
+.B submit \-file \fIFILE\fR
+Submit jobs from YAML/JSON file
+.TP
+.B query \-all
+Query all jobs
+.TP
+.B query \-id \fIID\fR
+Query specific job by ID
+.TP
+.B query \-status \fISTATUS\fR
+Query jobs by status (pending|running|completed|failed)
+.TP
+.B status
+Show daemon status and statistics
+.TP
+.B cancel \-id \fIID\fR[,\fIID\fR...]
+Cancel running jobs
+.SS Interactive Mode
+.TP
+.B migrate
+Launch interactive TUI for VM selection and migration
+.TP
+.B migrate \-output \fIDIR\fR
+Set output directory for migrations
+.TP
+.B migrate \-convert=false
+Skip automatic conversion to qcow2
+.SH EXAMPLES
+.SS List VMs
+.PP
+List all VMs:
+.RS 4
+hyperctl list
+.RE
+.PP
+List in JSON format:
+.RS 4
+hyperctl list \-json
+.RE
+.PP
+Filter by name:
+.RS 4
+hyperctl list \-filter rhel
+.RE
+.SS VM Operations
+.PP
+Graceful shutdown:
+.RS 4
+hyperctl vm \-op shutdown \-path /datacenter/vm/my\-vm
+.RE
+.PP
+Force power off:
+.RS 4
+hyperctl vm \-op poweroff \-path /datacenter/vm/my\-vm
+.RE
+.PP
+Remove CD/DVD devices:
+.RS 4
+hyperctl vm \-op remove\-cdrom \-path /datacenter/vm/my\-vm
+.RE
+.PP
+Get VM information:
+.RS 4
+hyperctl vm \-op info \-path /datacenter/vm/my\-vm
+.RE
+.SS Job Management
+.PP
+Submit single VM export:
+.RS 4
+hyperctl submit \-vm /datacenter/vm/my\-vm \-output /tmp/export
+.RE
+.PP
+Submit batch from file:
+.RS 4
+hyperctl submit \-file jobs.yaml
+.RE
+.PP
+Query all jobs:
+.RS 4
+hyperctl query \-all
+.RE
+.PP
+Query running jobs:
+.RS 4
+hyperctl query \-status running
+.RE
+.PP
+Cancel a job:
+.RS 4
+hyperctl cancel \-id abc123
+.RE
+.PP
+Show daemon status:
+.RS 4
+hyperctl status
+.RE
+.SS Interactive Migration
+.PP
+Launch interactive mode:
+.RS 4
+hyperctl migrate
+.RE
+.PP
+Migrate with custom output directory:
+.RS 4
+hyperctl migrate \-output /migrations
+.RE
+.SH JOB FILE FORMAT
+Job files use YAML or JSON format:
+.PP
+.B Single VM (job.yaml):
+.RS 4
+.nf
+name: "vm-export-1"
+vm_path: "/datacenter/vm/my-vm"
+output_path: "/tmp/export"
+options:
+  parallel_downloads: 4
+  remove_cdrom: true
+.fi
+.RE
+.PP
+.B Batch (batch.yaml):
+.RS 4
+.nf
+jobs:
+  - name: "vm-1"
+    vm_path: "/datacenter/vm/vm-1"
+    output_path: "/tmp/export-1"
+  - name: "vm-2"
+    vm_path: "/datacenter/vm/vm-2"
+    output_path: "/tmp/export-2"
+.fi
+.RE
+.SH ENVIRONMENT
+.TP
+.B DAEMON_URL
+Daemon URL (default: http://localhost:8080)
+.SH FILES
+.TP
+.I ~/.hyperctl/config
+User configuration file
+.SH EXIT STATUS
+.TP
+.B 0
+Success
+.TP
+.B 1
+General error
+.TP
+.B 2
+Connection error to daemon
+.TP
+.B 3
+Invalid arguments
+.SH SEE ALSO
+.BR hypervisord (1),
+.BR hyperexport (1)
+.SH AUTHOR
+Written by Susant Sahani <ssahani@gmail.com>
+.SH COPYRIGHT
+Copyright \(co 2026 Susant Sahani.
+License: LGPL-3.0-or-later
+.SH BUGS
+Report bugs at: https://github.com/ssahani/hypersdk/issues
