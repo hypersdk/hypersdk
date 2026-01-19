@@ -10,23 +10,6 @@
 
 `hypersdk` is a high-performance, daemon-based VM export system that provides a **provider layer abstraction** for multiple clouds. It handles VM discovery, export, download, and metadata operations across different cloud platforms.
 
-## 📹 Video Demos
-
-> **Want to see it in action?** Check out our demo videos showing the tools in operation!
-
-<!-- TODO: Add demo videos here after recording
-### Quick Start Demo
-<video src="https://user-attachments.githubusercontent.com/.../quick-demo.mp4"></video>
-
-### Interactive Export Demo
-![hyperexport Demo](demos/hyperexport-demo.gif)
-
-### VM Discovery & Management
-[![asciicast](https://asciinema.org/a/XXXXXXX.svg)](https://asciinema.org/a/XXXXXXX)
--->
-
-For recording your own demos, see [demos/RECORDING-GUIDE.md](demos/RECORDING-GUIDE.md)
-
 ### Supported Providers
 
 - ✅ **vSphere** (VMware vCenter/ESXi) - Production Ready
