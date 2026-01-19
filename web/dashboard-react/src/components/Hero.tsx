@@ -26,8 +26,6 @@ export const Hero: React.FC<HeroProps> = ({ title, subtitle, onNewJob }) => {
           fontSize: '32px',
           fontWeight: '700',
           color: '#f0583a',
-          textTransform: 'uppercase',
-          letterSpacing: '2px',
           lineHeight: 1.2,
         }}>
           {title}
@@ -53,9 +51,7 @@ export const Hero: React.FC<HeroProps> = ({ title, subtitle, onNewJob }) => {
               border: '2px solid #222324',
               borderRadius: '4px',
               fontSize: '14px',
-              fontWeight: '700',
-              textTransform: 'uppercase',
-              letterSpacing: '0.5px',
+              fontWeight: '600',
               cursor: 'pointer',
               transition: 'all 0.25s cubic-bezier(0.215, 0.61, 0.355, 1)',
             }}
@@ -72,7 +68,7 @@ export const Hero: React.FC<HeroProps> = ({ title, subtitle, onNewJob }) => {
               e.currentTarget.style.transform = 'translateY(0)';
             }}
           >
-            New Export Job
+            New export job
           </button>
         )}
       </div>

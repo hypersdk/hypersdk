@@ -118,7 +118,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
       <Header onLogout={onLogout} />
 
       <Hero
-        title="Multi-Cloud VM Migration"
+        title="Multi-cloud VM migration"
         subtitle="Seamlessly migrate and export virtual machines across vSphere, AWS, Azure, GCP, Hyper-V, and more"
         onNewJob={() => setShowJobForm(true)}
       />
@@ -201,7 +201,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
       {showJobForm && (
         <div style={{
           backgroundColor: '#f0f2f7',
-          padding: '48px 24px',
+          padding: '24px 16px',
         }}>
           <div style={{
             maxWidth: '1400px',
@@ -215,13 +215,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
             }}>
               <h2 style={{
                 margin: 0,
-                fontSize: '28px',
-                fontWeight: '700',
+                fontSize: '18px',
+                fontWeight: '600',
                 color: '#000',
-                textTransform: 'uppercase',
-                letterSpacing: '1px',
               }}>
-                New Export Job
+                New export job
               </h2>
               <button
                 onClick={() => setShowJobForm(false)}
@@ -232,9 +230,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
                   border: '2px solid #222324',
                   borderRadius: '4px',
                   fontSize: '12px',
-                  fontWeight: '700',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.5px',
+                  fontWeight: '600',
                   cursor: 'pointer',
                   transition: 'all 0.25s cubic-bezier(0.215, 0.61, 0.355, 1)',
                 }}
@@ -274,27 +270,25 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
       {(metrics || hasConnectionIssue) && (
         <div style={{
           backgroundColor: '#f0f2f7',
-          padding: '48px 24px',
+          padding: '24px 16px',
         }}>
           <div style={{
             maxWidth: '1400px',
             margin: '0 auto',
           }}>
             <h2 style={{
-              margin: '0 0 24px 0',
-              fontSize: '28px',
-              fontWeight: '700',
+              margin: '0 0 10px 0',
+              fontSize: '18px',
+              fontWeight: '600',
               color: '#000',
-              textTransform: 'uppercase',
-              letterSpacing: '1px',
             }}>
-              System Overview
+              System overview
             </h2>
             <div
               style={{
                 display: 'grid',
                 gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
-                gap: '16px',
+                gap: '8px',
                 marginBottom: '24px',
               }}
             >
@@ -350,14 +344,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
           margin: '0 auto',
         }}>
           <h2 style={{
-            margin: '0 0 24px 0',
-            fontSize: '28px',
-            fontWeight: '700',
+            margin: '0 0 20px 0',
+            fontSize: '18px',
+            fontWeight: '600',
             color: '#000',
-            textTransform: 'uppercase',
-            letterSpacing: '1px',
           }}>
-            Performance Metrics
+            Performance metrics
           </h2>
           <div
             style={{
@@ -389,7 +381,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
       {providerChartData.length > 0 && (
         <div style={{
           backgroundColor: '#f0f2f7',
-          padding: '48px 24px',
+          padding: '24px 16px',
         }}>
           <div style={{
             maxWidth: '1400px',
@@ -408,21 +400,19 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
       {metrics?.recent_jobs && (
         <div style={{
           backgroundColor: '#f0f2f7',
-          padding: '48px 24px',
+          padding: '24px 16px',
         }}>
           <div style={{
             maxWidth: '1400px',
             margin: '0 auto',
           }}>
             <h2 style={{
-              margin: '0 0 24px 0',
-              fontSize: '28px',
-              fontWeight: '700',
+              margin: '0 0 10px 0',
+              fontSize: '20px',
+              fontWeight: '600',
               color: '#000',
-              textTransform: 'uppercase',
-              letterSpacing: '1px',
             }}>
-              Recent Jobs
+              Recent jobs
             </h2>
             <JobsTable jobs={metrics.recent_jobs} onCancelJob={handleCancelJob} />
           </div>
@@ -433,62 +423,60 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
       {metrics && (
         <div style={{
           backgroundColor: '#f0f2f7',
-          padding: '48px 24px',
+          padding: '24px 16px',
         }}>
           <div style={{
             maxWidth: '1400px',
             margin: '0 auto',
           }}>
             <h2 style={{
-              margin: '0 0 24px 0',
-              fontSize: '28px',
-              fontWeight: '700',
+              margin: '0 0 10px 0',
+              fontSize: '18px',
+              fontWeight: '600',
               color: '#000',
-              textTransform: 'uppercase',
-              letterSpacing: '1px',
             }}>
-              System Health
+              System health
             </h2>
             <div
               style={{
                 backgroundColor: '#fff',
-                borderRadius: '8px',
-                padding: '24px',
-                border: '2px solid #e0e0e0',
+                borderRadius: '3px',
+                padding: '12px',
+                border: '1px solid #e0e0e0',
                 display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-                gap: '24px',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
+                gap: '12px',
               }}
             >
           <div>
-            <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '4px' }}>
-              System Health
+            <div style={{ fontSize: '9px', color: '#6b7280', marginBottom: '3px' }}>
+              system health
             </div>
-            <div style={{ fontSize: '16px', fontWeight: '600', color: getStatusColor(metrics.system_health) }}>
-              {metrics.system_health.toUpperCase()}
+            <div style={{ fontSize: '12px', fontWeight: '600', color: getStatusColor(metrics.system_health) }}>
+              {metrics.system_health}
             </div>
           </div>
           <div>
-            <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '4px' }}>
+            <div style={{ fontSize: '9px', color: '#6b7280', marginBottom: '3px' }}>
               HTTP Requests
             </div>
-            <div style={{ fontSize: '16px', fontWeight: '600' }}>
+            <div style={{ fontSize: '12px', fontWeight: '600' }}>
               {metrics.http_requests.toLocaleString()}
             </div>
           </div>
           <div>
-            <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '4px' }}>
+            <div style={{ fontSize: '9px', color: '#6b7280', marginBottom: '3px' }}>
               HTTP Errors
             </div>
-            <div style={{ fontSize: '16px', fontWeight: '600', color: metrics.http_errors > 0 ? '#ef4444' : '#10b981' }}>
+            <div style={{ fontSize: '12px', fontWeight: '600', color: metrics.http_errors > 0 ? '#ef4444' : '#10b981' }}>
               {metrics.http_errors.toLocaleString()}
             </div>
           </div>
           <div>
-            <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '4px' }}>
+            <div style={{ fontSize: '9px', color: '#6b7280', marginBottom: '3px' }}>
               Avg Response Time
             </div>
-            <div style={{ fontSize: '16px', fontWeight: '600' }}>
+            <div style={{ fontSize: '12px', fontWeight: '600' }}>
               {metrics.avg_response_time.toFixed(2)}ms
             </div>
           </div>

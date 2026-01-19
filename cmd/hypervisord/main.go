@@ -291,7 +291,7 @@ func showBanner() {
 
 	pterm.DefaultCenter.Println(bigText)
 
-	subtitle := pterm.DefaultCenter.Sprint(pterm.LightYellow("Multi-Cloud VM Export Daemon"))
+	subtitle := pterm.DefaultCenter.Sprint(pterm.LightYellow("Multi-cloud VM export daemon"))
 	pterm.Println(subtitle)
 	pterm.Println()
 }

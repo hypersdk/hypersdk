@@ -38,11 +38,9 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
   const labelStyle: React.CSSProperties = {
     display: 'block',
     fontSize: '14px',
-    fontWeight: '700',
+    fontWeight: '600',
     color: '#000',
     marginBottom: '10px',
-    textTransform: 'uppercase',
-    letterSpacing: '0.5px',
   };
 
   return (
@@ -69,8 +67,6 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
             fontWeight: '700',
             color: '#000',
             margin: '0 0 8px 0',
-            textTransform: 'uppercase',
-            letterSpacing: '1px',
           }}>
             HyperSDK
           </h1>
@@ -167,14 +163,12 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
               border: 'none',
               borderRadius: '4px',
               fontSize: '16px',
-              fontWeight: '700',
-              textTransform: 'uppercase',
-              letterSpacing: '1px',
+              fontWeight: '600',
               cursor: isLoading ? 'not-allowed' : 'pointer',
               transition: 'all 0.25s cubic-bezier(0.215, 0.61, 0.355, 1)',
             }}
           >
-            {isLoading ? 'Signing in...' : 'Sign In'}
+            {isLoading ? 'signing in...' : 'sign in'}
           </button>
         </form>
 

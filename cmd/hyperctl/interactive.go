@@ -948,7 +948,7 @@ func (m model) renderSelection() string {
 	var b strings.Builder
 
 	// Title
-	b.WriteString(titleStyle.Render("Interactive VM Migration Tool"))
+	b.WriteString(titleStyle.Render("Interactive VM migration tool"))
 	b.WriteString("\n\n")
 
 	if len(m.vms) == 0 {

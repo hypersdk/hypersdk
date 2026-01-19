@@ -485,7 +485,7 @@ func (m tuiModel) View() string {
 func (m tuiModel) renderSelection() string {
 	var b strings.Builder
 
-	b.WriteString(titleStyleTUI.Render("HyperExport - Interactive VM Export"))
+	b.WriteString(titleStyleTUI.Render("hyperexport - interactive vm export"))
 	b.WriteString("\n\n")
 
 	if len(m.vms) == 0 {

@@ -6,6 +6,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -87,6 +88,15 @@ var (
 	webhookOnStart      = flag.Bool("webhook-on-start", true, "Send webhook on migration start")
 	webhookOnComplete   = flag.Bool("webhook-on-complete", true, "Send webhook on migration complete")
 	webhookOnError      = flag.Bool("webhook-on-error", true, "Send webhook on migration error")
+
+	// Daemon integration options
+	useDaemon      = flag.Bool("use-daemon", false, "Submit export job to daemon instead of running directly")
+	daemonURL      = flag.String("daemon-url", defaultDaemonURL, "Daemon URL (default: http://localhost:8080)")
+	daemonWatch    = flag.String("daemon-watch", "", "Watch a daemon job by ID (e.g., --daemon-watch job-123)")
+	daemonList     = flag.String("daemon-list", "", "List daemon jobs (all, running, completed, failed)")
+	daemonSchedule = flag.String("daemon-schedule", "", "Create scheduled export (format: 'name:cron', e.g., 'daily-backup:0 2 * * *')")
+	daemonStatus   = flag.Bool("daemon-status", false, "Show daemon status information")
+	watchProgress  = flag.Bool("watch", false, "Watch job progress in real-time (with --use-daemon)")
 )
 
 func main() {
@@ -103,6 +113,129 @@ func main() {
 	// Setup logging (needed for history and profile operations)
 	cfg := config.FromEnvironment()
 	log := logger.New(cfg.LogLevel)
+
+	// Create context with cancellation
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Handle daemon-only operations (don't require VM connection)
+	if *daemonWatch != "" {
+		client := NewDaemonClient(*daemonURL, log)
+		if err := client.WatchJobProgress(ctx, *daemonWatch, *quiet); err != nil {
+			if !*quiet {
+				pterm.Error.Printfln("Watch failed: %v", err)
+			}
+			os.Exit(1)
+		}
+		os.Exit(0)
+	}
+
+	if *daemonList != "" {
+		client := NewDaemonClient(*daemonURL, log)
+		jobs, err := client.ListJobs(ctx, *daemonList)
+		if err != nil {
+			if !*quiet {
+				pterm.Error.Printfln("Failed to list jobs: %v", err)
+			} else {
+				fmt.Fprintf(os.Stderr, "error: %v\n", err)
+			}
+			os.Exit(1)
+		}
+
+		if *quiet {
+			for _, job := range jobs {
+				fmt.Printf("%s\t%s\t%s\n", job.Definition.ID, job.Status, job.Definition.VMPath)
+			}
+		} else {
+			displayDaemonJobs(jobs)
+		}
+		os.Exit(0)
+	}
+
+	if *daemonStatus {
+		client := NewDaemonClient(*daemonURL, log)
+
+		var spinner *pterm.SpinnerPrinter
+		if !*quiet {
+			spinner, _ = pterm.DefaultSpinner.Start("Fetching daemon status...")
+		}
+
+		status, err := client.GetDaemonStatus(ctx)
+		if err != nil {
+			if !*quiet {
+				pterm.Error.Printfln("Failed to get daemon status: %v", err)
+			}
+			os.Exit(1)
+		}
+
+		if !*quiet {
+			spinner.Success("Daemon status retrieved")
+			pterm.DefaultSection.Println("📊 Daemon Status")
+
+			// Display status as pretty JSON
+			data, _ := json.MarshalIndent(status, "", "  ")
+			fmt.Println(string(data))
+		} else {
+			data, _ := json.Marshal(status)
+			fmt.Println(string(data))
+		}
+		os.Exit(0)
+	}
+
+	if *daemonSchedule != "" {
+		// Parse schedule format: name:cron
+		parts := strings.SplitN(*daemonSchedule, ":", 2)
+		if len(parts) != 2 {
+			if !*quiet {
+				pterm.Error.Println("Invalid schedule format. Use: 'name:cron'")
+				pterm.Info.Println("Example: --daemon-schedule 'daily-backup:0 2 * * *'")
+			} else {
+				fmt.Fprintf(os.Stderr, "error: invalid schedule format\n")
+			}
+			os.Exit(1)
+		}
+
+		name := parts[0]
+		cronSchedule := parts[1]
+
+		// Validate required flags for schedule
+		if *vmName == "" {
+			if !*quiet {
+				pterm.Error.Println("VM name required for scheduled exports (-vm flag)")
+			} else {
+				fmt.Fprintf(os.Stderr, "error: -vm flag required\n")
+			}
+			os.Exit(1)
+		}
+
+		outputPath := getOutputDir(*vmName)
+
+		client := NewDaemonClient(*daemonURL, log)
+
+		var spinner *pterm.SpinnerPrinter
+		if !*quiet {
+			spinner, _ = pterm.DefaultSpinner.Start("Creating scheduled export...")
+		}
+
+		if err := client.CreateSchedule(ctx, name, cronSchedule, *vmName, outputPath); err != nil {
+			if !*quiet {
+				spinner.Fail("Failed to create schedule")
+				pterm.Error.Printfln("Error: %v", err)
+			}
+			os.Exit(1)
+		}
+
+		if !*quiet {
+			spinner.Success("Schedule created successfully!")
+			pterm.Success.Printfln("✅ Created schedule: %s", name)
+			pterm.Info.Printfln("   Cron: %s", cronSchedule)
+			pterm.Info.Printfln("   VM: %s", *vmName)
+			pterm.Info.Printfln("   Output: %s", outputPath)
+		} else {
+			fmt.Printf("schedule-created: %s\n", name)
+		}
+		os.Exit(0)
+	}
 
 	// Handle profile operations (don't require provider connection)
 	profileManager, err := NewProfileManager(log)
@@ -313,10 +446,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Create context with cancellation
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
 	// Handle signals
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
@@ -357,7 +486,7 @@ func showIntro() {
 	pterm.DefaultCenter.Println(bigText)
 
 	// Show subtitle
-	subtitle := pterm.DefaultCenter.Sprint(pterm.LightYellow("Interactive VM Export Tool"))
+	subtitle := pterm.DefaultCenter.Sprint(pterm.LightYellow("Interactive VM export tool"))
 	version := pterm.DefaultCenter.Sprint(pterm.LightRed("Version 1.0.0"))
 
 	pterm.Println(subtitle)
@@ -366,6 +495,16 @@ func showIntro() {
 }
 
 func run(ctx context.Context, cfg *config.Config, log logger.Logger) error {
+	// Handle daemon mode - submit job to daemon instead of direct export
+	if *useDaemon {
+		if *vmName == "" {
+			return fmt.Errorf("VM name required for daemon mode (-vm flag)")
+		}
+
+		outputPath := getOutputDir(*vmName)
+		return runDaemonMode(ctx, *vmName, outputPath, *format, *compress, *watchProgress, *quiet, *daemonURL, log)
+	}
+
 	// Handle batch mode
 	if *batchFile != "" {
 		return runBatchExport(ctx, cfg, log)

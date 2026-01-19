@@ -57,44 +57,42 @@ export const JobsTable: React.FC<JobsTableProps> = ({ jobs, onCancelJob }) => {
   }, [jobs, sortField, sortDirection, filterStatus]);
 
   const tableHeaderStyle: React.CSSProperties = {
-    padding: '16px',
+    padding: '5px 8px',
     textAlign: 'left',
-    fontSize: '12px',
-    fontWeight: '700',
+    fontSize: '9px',
+    fontWeight: '600',
     color: '#000',
     backgroundColor: '#f0f2f7',
-    borderBottom: '2px solid #e0e0e0',
+    borderBottom: '1px solid #e0e0e0',
     cursor: 'pointer',
     userSelect: 'none',
-    textTransform: 'uppercase',
-    letterSpacing: '0.5px',
   };
 
   const tableCellStyle: React.CSSProperties = {
-    padding: '16px',
-    fontSize: '14px',
+    padding: '6px 8px',
+    fontSize: '10px',
     borderBottom: '1px solid #e0e0e0',
   };
 
   return (
     <div style={{ backgroundColor: '#fff', borderRadius: '4px', border: '2px solid #e0e0e0' }}>
-      <div style={{ padding: '20px', borderBottom: '2px solid #e0e0e0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+      <div style={{ padding: '8px', borderBottom: '1px solid #e0e0e0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
           <div style={{
-            width: '4px',
-            height: '24px',
+            width: '2px',
+            height: '12px',
             backgroundColor: '#f0583a',
           }} />
-          <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Filter Jobs</h3>
+          <h3 style={{ margin: 0, fontSize: '11px', fontWeight: '600' }}>Filter jobs</h3>
         </div>
         <select
           value={filterStatus}
           onChange={(e) => setFilterStatus(e.target.value)}
           style={{
-            padding: '10px 16px',
-            borderRadius: '4px',
-            border: '2px solid #222324',
-            fontSize: '14px',
+            padding: '4px 8px',
+            borderRadius: '3px',
+            border: '1px solid #222324',
+            fontSize: '10px',
             fontWeight: '600',
             backgroundColor: '#fff',
             cursor: 'pointer',
@@ -155,9 +153,9 @@ export const JobsTable: React.FC<JobsTableProps> = ({ jobs, onCancelJob }) => {
                       style={{
                         display: 'inline-flex',
                         alignItems: 'center',
-                        padding: '4px 12px',
-                        borderRadius: '12px',
-                        fontSize: '12px',
+                        padding: '2px 6px',
+                        borderRadius: '8px',
+                        fontSize: '9px',
                         fontWeight: '500',
                         backgroundColor: getStatusColor(job.status) + '20',
                         color: getStatusColor(job.status),
@@ -167,13 +165,13 @@ export const JobsTable: React.FC<JobsTableProps> = ({ jobs, onCancelJob }) => {
                     </span>
                   </td>
                   <td style={tableCellStyle}>
-                    <div style={{ fontWeight: '500' }}>{job.name}</div>
-                    <div style={{ fontSize: '12px', color: '#6b7280' }}>{job.id.substring(0, 8)}</div>
+                    <div style={{ fontWeight: '500', fontSize: '10px' }}>{job.name}</div>
+                    <div style={{ fontSize: '8px', color: '#6b7280' }}>{job.id.substring(0, 8)}</div>
                   </td>
                   <td style={tableCellStyle}>
-                    <div>{job.vm_name}</div>
+                    <div style={{ fontSize: '10px' }}>{job.vm_name}</div>
                     {job.format && (
-                      <div style={{ fontSize: '12px', color: '#6b7280' }}>
+                      <div style={{ fontSize: '8px', color: '#6b7280' }}>
                         {job.format.toUpperCase()}
                         {job.compress && ' • Compressed'}
                       </div>
@@ -181,24 +179,26 @@ export const JobsTable: React.FC<JobsTableProps> = ({ jobs, onCancelJob }) => {
                   </td>
                   <td style={tableCellStyle}>{job.provider || 'N/A'}</td>
                   <td style={tableCellStyle}>
-                    <div style={{ width: '100%', backgroundColor: '#e5e7eb', borderRadius: '4px', height: '8px' }}>
+                    <div style={{ width: '100%', backgroundColor: '#e5e7eb', borderRadius: '2px', height: '4px' }}>
                       <div
                         style={{
                           width: `${job.progress}%`,
                           backgroundColor: getStatusColor(job.status),
-                          borderRadius: '4px',
+                          borderRadius: '2px',
                           height: '100%',
                           transition: 'width 0.3s',
                         }}
                       />
                     </div>
-                    <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>
+                    <div style={{ fontSize: '8px', color: '#6b7280', marginTop: '2px' }}>
                       {job.progress}%
                     </div>
                   </td>
-                  <td style={tableCellStyle}>{formatDuration(job.duration_seconds)}</td>
                   <td style={tableCellStyle}>
-                    <div style={{ fontSize: '12px', color: '#6b7280' }}>
+                    <div style={{ fontSize: '10px' }}>{formatDuration(job.duration_seconds)}</div>
+                  </td>
+                  <td style={tableCellStyle}>
+                    <div style={{ fontSize: '9px', color: '#6b7280' }}>
                       {formatRelativeTime(job.start_time)}
                     </div>
                   </td>
@@ -207,9 +207,9 @@ export const JobsTable: React.FC<JobsTableProps> = ({ jobs, onCancelJob }) => {
                       <button
                         onClick={() => onCancelJob(job.id)}
                         style={{
-                          padding: '4px 12px',
-                          fontSize: '12px',
-                          borderRadius: '4px',
+                          padding: '2px 8px',
+                          fontSize: '9px',
+                          borderRadius: '3px',
                           border: '1px solid #ef4444',
                           backgroundColor: '#fff',
                           color: '#ef4444',

@@ -50,7 +50,6 @@ export const AlertsList: React.FC<AlertsListProps> = ({ alerts, onDismiss }) => 
                   borderRadius: '4px',
                   fontSize: '11px',
                   fontWeight: '600',
-                  textTransform: 'uppercase',
                   backgroundColor: getSeverityColor(alert.severity) + '20',
                   color: getSeverityColor(alert.severity),
                 }}

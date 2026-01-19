@@ -124,6 +124,56 @@ graph TB
 - **System Health** - CPU, memory, goroutines monitoring
 - **WebSocket Connections** - Real-time client tracking
 - **Responsive Design** - Works on desktop and mobile devices
+- **📦 Manifest Converter Tab** - One-shot export and conversion to KVM format
+
+### 🆕 New in v0.2.0
+
+**HyperCTL Enhancements:**
+- **Schedule Management** - Create, manage cron-based scheduled exports
+  ```bash
+  hyperctl schedules create daily-backup "0 2 * * *" -vm /dc/vm/prod/web01
+  ```
+- **Webhook Integration** - Configure notifications for job events
+  ```bash
+  hyperctl webhooks add https://hooks.slack.com/xxx job.completed job.failed
+  ```
+- **Real-Time Watching** - Monitor job progress live
+  ```bash
+  hyperctl watch <job-id>
+  ```
+- **Log Streaming** - View and follow job logs
+  ```bash
+  hyperctl logs -f <job-id>
+  ```
+
+**HyperExport Daemon Mode:**
+- **Submit to Daemon** - Submit jobs to daemon for centralized management
+  ```bash
+  hyperexport --use-daemon -vm /dc/vm/web01 --watch
+  ```
+- **Job Monitoring** - Watch and list daemon jobs
+  ```bash
+  hyperexport --daemon-list running
+  hyperexport --daemon-watch job-12345
+  ```
+- **Schedule Creation** - Create scheduled exports from CLI
+  ```bash
+  hyperexport --daemon-schedule "backup:0 3 * * *" -vm /dc/vm/db01
+  ```
+- **Daemon Status** - Check daemon health and metrics
+  ```bash
+  hyperexport --daemon-status
+  ```
+
+**Web Dashboard Manifest Converter:**
+- **Tabbed Navigation** - Dashboard, Jobs, and Manifest Converter tabs
+- **One-Shot Conversion** - Export and convert to KVM in single operation
+- **Interactive Form** - Easy configuration with target format selection (QCOW2/RAW/VDI)
+- **Real-Time Progress** - Live progress bars and streaming logs
+- **Automatic Verification** - Checksum validation for data integrity
+- **Hyper2KVM Integration** - Seamless integration with conversion tool
+
+See the [New Features Guide](docs/new-features-guide.md) for detailed usage and examples.
 
 ## 🚀 Quick Start
 

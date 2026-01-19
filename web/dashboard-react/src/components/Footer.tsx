@@ -23,12 +23,10 @@ export const Footer: React.FC = () => {
           <div>
             <h3 style={{
               fontSize: '14px',
-              fontWeight: '700',
-              textTransform: 'uppercase',
-              letterSpacing: '0.5px',
+              fontWeight: '600',
               marginBottom: '16px',
             }}>
-              About HyperSDK
+              about HyperSDK
             </h3>
             <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
               {['Overview', 'Documentation', 'API Reference', 'Release Notes'].map((item) => (
@@ -62,15 +60,13 @@ export const Footer: React.FC = () => {
           <div>
             <h3 style={{
               fontSize: '14px',
-              fontWeight: '700',
-              textTransform: 'uppercase',
-              letterSpacing: '0.5px',
+              fontWeight: '600',
               marginBottom: '16px',
             }}>
-              Services
+              services
             </h3>
             <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-              {['VM Migration', 'Cloud Export', 'Scheduling', 'Monitoring'].map((item) => (
+              {['vm migration', 'cloud export', 'scheduling', 'monitoring'].map((item) => (
                 <li key={item} style={{ marginBottom: '12px' }}>
                   <a
                     href="#"
@@ -101,15 +97,13 @@ export const Footer: React.FC = () => {
           <div>
             <h3 style={{
               fontSize: '14px',
-              fontWeight: '700',
-              textTransform: 'uppercase',
-              letterSpacing: '0.5px',
+              fontWeight: '600',
               marginBottom: '16px',
             }}>
-              Support
+              support
             </h3>
             <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-              {['Contact Us', 'FAQ', 'Community', 'GitHub'].map((item) => (
+              {['contact us', 'faq', 'community', 'github'].map((item) => (
                 <li key={item} style={{ marginBottom: '12px' }}>
                   <a
                     href="#"
@@ -140,15 +134,13 @@ export const Footer: React.FC = () => {
           <div>
             <h3 style={{
               fontSize: '14px',
-              fontWeight: '700',
-              textTransform: 'uppercase',
-              letterSpacing: '0.5px',
+              fontWeight: '600',
               marginBottom: '16px',
             }}>
-              Quick Links
+              quick links
             </h3>
             <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-              {['My Jobs', 'New Export', 'Job Status', 'Providers'].map((item) => (
+              {['my jobs', 'new export', 'job status', 'providers'].map((item) => (
                 <li key={item} style={{ marginBottom: '12px' }}>
                   <a
                     href="#"
@@ -191,7 +183,7 @@ export const Footer: React.FC = () => {
             fontSize: '12px',
             opacity: 0.6,
           }}>
-            © 2026 HyperSDK. Multi-Cloud VM Migration & Management Platform.
+            © 2026 HyperSDK. Multi-cloud VM migration and management platform.
           </p>
           <div style={{ display: 'flex', gap: '24px' }}>
             <a

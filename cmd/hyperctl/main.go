@@ -66,7 +66,7 @@ func showBanner() {
 	banner.Render()
 
 	pterm.DefaultCenter.WithCenterEachLineSeparately().Println(
-		pterm.LightYellow("Multi-Cloud VM Migration Control CLI\n") +
+		pterm.LightYellow("Multi-cloud VM migration control CLI\n") +
 			pterm.Gray("Version "+version),
 	)
 }
@@ -153,6 +153,18 @@ func main() {
 	completionCmd := flag.NewFlagSet("completion", flag.ExitOnError)
 	completionShell := completionCmd.String("shell", "", "Shell type: bash, zsh, fish")
 
+	watchCmd := flag.NewFlagSet("watch", flag.ExitOnError)
+
+	logsCmd := flag.NewFlagSet("logs", flag.ExitOnError)
+	logsFollow := logsCmd.Bool("f", false, "Follow log output")
+	logsTail := logsCmd.Int("tail", 50, "Number of lines to show from the end")
+
+	schedulesCmd := flag.NewFlagSet("schedules", flag.ExitOnError)
+
+	webhooksCmd := flag.NewFlagSet("webhooks", flag.ExitOnError)
+
+	manifestCmd := flag.NewFlagSet("manifest", flag.ExitOnError)
+
 	// Parse global flags
 	flag.Parse()
 
@@ -218,6 +230,59 @@ func main() {
 	case "completion":
 		completionCmd.Parse(os.Args[2:])
 		handleCompletion(*completionShell)
+
+	case "watch":
+		watchCmd.Parse(os.Args[2:])
+		if len(watchCmd.Args()) < 1 {
+			pterm.Error.Println("Job ID required. Usage: hyperctl watch <job-id>")
+			os.Exit(1)
+		}
+		handleWatch(*daemonURL, watchCmd.Args()[0])
+
+	case "logs":
+		logsCmd.Parse(os.Args[2:])
+		if len(logsCmd.Args()) < 1 {
+			pterm.Error.Println("Job ID required. Usage: hyperctl logs [-f] <job-id>")
+			os.Exit(1)
+		}
+		handleLogs(*daemonURL, logsCmd.Args()[0], *logsFollow, *logsTail)
+
+	case "schedules":
+		schedulesCmd.Parse(os.Args[2:])
+		if len(schedulesCmd.Args()) < 1 {
+			pterm.Error.Println("Action required. Usage: hyperctl schedules <list|create|delete|enable|disable|trigger>")
+			pterm.Info.Println("Examples:")
+			pterm.Println("  hyperctl schedules list")
+			pterm.Println("  hyperctl schedules create daily '0 2 * * *' -vm /dc/vm/prod -output /backups")
+			pterm.Println("  hyperctl schedules enable schedule-123")
+			os.Exit(1)
+		}
+		handleSchedules(*daemonURL, schedulesCmd.Args()[0], schedulesCmd.Args()[1:])
+
+	case "webhooks":
+		webhooksCmd.Parse(os.Args[2:])
+		if len(webhooksCmd.Args()) < 1 {
+			pterm.Error.Println("Action required. Usage: hyperctl webhooks <list|add|delete|test>")
+			pterm.Info.Println("Examples:")
+			pterm.Println("  hyperctl webhooks list")
+			pterm.Println("  hyperctl webhooks add https://hooks.slack.com/xxx slack job.completed")
+			pterm.Println("  hyperctl webhooks test 0")
+			os.Exit(1)
+		}
+		handleWebhooks(*daemonURL, webhooksCmd.Args()[0], webhooksCmd.Args()[1:])
+
+	case "manifest":
+		manifestCmd.Parse(os.Args[2:])
+		if len(manifestCmd.Args()) < 1 {
+			pterm.Error.Println("Action required. Usage: hyperctl manifest <convert|generate>")
+			pterm.Info.Println("Examples:")
+			pterm.Println("  hyperctl manifest convert /dc/vm/web01 /exports/web01 -format qcow2 -verify")
+			pterm.Println("  hyperctl manifest generate /dc/vm/db01 /exports/db01 -format raw")
+			pterm.Info.Println("")
+			pterm.Info.Println("One-shot workflow: Export → Manifest → hyper2kvm → KVM")
+			os.Exit(1)
+		}
+		handleManifest(*daemonURL, manifestCmd.Args()[0], manifestCmd.Args()[1:])
 
 	case "help", "-h", "--help":
 		showUsage()
@@ -335,12 +400,53 @@ func showUsage() {
 		{"query", "Query job status", "hyperctl query -all"},
 		{"status", "Show daemon status", "hyperctl status"},
 		{"cancel", "Cancel running jobs", "hyperctl cancel -id abc123"},
+		{"watch <job-id>", "Watch job in real-time", "hyperctl watch abc123"},
+		{"logs <job-id>", "View job logs", "hyperctl logs abc123"},
+		{"logs -f <job-id>", "Follow job logs", "hyperctl logs -f abc123"},
 	}
 	pterm.DefaultTable.
 		WithHasHeader().
 		WithHeaderRowSeparator("-").
 		WithBoxed().
 		WithData(jobCommands).
+		Render()
+
+	pterm.Println()
+
+	// Automation & Scheduling
+	pterm.DefaultSection.Println("⏰ Automation & Scheduling")
+	scheduleCommands := [][]string{
+		{"Command", "Description", "Example"},
+		{"schedules list", "List all schedules", "hyperctl schedules list"},
+		{"schedules create", "Create new schedule", "hyperctl schedules create daily '0 2 * * *' -vm /dc/vm/prod"},
+		{"schedules enable <id>", "Enable a schedule", "hyperctl schedules enable schedule-123"},
+		{"schedules disable <id>", "Disable a schedule", "hyperctl schedules disable schedule-123"},
+		{"schedules trigger <id>", "Run schedule now", "hyperctl schedules trigger schedule-123"},
+		{"schedules delete <id>", "Delete a schedule", "hyperctl schedules delete schedule-123"},
+	}
+	pterm.DefaultTable.
+		WithHasHeader().
+		WithHeaderRowSeparator("-").
+		WithBoxed().
+		WithData(scheduleCommands).
+		Render()
+
+	pterm.Println()
+
+	// Webhooks & Notifications
+	pterm.DefaultSection.Println("🔔 Webhooks & Notifications")
+	webhookCommands := [][]string{
+		{"Command", "Description", "Example"},
+		{"webhooks list", "List all webhooks", "hyperctl webhooks list"},
+		{"webhooks add", "Add new webhook", "hyperctl webhooks add https://hooks.slack.com/xxx slack job.completed"},
+		{"webhooks test <index>", "Test a webhook", "hyperctl webhooks test 0"},
+		{"webhooks delete <index>", "Delete a webhook", "hyperctl webhooks delete 0"},
+	}
+	pterm.DefaultTable.
+		WithHasHeader().
+		WithHeaderRowSeparator("-").
+		WithBoxed().
+		WithData(webhookCommands).
 		Render()
 
 	pterm.Println()
