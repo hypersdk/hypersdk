@@ -12,7 +12,6 @@ import (
 
 	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/openstack"
-	"github.com/gophercloud/gophercloud/openstack/objectstorage/v1/containers"
 	"github.com/gophercloud/gophercloud/openstack/objectstorage/v1/objects"
 	"github.com/gophercloud/gophercloud/pagination"
 
@@ -215,7 +214,6 @@ func (s *OpenStackSwiftStorage) Download(ctx context.Context, remotePath, localP
 		size := int64(len(content))
 
 		// Write with progress
-		written := int64(0)
 		if progress != nil {
 			// For small objects, content is already in memory
 			// So we can't track progress during write
