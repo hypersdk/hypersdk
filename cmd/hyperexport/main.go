@@ -17,6 +17,7 @@ import (
 	"syscall"
 	"time"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/pterm/pterm"
 
 	"hypersdk/config"
@@ -40,6 +41,28 @@ var (
 	parallel       = flag.Int("parallel", 4, "Number of parallel downloads")
 	quiet          = flag.Bool("quiet", false, "Minimal output (for scripting)")
 	showVersion    = flag.Bool("version", false, "Show version and exit")
+	interactive    = flag.Bool("interactive", false, "Launch advanced interactive TUI mode")
+	tui            = flag.Bool("tui", false, "Launch advanced interactive TUI mode (alias for -interactive)")
+	validateOnly   = flag.Bool("validate-only", false, "Only run pre-export validation checks")
+	resume         = flag.Bool("resume", false, "Resume interrupted export from checkpoint")
+	showHistory    = flag.Bool("history", false, "Show export history")
+	historyLimit   = flag.Int("history-limit", 10, "Number of recent exports to show in history")
+	generateReport = flag.Bool("report", false, "Generate export statistics report")
+	reportFile     = flag.String("report-file", "", "Save report to file instead of stdout")
+	clearHistory   = flag.Bool("clear-history", false, "Clear export history")
+	uploadTo       = flag.String("upload", "", "Upload export to cloud storage (s3://bucket/path, azure://container/path, gs://bucket/path, sftp://host/path)")
+	streamUpload   = flag.Bool("stream-upload", false, "Stream export directly to cloud (no local storage)")
+	keepLocal      = flag.Bool("keep-local", true, "Keep local copy after cloud upload")
+	encrypt        = flag.Bool("encrypt", false, "Encrypt export files")
+	encryptMethod  = flag.String("encrypt-method", "aes256", "Encryption method: aes256 or gpg")
+	passphrase     = flag.String("passphrase", "", "Encryption passphrase")
+	keyFile        = flag.String("keyfile", "", "Encryption key file")
+	gpgRecipient   = flag.String("gpg-recipient", "", "GPG recipient email for encryption")
+	profile        = flag.String("profile", "", "Use saved export profile")
+	saveProfile    = flag.String("save-profile", "", "Save current settings as a profile")
+	listProfiles   = flag.Bool("list-profiles", false, "List available profiles")
+	deleteProfile  = flag.String("delete-profile", "", "Delete a saved profile")
+	createDefaults = flag.Bool("create-default-profiles", false, "Create default profiles")
 )
 
 func main() {
@@ -53,21 +76,187 @@ func main() {
 		os.Exit(0)
 	}
 
+	// Setup logging (needed for history and profile operations)
+	cfg := config.FromEnvironment()
+	log := logger.New(cfg.LogLevel)
+
+	// Handle profile operations (don't require provider connection)
+	profileManager, err := NewProfileManager(log)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: failed to create profile manager: %v\n", err)
+		os.Exit(1)
+	}
+
+	if *createDefaults {
+		if err := profileManager.CreateDefaultProfiles(); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: failed to create default profiles: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Println("Default profiles created successfully")
+		fmt.Println("Profiles created:")
+		fmt.Println("  - quick-export: Fast export without compression")
+		fmt.Println("  - production-backup: OVA with compression and verification")
+		fmt.Println("  - encrypted-backup: Encrypted backup for sensitive data")
+		fmt.Println("  - cloud-backup: Backup and upload to cloud storage")
+		fmt.Println("  - development: Quick export for development/testing")
+		os.Exit(0)
+	}
+
+	if *listProfiles {
+		profiles, err := profileManager.ListProfiles()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error: failed to list profiles: %v\n", err)
+			os.Exit(1)
+		}
+
+		if len(profiles) == 0 {
+			fmt.Println("No profiles found. Create some with --create-default-profiles or --save-profile")
+			os.Exit(0)
+		}
+
+		fmt.Println("\n=== Available Export Profiles ===")
+		for _, p := range profiles {
+			fmt.Printf("Profile: %s\n", p.Name)
+			fmt.Printf("  Description: %s\n", p.Description)
+			fmt.Printf("  Format: %s", p.Format)
+			if p.Compress {
+				fmt.Printf(" (compressed)")
+			}
+			fmt.Println()
+			if p.Encrypt {
+				fmt.Printf("  Encryption: %s\n", p.EncryptMethod)
+			}
+			if p.UploadTo != "" {
+				fmt.Printf("  Upload to: %s\n", p.UploadTo)
+			}
+			fmt.Printf("  Created: %s\n", p.Created.Format("2006-01-02 15:04:05"))
+			fmt.Println()
+		}
+		os.Exit(0)
+	}
+
+	if *deleteProfile != "" {
+		if err := profileManager.DeleteProfile(*deleteProfile); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: failed to delete profile: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Printf("Profile '%s' deleted successfully\n", *deleteProfile)
+		os.Exit(0)
+	}
+
+	// Load profile if specified
+	if *profile != "" {
+		loadedProfile, err := profileManager.LoadProfile(*profile)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error: failed to load profile: %v\n", err)
+			os.Exit(1)
+		}
+
+		fmt.Printf("Loaded profile: %s\n", loadedProfile.Name)
+		fmt.Printf("Description: %s\n", loadedProfile.Description)
+
+		// Apply profile settings to flags (override current values)
+		*format = loadedProfile.Format
+		*compress = loadedProfile.Compress
+		*verify = loadedProfile.Verify
+		*powerOff = loadedProfile.PowerOff
+		*parallel = loadedProfile.Parallel
+		if loadedProfile.UploadTo != "" {
+			*uploadTo = loadedProfile.UploadTo
+		}
+		*keepLocal = loadedProfile.KeepLocal
+		*encrypt = loadedProfile.Encrypt
+		*encryptMethod = loadedProfile.EncryptMethod
+		if loadedProfile.GPGRecipient != "" {
+			*gpgRecipient = loadedProfile.GPGRecipient
+		}
+		*validateOnly = loadedProfile.ValidateOnly
+	}
+
+	// Handle history operations (don't require provider connection)
+	if *showHistory || *generateReport || *clearHistory {
+		historyFile, err := GetDefaultHistoryFile()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error: failed to get history file: %v\n", err)
+			os.Exit(1)
+		}
+
+		history := NewExportHistory(historyFile, log)
+
+		if *clearHistory {
+			if err := history.ClearHistory(); err != nil {
+				fmt.Fprintf(os.Stderr, "Error: failed to clear history: %v\n", err)
+				os.Exit(1)
+			}
+			fmt.Println("Export history cleared successfully")
+			os.Exit(0)
+		}
+
+		if *showHistory {
+			entries, err := history.GetRecentExports(*historyLimit)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Error: failed to get history: %v\n", err)
+				os.Exit(1)
+			}
+
+			if len(entries) == 0 {
+				fmt.Println("No export history found")
+				os.Exit(0)
+			}
+
+			fmt.Printf("\n=== Export History (Last %d) ===\n\n", len(entries))
+			for i, entry := range entries {
+				status := "✓ SUCCESS"
+				if !entry.Success {
+					status = "✗ FAILED"
+				}
+
+				fmt.Printf("%d. %s [%s]\n", i+1, entry.VMName, status)
+				fmt.Printf("   Time: %s\n", entry.Timestamp.Format("2006-01-02 15:04:05"))
+				fmt.Printf("   Format: %s | Size: %s | Duration: %s\n",
+					entry.Format,
+					formatBytes(entry.TotalSize),
+					entry.Duration.Round(time.Second))
+				fmt.Printf("   Output: %s\n", entry.OutputDir)
+
+				if !entry.Success && entry.ErrorMessage != "" {
+					fmt.Printf("   Error: %s\n", entry.ErrorMessage)
+				}
+				fmt.Println()
+			}
+			os.Exit(0)
+		}
+
+		if *generateReport {
+			report := NewExportReport(history)
+
+			if *reportFile != "" {
+				if err := report.SaveReportToFile(*reportFile, true, 20); err != nil {
+					fmt.Fprintf(os.Stderr, "Error: failed to save report: %v\n", err)
+					os.Exit(1)
+				}
+				fmt.Printf("Report saved to: %s\n", *reportFile)
+			} else {
+				reportText, err := report.GenerateReport(true, 20)
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "Error: failed to generate report: %v\n", err)
+					os.Exit(1)
+				}
+				fmt.Println(reportText)
+			}
+			os.Exit(0)
+		}
+	}
+
 	// Create intro animation (skip if quiet mode)
 	if !*quiet {
 		showIntro()
 	}
 
-	// Load configuration
-	cfg := config.FromEnvironment()
-
 	// Override config with flags
 	if *parallel > 0 {
 		cfg.DownloadWorkers = *parallel
 	}
-
-	// Setup logging
-	log := logger.New(cfg.LogLevel)
 
 	// Validate required environment variables
 	if cfg.VCenterURL == "" || cfg.Username == "" || cfg.Password == "" {
@@ -145,7 +334,7 @@ func run(ctx context.Context, cfg *config.Config, log logger.Logger) error {
 
 	// Connection spinner
 	var spinner *pterm.SpinnerPrinter
-	if !*quiet {
+	if !*quiet && !*interactive && !*tui {
 		spinner, _ = pterm.DefaultSpinner.Start("Connecting to " + *providerType + "...")
 	}
 
@@ -166,6 +355,11 @@ func run(ctx context.Context, cfg *config.Config, log logger.Logger) error {
 
 	if spinner != nil {
 		spinner.Success("Connected to " + *providerType + " successfully!")
+	}
+
+	// Launch interactive TUI mode if requested
+	if *interactive || *tui {
+		return runInteractiveTUI(ctx, client, cfg, log)
 	}
 
 	// Show connection info panel (skip in quiet mode)
@@ -328,6 +522,60 @@ func run(ctx context.Context, cfg *config.Config, log logger.Logger) error {
 	// Export VM
 	exportDir := getOutputDir(info.Name)
 
+	// Pre-export validation
+	if !*quiet {
+		spinner, _ = pterm.DefaultSpinner.Start("Running pre-export validation...")
+	}
+
+	preValidator := NewPreExportValidator(log)
+	preReport := preValidator.ValidateExport(ctx, *info, exportDir, info.Storage)
+
+	if spinner != nil {
+		if preReport.AllPassed {
+			spinner.Success("Pre-export validation passed")
+		} else {
+			spinner.Warning("Pre-export validation completed with issues")
+		}
+	}
+
+	// Display validation results
+	if !*quiet {
+		displayValidationReport("Pre-Export Validation", preReport)
+	}
+
+	// Stop if validation-only mode
+	if *validateOnly {
+		if preReport.AllPassed {
+			pterm.Success.Println("Validation completed - VM is ready for export")
+			return nil
+		} else {
+			pterm.Error.Println("Validation failed - fix issues before exporting")
+			return fmt.Errorf("validation failed")
+		}
+	}
+
+	// Stop if validation failed (unless warnings only)
+	if !preReport.AllPassed {
+		if !*quiet {
+			pterm.Error.Println("Pre-export validation failed - cannot proceed")
+		}
+		return fmt.Errorf("pre-export validation failed")
+	}
+
+	// Warn about validation warnings
+	if preReport.HasWarnings && !*quiet {
+		pterm.Warning.Println("Pre-export validation has warnings - proceeding anyway")
+		if !*quiet && !*powerOff {
+			result, _ := pterm.DefaultInteractiveConfirm.
+				WithDefaultText("Continue with export despite warnings?").
+				WithDefaultValue(true).
+				Show()
+			if !result {
+				return fmt.Errorf("export cancelled by user")
+			}
+		}
+	}
+
 	opts := vsphere.DefaultExportOptions()
 	opts.OutputPath = exportDir
 	opts.ParallelDownloads = cfg.DownloadWorkers
@@ -371,6 +619,35 @@ func run(ctx context.Context, cfg *config.Config, log logger.Logger) error {
 		result.Format = "ova"
 	}
 
+	// Post-export validation
+	if !*quiet {
+		spinner, _ = pterm.DefaultSpinner.Start("Running post-export validation...")
+	}
+
+	postValidator := NewPostExportValidator(log)
+	postReport := postValidator.ValidateExportedFiles(exportDir)
+
+	if spinner != nil {
+		if postReport.AllPassed {
+			spinner.Success("Post-export validation passed")
+		} else {
+			spinner.Warning("Post-export validation completed with issues")
+		}
+	}
+
+	// Display validation results
+	if !*quiet {
+		displayValidationReport("Post-Export Validation", postReport)
+	}
+
+	// Warn if post-validation failed
+	if !postReport.AllPassed {
+		log.Warn("post-export validation failed", "checks", len(postReport.Checks))
+		if !*quiet {
+			pterm.Warning.Println("Post-export validation detected issues with exported files")
+		}
+	}
+
 	// Verify export if requested
 	if *verify {
 		if !*quiet {
@@ -409,6 +686,137 @@ func run(ctx context.Context, cfg *config.Config, log logger.Logger) error {
 		"totalSize", formatBytes(result.TotalSize),
 		"files", len(result.Files),
 		"output", result.OutputDir)
+
+	// Encrypt export if requested
+	if *encrypt {
+		if !*quiet {
+			spinner, _ = pterm.DefaultSpinner.Start(fmt.Sprintf("Encrypting export with %s...", *encryptMethod))
+		}
+		log.Info("encrypting export", "method", *encryptMethod)
+
+		encConfig := &EncryptionConfig{
+			Method:       EncryptionMethod(*encryptMethod),
+			Passphrase:   *passphrase,
+			KeyFile:      *keyFile,
+			GPGRecipient: *gpgRecipient,
+		}
+
+		// Check if passphrase/key is provided
+		if encConfig.Passphrase == "" && encConfig.KeyFile == "" && encConfig.GPGRecipient == "" {
+			if spinner != nil {
+				spinner.Fail("Encryption failed: no passphrase, key file, or GPG recipient provided")
+			}
+			return fmt.Errorf("encryption requires passphrase, key file, or GPG recipient")
+		}
+
+		encryptor := NewEncryptor(encConfig, log)
+
+		// Encrypt all files in export directory
+		encryptedDir := exportDir + "-encrypted"
+		if err := encryptor.EncryptDirectory(exportDir, encryptedDir); err != nil {
+			if spinner != nil {
+				spinner.Fail("Encryption failed")
+			}
+			return fmt.Errorf("encrypt export: %w", err)
+		}
+
+		if spinner != nil {
+			spinner.Success("Export encrypted successfully")
+		}
+
+		// Replace export directory with encrypted directory
+		if err := os.RemoveAll(exportDir); err != nil {
+			log.Warn("failed to remove unencrypted export", "error", err)
+		}
+		if err := os.Rename(encryptedDir, exportDir); err != nil {
+			return fmt.Errorf("rename encrypted directory: %w", err)
+		}
+
+		log.Info("export encrypted successfully", "method", *encryptMethod)
+	}
+
+	// Upload to cloud storage if requested
+	if *uploadTo != "" {
+		if !*quiet {
+			spinner, _ = pterm.DefaultSpinner.Start(fmt.Sprintf("Uploading to %s...", *uploadTo))
+		}
+		log.Info("uploading export to cloud", "destination", *uploadTo)
+
+		cloudStorage, err := NewCloudStorage(*uploadTo, log)
+		if err != nil {
+			if spinner != nil {
+				spinner.Fail("Failed to initialize cloud storage")
+			}
+			log.Error("failed to create cloud storage client", "error", err)
+			if !*quiet {
+				pterm.Error.Printfln("Cloud upload failed: %v", err)
+			}
+		} else {
+			defer cloudStorage.Close()
+
+			// Upload the export directory
+			remotePath := sanitizeForPath(info.Name)
+			if err := UploadDirectory(ctx, cloudStorage, exportDir, remotePath, log); err != nil {
+				if spinner != nil {
+					spinner.Fail("Upload failed")
+				}
+				log.Error("failed to upload export", "error", err)
+				if !*quiet {
+					pterm.Error.Printfln("Cloud upload failed: %v", err)
+				}
+			} else {
+				if spinner != nil {
+					spinner.Success(fmt.Sprintf("Uploaded to %s successfully", *uploadTo))
+				}
+				log.Info("export uploaded to cloud successfully", "destination", *uploadTo)
+
+				// Delete local copy if requested
+				if !*keepLocal {
+					if !*quiet {
+						spinner, _ = pterm.DefaultSpinner.Start("Removing local copy...")
+					}
+					log.Info("removing local export", "path", exportDir)
+
+					if err := os.RemoveAll(exportDir); err != nil {
+						if spinner != nil {
+							spinner.Warning("Failed to remove local copy")
+						}
+						log.Warn("failed to remove local export", "error", err)
+					} else {
+						if spinner != nil {
+							spinner.Success("Local copy removed")
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// Record export in history
+	historyFile, err := GetDefaultHistoryFile()
+	if err == nil {
+		history := NewExportHistory(historyFile, log)
+		historyEntry := ExportHistoryEntry{
+			Timestamp:  time.Now(),
+			VMName:     info.Name,
+			VMPath:     selectedVM,
+			Provider:   *providerType,
+			Format:     result.Format,
+			OutputDir:  result.OutputDir,
+			TotalSize:  result.TotalSize,
+			Duration:   result.Duration,
+			FilesCount: len(result.Files),
+			Success:    true,
+			Compressed: *compress,
+			Verified:   *verify,
+			Metadata: map[string]string{
+				"uploaded_to": *uploadTo,
+			},
+		}
+		if err := history.RecordExport(historyEntry); err != nil {
+			log.Warn("failed to record export in history", "error", err)
+		}
+	}
 
 	// Celebration (skip in quiet mode)
 	if !*quiet {
@@ -684,6 +1092,112 @@ func saveChecksums(filename string, checksums map[string]string) error {
 
 	for name, hash := range checksums {
 		fmt.Fprintf(file, "%s  %s\n", hash, name)
+	}
+
+	return nil
+}
+
+// displayValidationReport displays validation results in a nice table
+func displayValidationReport(title string, report *ValidationReport) {
+	pterm.DefaultSection.Println(title)
+
+	// Create table data
+	data := pterm.TableData{
+		{"Check", "Status", "Details"},
+	}
+
+	for _, check := range report.Checks {
+		var status string
+		var statusColor pterm.Color
+
+		if !check.Passed {
+			status = "✗ FAIL"
+			statusColor = pterm.FgRed
+		} else if check.Warning {
+			status = "⚠ WARN"
+			statusColor = pterm.FgYellow
+		} else {
+			status = "✓ PASS"
+			statusColor = pterm.FgGreen
+		}
+
+		data = append(data, []string{
+			check.Name,
+			pterm.NewStyle(statusColor).Sprint(status),
+			check.Message,
+		})
+	}
+
+	// Render table
+	pterm.DefaultTable.
+		WithHasHeader().
+		WithHeaderRowSeparator("-").
+		WithBoxed().
+		WithData(data).
+		Render()
+
+	// Summary
+	if report.AllPassed {
+		if report.HasWarnings {
+			pterm.Info.Printfln("Validation passed with %d warnings", countWarnings(report))
+		} else {
+			pterm.Success.Println("All validation checks passed")
+		}
+	} else {
+		failedCount := countFailed(report)
+		pterm.Error.Printfln("%d validation check(s) failed", failedCount)
+	}
+
+	fmt.Println()
+}
+
+// countWarnings counts the number of warnings in a validation report
+func countWarnings(report *ValidationReport) int {
+	count := 0
+	for _, check := range report.Checks {
+		if check.Warning {
+			count++
+		}
+	}
+	return count
+}
+
+// countFailed counts the number of failed checks in a validation report
+func countFailed(report *ValidationReport) int {
+	count := 0
+	for _, check := range report.Checks {
+		if !check.Passed {
+			count++
+		}
+	}
+	return count
+}
+
+// runInteractiveTUI launches the advanced interactive TUI mode
+func runInteractiveTUI(ctx context.Context, client *vsphere.VSphereClient, cfg *config.Config, log logger.Logger) error {
+	// Get output directory
+	outputDirPath := *outputDir
+	if outputDirPath == "" {
+		outputDirPath = "./exports"
+	}
+
+	// Create initial model
+	m := tuiModel{
+		vms:            []tuiVMItem{},
+		filteredVMs:    []tuiVMItem{},
+		cursor:         0,
+		phase:          "loading",
+		sortMode:       "name",
+		client:         client,
+		outputDir:      outputDirPath,
+		log:            log,
+		ctx:            ctx,
+	}
+
+	// Run the TUI program
+	p := tea.NewProgram(m, tea.WithAltScreen())
+	if _, err := p.Run(); err != nil {
+		return fmt.Errorf("TUI error: %w", err)
 	}
 
 	return nil
