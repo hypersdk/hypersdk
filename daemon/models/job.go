@@ -12,11 +12,11 @@ import (
 type JobStatus string
 
 const (
-	JobStatusPending    JobStatus = "pending"
-	JobStatusRunning    JobStatus = "running"
-	JobStatusCompleted  JobStatus = "completed"
-	JobStatusFailed     JobStatus = "failed"
-	JobStatusCancelled  JobStatus = "cancelled"
+	JobStatusPending   JobStatus = "pending"
+	JobStatusRunning   JobStatus = "running"
+	JobStatusCompleted JobStatus = "completed"
+	JobStatusFailed    JobStatus = "failed"
+	JobStatusCancelled JobStatus = "cancelled"
 )
 
 // VCenterConfig represents vCenter connection details
@@ -29,24 +29,24 @@ type VCenterConfig struct {
 
 // JobDefinition represents a VM export job from YAML/JSON
 type JobDefinition struct {
-	ID           string          `json:"id" yaml:"id"`
-	Name         string          `json:"name" yaml:"name"`
-	VMPath       string          `json:"vm_path" yaml:"vm_path"`
-	OutputPath   string          `json:"output_path,omitempty" yaml:"output_path,omitempty"` // For CLI/YAML
-	OutputDir    string          `json:"output_dir,omitempty" yaml:"output_dir,omitempty"`   // For web API
-	Options      *ExportOptions  `json:"options,omitempty" yaml:"options,omitempty"`
-	VCenterURL   string          `json:"vcenter_url,omitempty" yaml:"vcenter_url,omitempty"` // For CLI/YAML
-	VCenter      *VCenterConfig  `json:"vcenter,omitempty" yaml:"vcenter,omitempty"`         // For web API
-	Username     string          `json:"username,omitempty" yaml:"username,omitempty"`
-	Password     string          `json:"-" yaml:"password,omitempty"` // Excluded from JSON to prevent exposure
-	Insecure     bool            `json:"insecure,omitempty" yaml:"insecure,omitempty"`
-	Datacenter   string          `json:"datacenter,omitempty" yaml:"datacenter,omitempty"`
-	Format       string          `json:"format,omitempty" yaml:"format,omitempty"`         // Export format: qcow2, raw, vmdk, ova
-	ExportMethod string          `json:"export_method,omitempty" yaml:"export_method,omitempty"` // ctl, govc, ovftool, web, or "" for auto
-	Method       string          `json:"method,omitempty" yaml:"method,omitempty"`         // Alias for ExportMethod (web API compatibility)
-	Compress     bool            `json:"compress,omitempty" yaml:"compress,omitempty"`
-	Thin         bool            `json:"thin,omitempty" yaml:"thin,omitempty"`
-	CreatedAt    time.Time       `json:"created_at" yaml:"created_at"`
+	ID           string         `json:"id" yaml:"id"`
+	Name         string         `json:"name" yaml:"name"`
+	VMPath       string         `json:"vm_path" yaml:"vm_path"`
+	OutputPath   string         `json:"output_path,omitempty" yaml:"output_path,omitempty"` // For CLI/YAML
+	OutputDir    string         `json:"output_dir,omitempty" yaml:"output_dir,omitempty"`   // For web API
+	Options      *ExportOptions `json:"options,omitempty" yaml:"options,omitempty"`
+	VCenterURL   string         `json:"vcenter_url,omitempty" yaml:"vcenter_url,omitempty"` // For CLI/YAML
+	VCenter      *VCenterConfig `json:"vcenter,omitempty" yaml:"vcenter,omitempty"`         // For web API
+	Username     string         `json:"username,omitempty" yaml:"username,omitempty"`
+	Password     string         `json:"-" yaml:"password,omitempty"` // Excluded from JSON to prevent exposure
+	Insecure     bool           `json:"insecure,omitempty" yaml:"insecure,omitempty"`
+	Datacenter   string         `json:"datacenter,omitempty" yaml:"datacenter,omitempty"`
+	Format       string         `json:"format,omitempty" yaml:"format,omitempty"`               // Export format: qcow2, raw, vmdk, ova
+	ExportMethod string         `json:"export_method,omitempty" yaml:"export_method,omitempty"` // ctl, govc, ovftool, web, or "" for auto
+	Method       string         `json:"method,omitempty" yaml:"method,omitempty"`               // Alias for ExportMethod (web API compatibility)
+	Compress     bool           `json:"compress,omitempty" yaml:"compress,omitempty"`
+	Thin         bool           `json:"thin,omitempty" yaml:"thin,omitempty"`
+	CreatedAt    time.Time      `json:"created_at" yaml:"created_at"`
 }
 
 // Redacted returns a copy of JobDefinition with sensitive fields redacted for logging
@@ -67,29 +67,29 @@ type ExportOptions struct {
 
 // Job represents an active or completed export job
 type Job struct {
-	Definition JobDefinition  `json:"definition"`
-	Status     JobStatus      `json:"status"`
-	Progress   *JobProgress   `json:"progress,omitempty"`
-	Result     *JobResult     `json:"result,omitempty"`
-	Error      string         `json:"error,omitempty"`
-	StartedAt  *time.Time     `json:"started_at,omitempty"`
+	Definition  JobDefinition `json:"definition"`
+	Status      JobStatus     `json:"status"`
+	Progress    *JobProgress  `json:"progress,omitempty"`
+	Result      *JobResult    `json:"result,omitempty"`
+	Error       string        `json:"error,omitempty"`
+	StartedAt   *time.Time    `json:"started_at,omitempty"`
 	CompletedAt *time.Time    `json:"completed_at,omitempty"`
-	UpdatedAt  time.Time      `json:"updated_at"`
+	UpdatedAt   time.Time     `json:"updated_at"`
 }
 
 // JobProgress tracks the progress of an export
 type JobProgress struct {
-	Phase              string  `json:"phase"`                      // "connecting", "discovering", "exporting"
+	Phase              string  `json:"phase"` // "connecting", "discovering", "exporting"
 	CurrentFile        string  `json:"current_file,omitempty"`
-	CurrentStep        string  `json:"current_step,omitempty"`     // Current step description
+	CurrentStep        string  `json:"current_step,omitempty"` // Current step description
 	FilesDownloaded    int     `json:"files_downloaded"`
 	TotalFiles         int     `json:"total_files"`
 	BytesDownloaded    int64   `json:"bytes_downloaded"`
-	BytesTransferred   int64   `json:"bytes_transferred"`          // Alias for BytesDownloaded
+	BytesTransferred   int64   `json:"bytes_transferred"` // Alias for BytesDownloaded
 	TotalBytes         int64   `json:"total_bytes"`
 	PercentComplete    float64 `json:"percent_complete"`
 	EstimatedRemaining string  `json:"estimated_remaining,omitempty"`
-	ExportMethod       string  `json:"export_method,omitempty"`    // Which export method is being used
+	ExportMethod       string  `json:"export_method,omitempty"` // Which export method is being used
 }
 
 // JobResult represents the result of a completed job
@@ -98,7 +98,7 @@ type JobResult struct {
 	OutputDir    string        `json:"output_dir"`
 	OVFPath      string        `json:"ovf_path"`
 	Files        []string      `json:"files"`
-	OutputFiles  []string      `json:"output_files,omitempty"`  // Alias for Files
+	OutputFiles  []string      `json:"output_files,omitempty"` // Alias for Files
 	TotalSize    int64         `json:"total_size"`
 	Duration     time.Duration `json:"duration"`
 	Success      bool          `json:"success"`
@@ -129,10 +129,10 @@ type BatchJobDefinition struct {
 
 // QueryRequest represents a query from hyperctl
 type QueryRequest struct {
-	JobIDs     []string   `json:"job_ids,omitempty"`     // Specific job IDs to query
-	Status     []JobStatus `json:"status,omitempty"`      // Filter by status
-	All        bool        `json:"all"`                   // Return all jobs
-	Limit      int         `json:"limit,omitempty"`       // Limit results
+	JobIDs []string    `json:"job_ids,omitempty"` // Specific job IDs to query
+	Status []JobStatus `json:"status,omitempty"`  // Filter by status
+	All    bool        `json:"all"`               // Return all jobs
+	Limit  int         `json:"limit,omitempty"`   // Limit results
 }
 
 // QueryResponse represents the response to a query
@@ -158,19 +158,19 @@ type CancelRequest struct {
 
 // CancelResponse represents the response to a cancel request
 type CancelResponse struct {
-	Cancelled []string  `json:"cancelled"`
-	Failed    []string  `json:"failed"`
+	Cancelled []string          `json:"cancelled"`
+	Failed    []string          `json:"failed"`
 	Errors    map[string]string `json:"errors,omitempty"`
-	Timestamp time.Time `json:"timestamp"`
+	Timestamp time.Time         `json:"timestamp"`
 }
 
 // DaemonStatus represents the overall status of the daemon
 type DaemonStatus struct {
-	Version      string    `json:"version"`
-	Uptime       string    `json:"uptime"`
-	TotalJobs    int       `json:"total_jobs"`
-	RunningJobs  int       `json:"running_jobs"`
-	CompletedJobs int      `json:"completed_jobs"`
-	FailedJobs   int       `json:"failed_jobs"`
-	Timestamp    time.Time `json:"timestamp"`
+	Version       string    `json:"version"`
+	Uptime        string    `json:"uptime"`
+	TotalJobs     int       `json:"total_jobs"`
+	RunningJobs   int       `json:"running_jobs"`
+	CompletedJobs int       `json:"completed_jobs"`
+	FailedJobs    int       `json:"failed_jobs"`
+	Timestamp     time.Time `json:"timestamp"`
 }

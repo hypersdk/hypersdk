@@ -13,24 +13,24 @@ type ExportOptions struct {
 	RemoveCDROM            bool
 	ShutdownTimeout        time.Duration
 	ParallelDownloads      int
-	ValidateChecksum       bool  // renamed from Validate to avoid conflict with Validate() method
+	ValidateChecksum       bool // renamed from Validate to avoid conflict with Validate() method
 	ShowIndividualProgress bool
 	ShowOverallProgress    bool
-	CleanupOVF             bool  // Remove OVF files after OVA creation
-	Compress               bool  // Enable gzip compression for OVA
-	CompressionLevel       int   // Gzip compression level (0-9, default 6)
+	CleanupOVF             bool // Remove OVF files after OVA creation
+	Compress               bool // Enable gzip compression for OVA
+	CompressionLevel       int  // Gzip compression level (0-9, default 6)
 
 	// Artifact Manifest v1.0 options
-	GenerateManifest       bool   // Generate Artifact Manifest v1.0
-	VerifyManifest         bool   // Verify manifest after generation
-	ManifestComputeChecksum bool  // Compute SHA-256 checksums for all disks
-	ManifestTargetFormat   string // Target format for hyper2kvm conversion (e.g., "qcow2")
+	GenerateManifest        bool   // Generate Artifact Manifest v1.0
+	VerifyManifest          bool   // Verify manifest after generation
+	ManifestComputeChecksum bool   // Compute SHA-256 checksums for all disks
+	ManifestTargetFormat    string // Target format for hyper2kvm conversion (e.g., "qcow2")
 
 	// Automatic conversion options (Phase 2)
-	AutoConvert            bool   // Automatically run hyper2kvm after export
-	Hyper2KVMBinary        string // Path to hyper2kvm binary (auto-detect if empty)
+	AutoConvert            bool          // Automatically run hyper2kvm after export
+	Hyper2KVMBinary        string        // Path to hyper2kvm binary (auto-detect if empty)
 	ConversionTimeout      time.Duration // Timeout for conversion process
-	StreamConversionOutput bool   // Stream hyper2kvm output to console
+	StreamConversionOutput bool          // Stream hyper2kvm output to console
 }
 
 func DefaultExportOptions() ExportOptions {

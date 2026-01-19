@@ -69,47 +69,47 @@ func TestFromEnvironmentDefaults(t *testing.T) {
 func TestFromFile(t *testing.T) {
 	// Test temporarily disabled - to be re-enabled after config file format is finalized
 	t.Skip("Skipping file-based config test")
-// 	// Create temporary config file
-// 	tmpFile, err := os.CreateTemp("", "config-*.yaml")
-// 	if err != nil {
-// 		t.Fatalf("Failed to create temp file: %v", err)
-// 	}
-// 	defer os.Remove(tmpFile.Name())
-// 
-// 	configContent := `
-// VCenterURL: "https://file.vcenter.com/sdk"
-// Username: "fileuser"
-// Password: "filepass"
-// Insecure: true
-// DaemonAddr: "0.0.0.0:8888"
-// LogLevel: "warn"
-// DownloadWorkers: 8
-// `
-// 	if _, err := tmpFile.WriteString(configContent); err != nil {
-// 		t.Fatalf("Failed to write config: %v", err)
-// 	}
-// 	tmpFile.Close()
-// 
-// 	cfg, err := FromFile(tmpFile.Name())
-// 	if err != nil {
-// 		t.Fatalf("FromFile failed: %v", err)
-// 	}
-// 
-// 	if cfg.VCenterURL != "https://file.vcenter.com/sdk" {
-// 		t.Errorf("Expected VCenterURL from file, got '%s'", cfg.VCenterURL)
-// 	}
-// 	if cfg.Username != "fileuser" {
-// 		t.Errorf("Expected Username 'fileuser', got '%s'", cfg.Username)
-// 	}
-// 	if cfg.DaemonAddr != "0.0.0.0:8888" {
-// 		t.Errorf("Expected DaemonAddr '0.0.0.0:8888', got '%s'", cfg.DaemonAddr)
-// 	}
-// 	if cfg.DownloadWorkers != 8 {
-// 		t.Errorf("Expected DownloadWorkers 8, got %d", cfg.DownloadWorkers)
-// 	}
-// }
-// 
-// func TestMergeWithEnv(t *testing.T) {
+	// 	// Create temporary config file
+	// 	tmpFile, err := os.CreateTemp("", "config-*.yaml")
+	// 	if err != nil {
+	// 		t.Fatalf("Failed to create temp file: %v", err)
+	// 	}
+	// 	defer os.Remove(tmpFile.Name())
+	//
+	// 	configContent := `
+	// VCenterURL: "https://file.vcenter.com/sdk"
+	// Username: "fileuser"
+	// Password: "filepass"
+	// Insecure: true
+	// DaemonAddr: "0.0.0.0:8888"
+	// LogLevel: "warn"
+	// DownloadWorkers: 8
+	// `
+	// 	if _, err := tmpFile.WriteString(configContent); err != nil {
+	// 		t.Fatalf("Failed to write config: %v", err)
+	// 	}
+	// 	tmpFile.Close()
+	//
+	// 	cfg, err := FromFile(tmpFile.Name())
+	// 	if err != nil {
+	// 		t.Fatalf("FromFile failed: %v", err)
+	// 	}
+	//
+	// 	if cfg.VCenterURL != "https://file.vcenter.com/sdk" {
+	// 		t.Errorf("Expected VCenterURL from file, got '%s'", cfg.VCenterURL)
+	// 	}
+	// 	if cfg.Username != "fileuser" {
+	// 		t.Errorf("Expected Username 'fileuser', got '%s'", cfg.Username)
+	// 	}
+	// 	if cfg.DaemonAddr != "0.0.0.0:8888" {
+	// 		t.Errorf("Expected DaemonAddr '0.0.0.0:8888', got '%s'", cfg.DaemonAddr)
+	// 	}
+	// 	if cfg.DownloadWorkers != 8 {
+	// 		t.Errorf("Expected DownloadWorkers 8, got %d", cfg.DownloadWorkers)
+	// 	}
+	// }
+	//
+	// func TestMergeWithEnv(t *testing.T) {
 	// Set environment variables
 	os.Setenv("GOVC_URL", "https://env.vcenter.com/sdk")
 	os.Setenv("LOG_LEVEL", "error")

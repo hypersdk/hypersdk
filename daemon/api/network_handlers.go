@@ -12,12 +12,12 @@ import (
 
 // LibvirtNetwork represents a libvirt network
 type LibvirtNetwork struct {
-	Name      string `json:"name"`
-	UUID      string `json:"uuid"`
-	Active    bool   `json:"active"`
+	Name       string `json:"name"`
+	UUID       string `json:"uuid"`
+	Active     bool   `json:"active"`
 	Persistent bool   `json:"persistent"`
-	Autostart bool   `json:"autostart"`
-	Bridge    string `json:"bridge"`
+	Autostart  bool   `json:"autostart"`
+	Bridge     string `json:"bridge"`
 }
 
 // handleListNetworks lists all libvirt networks

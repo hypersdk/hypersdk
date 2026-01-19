@@ -52,10 +52,10 @@ func TestNetworkHandlers(t *testing.T) {
 			expectedStatus: http.StatusBadRequest,
 		},
 		{
-			name:    "create network - invalid JSON",
-			handler: server.handleCreateNetwork,
-			method:  http.MethodPost,
-			body:    "invalid json",
+			name:           "create network - invalid JSON",
+			handler:        server.handleCreateNetwork,
+			method:         http.MethodPost,
+			body:           "invalid json",
 			expectedStatus: http.StatusBadRequest,
 		},
 		{
@@ -112,10 +112,10 @@ func TestVolumeHandlers(t *testing.T) {
 			expectedStatus: http.StatusBadRequest,
 		},
 		{
-			name:    "create volume - invalid JSON",
-			handler: server.handleCreateVolume,
-			method:  http.MethodPost,
-			body:    "not json",
+			name:           "create volume - invalid JSON",
+			handler:        server.handleCreateVolume,
+			method:         http.MethodPost,
+			body:           "not json",
 			expectedStatus: http.StatusBadRequest,
 		},
 		{

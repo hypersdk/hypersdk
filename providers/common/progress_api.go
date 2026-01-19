@@ -52,8 +52,8 @@ type ProgressInfo struct {
 	UploadProgress *StageProgress `json:"upload_progress,omitempty"`
 
 	// Error information
-	Error       string   `json:"error,omitempty"`
-	Warnings    []string `json:"warnings,omitempty"`
+	Error    string   `json:"error,omitempty"`
+	Warnings []string `json:"warnings,omitempty"`
 
 	// Metadata
 	Metadata map[string]interface{} `json:"metadata,omitempty"`

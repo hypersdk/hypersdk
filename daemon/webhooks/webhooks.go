@@ -213,9 +213,9 @@ func (m *Manager) SendJobCompleted(job *models.Job) {
 	}
 
 	data := map[string]interface{}{
-		"job_id":          job.Definition.ID,
-		"job_name":        job.Definition.Name,
-		"vm_path":         job.Definition.VMPath,
+		"job_id":           job.Definition.ID,
+		"job_name":         job.Definition.Name,
+		"vm_path":          job.Definition.VMPath,
 		"duration_seconds": duration,
 	}
 

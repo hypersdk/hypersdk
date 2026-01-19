@@ -1,5 +1,8 @@
 // SPDX-License-Identifier: LGPL-3.0-or-later
 
+//go:build integration && integration
+// +build integration,integration
+
 package gcp
 
 import (
@@ -90,15 +93,15 @@ func TestProgressReader_NoReporter(t *testing.T) {
 // TestExportResult_Structure tests ExportResult struct
 func TestExportResult_Structure(t *testing.T) {
 	result := &ExportResult{
-		ImageName:  "my-instance-image-123456",
-		DiskName:   "my-instance-boot-disk",
-		DiskType:   "boot",
-		Format:     "vmdk",
-		LocalPath:  "/tmp/my-instance.vmdk",
-		Size:       50 * 1024 * 1024 * 1024, // 50GB
-		GCSBucket:  "vm-exports",
-		GCSObject:  "my-instance.vmdk",
-		GCSURI:     "gs://vm-exports/my-instance.vmdk",
+		ImageName: "my-instance-image-123456",
+		DiskName:  "my-instance-boot-disk",
+		DiskType:  "boot",
+		Format:    "vmdk",
+		LocalPath: "/tmp/my-instance.vmdk",
+		Size:      50 * 1024 * 1024 * 1024, // 50GB
+		GCSBucket: "vm-exports",
+		GCSObject: "my-instance.vmdk",
+		GCSURI:    "gs://vm-exports/my-instance.vmdk",
 	}
 
 	// Verify all fields are set
@@ -166,26 +169,26 @@ func TestCreateExportManifest(t *testing.T) {
 
 	results := []*ExportResult{
 		{
-			ImageName:  "instance-disk-0-image-123",
-			DiskName:   "boot-disk",
-			DiskType:   "boot",
-			Format:     "vmdk",
-			LocalPath:  "/tmp/boot-disk.vmdk",
-			Size:       50 * 1024 * 1024 * 1024,
-			GCSBucket:  "vm-exports",
-			GCSObject:  "boot-disk.vmdk",
-			GCSURI:     "gs://vm-exports/boot-disk.vmdk",
+			ImageName: "instance-disk-0-image-123",
+			DiskName:  "boot-disk",
+			DiskType:  "boot",
+			Format:    "vmdk",
+			LocalPath: "/tmp/boot-disk.vmdk",
+			Size:      50 * 1024 * 1024 * 1024,
+			GCSBucket: "vm-exports",
+			GCSObject: "boot-disk.vmdk",
+			GCSURI:    "gs://vm-exports/boot-disk.vmdk",
 		},
 		{
-			ImageName:  "instance-disk-1-image-124",
-			DiskName:   "data-disk-1",
-			DiskType:   "data-1",
-			Format:     "vmdk",
-			LocalPath:  "/tmp/data-disk-1.vmdk",
-			Size:       100 * 1024 * 1024 * 1024,
-			GCSBucket:  "vm-exports",
-			GCSObject:  "data-disk-1.vmdk",
-			GCSURI:     "gs://vm-exports/data-disk-1.vmdk",
+			ImageName: "instance-disk-1-image-124",
+			DiskName:  "data-disk-1",
+			DiskType:  "data-1",
+			Format:    "vmdk",
+			LocalPath: "/tmp/data-disk-1.vmdk",
+			Size:      100 * 1024 * 1024 * 1024,
+			GCSBucket: "vm-exports",
+			GCSObject: "data-disk-1.vmdk",
+			GCSURI:    "gs://vm-exports/data-disk-1.vmdk",
 		},
 	}
 
@@ -296,7 +299,6 @@ func containsAtIndex(s, substr string) bool {
 // These tests are disabled by default - enable with build tag 'integration'
 
 // TestExportImageToGCS_Integration tests full GCS export flow
-// +build integration
 func TestExportImageToGCS_Integration(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping integration test")
@@ -312,7 +314,6 @@ func TestExportImageToGCS_Integration(t *testing.T) {
 }
 
 // TestExportInstanceToGCS_Integration tests instance multi-disk export
-// +build integration
 func TestExportInstanceToGCS_Integration(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping integration test")

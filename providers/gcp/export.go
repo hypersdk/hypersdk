@@ -34,7 +34,7 @@ func (c *Client) ExportImageToGCS(ctx context.Context, imageName, bucket, output
 		Project: c.config.ProjectID,
 		Image:   imageName,
 		ImageExportRequest: &computepb.ImageExportRequest{
-			DestinationUri: &gcsURI,
+			DestinationUri:  &gcsURI,
 			DiskImageFormat: makeStringPtr("vmdk"),
 		},
 	}
@@ -73,13 +73,13 @@ func (c *Client) ExportImageToGCS(ctx context.Context, imageName, bucket, output
 	c.logger.Info("VMDK downloaded successfully", "path", localPath, "size_bytes", size)
 
 	return &ExportResult{
-		ImageName:  imageName,
-		Format:     "vmdk",
-		LocalPath:  localPath,
-		Size:       size,
-		GCSBucket:  bucket,
-		GCSObject:  fmt.Sprintf("%s.vmdk", imageName),
-		GCSURI:     gcsURI,
+		ImageName: imageName,
+		Format:    "vmdk",
+		LocalPath: localPath,
+		Size:      size,
+		GCSBucket: bucket,
+		GCSObject: fmt.Sprintf("%s.vmdk", imageName),
+		GCSURI:    gcsURI,
 	}, nil
 }
 
@@ -366,7 +366,7 @@ func (pr *progressReader) Read(p []byte) (int, error) {
 
 	if pr.reporter != nil && pr.total > 0 {
 		percentage := int((pr.current * 100) / pr.total)
-		pr.reporter.Update(percentage)
+		pr.reporter.Update(int64(percentage))
 	}
 
 	return n, err
@@ -374,15 +374,15 @@ func (pr *progressReader) Read(p []byte) (int, error) {
 
 // ExportResult contains the result of a GCS export operation
 type ExportResult struct {
-	ImageName  string
-	DiskName   string
-	DiskType   string // "boot", "data-1", "data-2", etc.
-	Format     string
-	LocalPath  string
-	Size       int64
-	GCSBucket  string
-	GCSObject  string
-	GCSURI     string
+	ImageName string
+	DiskName  string
+	DiskType  string // "boot", "data-1", "data-2", etc.
+	Format    string
+	LocalPath string
+	Size      int64
+	GCSBucket string
+	GCSObject string
+	GCSURI    string
 }
 
 // CreateExportManifest creates a JSON manifest file for multi-disk exports

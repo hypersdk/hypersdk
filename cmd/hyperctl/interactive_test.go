@@ -322,13 +322,13 @@ func TestApplyFiltersAndSort(t *testing.T) {
 	}
 
 	tests := []struct {
-		name           string
-		searchQuery    string
-		filterPower    string
-		sortMode       string
-		expectedCount  int
-		expectedFirst  string // Name of first VM after filtering/sorting
-		expectedLast   string // Name of last VM
+		name          string
+		searchQuery   string
+		filterPower   string
+		sortMode      string
+		expectedCount int
+		expectedFirst string // Name of first VM after filtering/sorting
+		expectedLast  string // Name of last VM
 	}{
 		{
 			name:          "no_filters_sort_by_name",
@@ -381,7 +381,7 @@ func TestApplyFiltersAndSort(t *testing.T) {
 			filterPower:   "",
 			sortMode:      "memory",
 			expectedCount: 4,
-			expectedFirst: "beta", // 16384 MB
+			expectedFirst: "beta",  // 16384 MB
 			expectedLast:  "gamma", // 2048 MB
 		},
 		{
@@ -390,7 +390,7 @@ func TestApplyFiltersAndSort(t *testing.T) {
 			filterPower:   "",
 			sortMode:      "storage",
 			expectedCount: 4,
-			expectedFirst: "beta", // Largest
+			expectedFirst: "beta",  // Largest
 			expectedLast:  "gamma", // Smallest
 		},
 		{
@@ -399,7 +399,7 @@ func TestApplyFiltersAndSort(t *testing.T) {
 			filterPower:   "",
 			sortMode:      "power",
 			expectedCount: 4,
-			expectedFirst: "beta", // poweredOn
+			expectedFirst: "beta",  // poweredOn
 			expectedLast:  "gamma", // poweredOff
 		},
 		{

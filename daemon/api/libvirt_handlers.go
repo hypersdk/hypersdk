@@ -12,14 +12,14 @@ import (
 
 // LibvirtDomain represents a libvirt domain/VM
 type LibvirtDomain struct {
-	ID          string `json:"id"`
-	Name        string `json:"name"`
-	UUID        string `json:"uuid"`
-	State       string `json:"state"`       // running, shut off, paused
-	CPUs        int    `json:"cpus"`
-	Memory      int    `json:"memory"`      // MB
-	Autostart   bool   `json:"autostart"`
-	Persistent  bool   `json:"persistent"`
+	ID         string `json:"id"`
+	Name       string `json:"name"`
+	UUID       string `json:"uuid"`
+	State      string `json:"state"` // running, shut off, paused
+	CPUs       int    `json:"cpus"`
+	Memory     int    `json:"memory"` // MB
+	Autostart  bool   `json:"autostart"`
+	Persistent bool   `json:"persistent"`
 }
 
 // LibvirtSnapshot represents a VM snapshot
@@ -307,9 +307,9 @@ func (s *Server) handleCreateLibvirtSnapshot(w http.ResponseWriter, r *http.Requ
 	}
 
 	var req struct {
-		DomainName      string `json:"domain_name"`
-		SnapshotName    string `json:"snapshot_name"`
-		Description     string `json:"description"`
+		DomainName   string `json:"domain_name"`
+		SnapshotName string `json:"snapshot_name"`
+		Description  string `json:"description"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "invalid request body", http.StatusBadRequest)

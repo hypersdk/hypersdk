@@ -25,12 +25,12 @@ type WSMessage struct {
 
 // WSClient represents a connected WebSocket client
 type WSClient struct {
-	conn       *websocket.Conn
-	send       chan WSMessage
-	hub        *WSHub
-	mu         sync.Mutex
-	closed     bool
-	closeOnce  sync.Once
+	conn      *websocket.Conn
+	send      chan WSMessage
+	hub       *WSHub
+	mu        sync.Mutex
+	closed    bool
+	closeOnce sync.Once
 }
 
 // WSHub manages WebSocket clients and broadcasts
@@ -394,10 +394,10 @@ func (es *EnhancedServer) handleWebSocket(w http.ResponseWriter, r *http.Request
 			Type:      "status",
 			Timestamp: time.Now(),
 			Data: map[string]interface{}{
-				"total_jobs":      status.TotalJobs,
-				"running_jobs":    status.RunningJobs,
-				"completed_jobs":  status.CompletedJobs,
-				"failed_jobs":     status.FailedJobs,
+				"total_jobs":     status.TotalJobs,
+				"running_jobs":   status.RunningJobs,
+				"completed_jobs": status.CompletedJobs,
+				"failed_jobs":    status.FailedJobs,
 			},
 		}
 
@@ -488,19 +488,19 @@ func (es *EnhancedServer) broadcastDashboardMetrics() {
 
 		jobInfo := map[string]interface{}{
 			"id":               job.Definition.ID,
-			"name":            job.Definition.Name,
-			"status":          string(job.Status),
-			"progress":        progressPercent,
-			"start_time":      startTime,
+			"name":             job.Definition.Name,
+			"status":           string(job.Status),
+			"progress":         progressPercent,
+			"start_time":       startTime,
 			"duration_seconds": durationSeconds,
-			"provider":        "vsphere", // Default to vsphere for now
-			"vm_name":         job.Definition.VMPath, // Using VMPath as vm_name
-			"vm_path":         job.Definition.VMPath,
-			"output_dir":      job.Definition.OutputDir,
-			"format":          job.Definition.Format,
-			"compress":        job.Definition.Compress,
-			"created_at":      job.Definition.CreatedAt.Format(time.RFC3339),
-			"updated_at":      job.UpdatedAt.Format(time.RFC3339),
+			"provider":         "vsphere",             // Default to vsphere for now
+			"vm_name":          job.Definition.VMPath, // Using VMPath as vm_name
+			"vm_path":          job.Definition.VMPath,
+			"output_dir":       job.Definition.OutputDir,
+			"format":           job.Definition.Format,
+			"compress":         job.Definition.Compress,
+			"created_at":       job.Definition.CreatedAt.Format(time.RFC3339),
+			"updated_at":       job.UpdatedAt.Format(time.RFC3339),
 		}
 
 		if job.CompletedAt != nil {
@@ -525,9 +525,9 @@ func (es *EnhancedServer) broadcastDashboardMetrics() {
 		"http_requests":      0, // TODO: Add HTTP metrics
 		"http_errors":        0,
 		"avg_response_time":  0.0,
-		"memory_usage":       0,    // TODO: Add memory metrics
-		"cpu_usage":          0.0,  // TODO: Add CPU metrics
-		"goroutines":         0,    // TODO: Add goroutine count
+		"memory_usage":       0,   // TODO: Add memory metrics
+		"cpu_usage":          0.0, // TODO: Add CPU metrics
+		"goroutines":         0,   // TODO: Add goroutine count
 		"active_connections": 0,
 		"websocket_clients":  es.wsHub.GetClientCount(),
 		"provider_stats":     map[string]interface{}{},

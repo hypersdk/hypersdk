@@ -128,11 +128,11 @@ func (p *AzureProvider) ListVMs(ctx context.Context, filter providers.VMFilter) 
 			Location: vm.Location,
 			Tags:     vm.Tags,
 			Metadata: map[string]interface{}{
-				"vm_size":             vm.VMSize,
-				"os_type":             vm.OSType,
-				"provisioning_state":  vm.ProvisioningState,
-				"resource_group":      vm.ResourceGroup,
-				"disk_names":          vm.DiskNames,
+				"vm_size":            vm.VMSize,
+				"os_type":            vm.OSType,
+				"provisioning_state": vm.ProvisioningState,
+				"resource_group":     vm.ResourceGroup,
+				"disk_names":         vm.DiskNames,
 			},
 		}
 		result = append(result, vmInfo)
@@ -243,10 +243,10 @@ func (p *AzureProvider) ExportVM(ctx context.Context, identifier string, opts pr
 			OutputPath: firstDisk.LocalPath,
 			Size:       firstDisk.Size,
 			Metadata: map[string]interface{}{
-				"disk_count":  len(vhdResults),
-				"blob_url":    firstDisk.BlobURL,
-				"disk_name":   firstDisk.DiskName,
-				"disk_type":   firstDisk.DiskType,
+				"disk_count":   len(vhdResults),
+				"blob_url":     firstDisk.BlobURL,
+				"disk_name":    firstDisk.DiskName,
+				"disk_type":    firstDisk.DiskType,
 				"disk_size_gb": firstDisk.DiskSizeGB,
 			},
 		}, nil

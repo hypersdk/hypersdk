@@ -15,15 +15,15 @@ import (
 // Enhanced styles with theme support
 var (
 	// Color palette
-	primaryColor   = lipgloss.Color("#00ffff")   // Cyan
-	secondaryColor = lipgloss.Color("#ff00ff")   // Magenta
-	successColor   = lipgloss.Color("#00ff00")   // Green
-	warningColor   = lipgloss.Color("#ffaa00")   // Orange
-	errorColor     = lipgloss.Color("#ff0000")   // Red
-	mutedColor     = lipgloss.Color("#666666")   // Gray
-	highlightColor = lipgloss.Color("#ffff00")   // Yellow
-	bgColor        = lipgloss.Color("#1a1a1a")   // Dark background
-	fgColor        = lipgloss.Color("#e0e0e0")   // Light foreground
+	primaryColor   = lipgloss.Color("#00ffff") // Cyan
+	secondaryColor = lipgloss.Color("#ff00ff") // Magenta
+	successColor   = lipgloss.Color("#00ff00") // Green
+	warningColor   = lipgloss.Color("#ffaa00") // Orange
+	errorColor     = lipgloss.Color("#ff0000") // Red
+	mutedColor     = lipgloss.Color("#666666") // Gray
+	highlightColor = lipgloss.Color("#ffff00") // Yellow
+	bgColor        = lipgloss.Color("#1a1a1a") // Dark background
+	fgColor        = lipgloss.Color("#e0e0e0") // Light foreground
 
 	// Status bar style
 	statusBarStyle = lipgloss.NewStyle().
@@ -831,12 +831,12 @@ func renderRealTimeExportProgress(m model) string {
 		// Progress bar for current file
 		if m.exportProgress.totalBytes > 0 {
 			percentage := float64(m.exportProgress.currentBytes) / float64(m.exportProgress.totalBytes) * 100
-			
+
 			// Progress bar
 			barWidth := 40
 			filled := int(float64(barWidth) * percentage / 100)
 			bar := strings.Repeat("█", filled) + strings.Repeat("░", barWidth-filled)
-			
+
 			b.WriteString(progressBarStyle.Render(bar))
 			b.WriteString(" ")
 			b.WriteString(progressLabelStyle.Render(fmt.Sprintf("%.1f%%", percentage)))
@@ -886,7 +886,7 @@ func renderRealTimeExportProgress(m model) string {
 	// VM list with status
 	b.WriteString(titleStyle.Render("VM Status"))
 	b.WriteString("\n")
-	
+
 	maxDisplay := 8
 	start := 0
 	if m.currentExport > maxDisplay/2 {

@@ -13,10 +13,10 @@ import (
 
 // ValidationResult represents a validation result
 type ValidationResult struct {
-	Valid   bool     `json:"valid"`
-	Errors  []string `json:"errors,omitempty"`
-	Warnings []string `json:"warnings,omitempty"`
-	Details map[string]interface{} `json:"details,omitempty"`
+	Valid    bool                   `json:"valid"`
+	Errors   []string               `json:"errors,omitempty"`
+	Warnings []string               `json:"warnings,omitempty"`
+	Details  map[string]interface{} `json:"details,omitempty"`
 }
 
 // handleValidateMigration validates a VM/disk before migration
@@ -27,7 +27,7 @@ func (s *Server) handleValidateMigration(w http.ResponseWriter, r *http.Request)
 	}
 
 	var req struct {
-		Path   string `json:"path"`    // Path to VMDK/disk file
+		Path   string `json:"path"`              // Path to VMDK/disk file
 		VMName string `json:"vm_name,omitempty"` // Optional: vCenter VM name
 		Format string `json:"format,omitempty"`  // Expected format (vmdk, qcow2, etc.)
 	}
@@ -37,10 +37,10 @@ func (s *Server) handleValidateMigration(w http.ResponseWriter, r *http.Request)
 	}
 
 	result := ValidationResult{
-		Valid:   true,
-		Errors:  []string{},
+		Valid:    true,
+		Errors:   []string{},
 		Warnings: []string{},
-		Details: make(map[string]interface{}),
+		Details:  make(map[string]interface{}),
 	}
 
 	// Check if file exists
@@ -137,11 +137,11 @@ func (s *Server) handleVerifyMigration(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req struct {
-		VMName       string `json:"vm_name"`
-		SourcePath   string `json:"source_path,omitempty"`   // Original VMDK path
+		VMName        string `json:"vm_name"`
+		SourcePath    string `json:"source_path,omitempty"`    // Original VMDK path
 		ConvertedPath string `json:"converted_path,omitempty"` // Converted qcow2 path
-		BootTest     bool   `json:"boot_test"`               // Test if VM boots
-		ChecksumTest bool   `json:"checksum_test"`           // Compare checksums
+		BootTest      bool   `json:"boot_test"`                // Test if VM boots
+		ChecksumTest  bool   `json:"checksum_test"`            // Compare checksums
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "invalid request body", http.StatusBadRequest)
@@ -149,10 +149,10 @@ func (s *Server) handleVerifyMigration(w http.ResponseWriter, r *http.Request) {
 	}
 
 	result := ValidationResult{
-		Valid:   true,
-		Errors:  []string{},
+		Valid:    true,
+		Errors:   []string{},
 		Warnings: []string{},
-		Details: make(map[string]interface{}),
+		Details:  make(map[string]interface{}),
 	}
 
 	// Check if VM exists
@@ -273,11 +273,11 @@ func (s *Server) handleCheckCompatibility(w http.ResponseWriter, r *http.Request
 	}
 
 	var req struct {
-		VMName     string   `json:"vm_name,omitempty"`
-		DiskPath   string   `json:"disk_path,omitempty"`
-		OSType     string   `json:"os_type,omitempty"`     // windows, linux, etc.
-		Firmware   string   `json:"firmware,omitempty"`    // bios, uefi
-		Features   []string `json:"features,omitempty"`    // Required features
+		VMName   string   `json:"vm_name,omitempty"`
+		DiskPath string   `json:"disk_path,omitempty"`
+		OSType   string   `json:"os_type,omitempty"`  // windows, linux, etc.
+		Firmware string   `json:"firmware,omitempty"` // bios, uefi
+		Features []string `json:"features,omitempty"` // Required features
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "invalid request body", http.StatusBadRequest)
@@ -285,10 +285,10 @@ func (s *Server) handleCheckCompatibility(w http.ResponseWriter, r *http.Request
 	}
 
 	result := ValidationResult{
-		Valid:   true,
-		Errors:  []string{},
+		Valid:    true,
+		Errors:   []string{},
 		Warnings: []string{},
-		Details: make(map[string]interface{}),
+		Details:  make(map[string]interface{}),
 	}
 
 	// Check KVM support
@@ -424,10 +424,10 @@ func (s *Server) handleTestMigration(w http.ResponseWriter, r *http.Request) {
 	}
 
 	result := ValidationResult{
-		Valid:   true,
-		Errors:  []string{},
+		Valid:    true,
+		Errors:   []string{},
 		Warnings: []string{},
-		Details: make(map[string]interface{}),
+		Details:  make(map[string]interface{}),
 	}
 
 	testResults := make(map[string]interface{})

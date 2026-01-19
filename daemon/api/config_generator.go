@@ -14,59 +14,59 @@ import (
 
 // ConfigGeneratorRequest represents a request to generate hyper2kvm config
 type ConfigGeneratorRequest struct {
-	OSType          string `json:"os_type"`           // windows, linux
-	OSFlavor        string `json:"os_flavor"`         // windows-10, windows-11, ubuntu-22, rhel-10, photon-os
-	VMDKPath        string `json:"vmdk_path"`         // Source VMDK path
-	OutputDir       string `json:"output_dir"`        // Output directory
-	VMName          string `json:"vm_name"`           // VM name
-	Flatten         bool   `json:"flatten"`           // Flatten snapshots
-	Compress        bool   `json:"compress"`          // Compress output
-	VirtIODrivers   string `json:"virtio_drivers"`    // VirtIO drivers dir (Windows only)
-	LibvirtTest     bool   `json:"libvirt_test"`      // Run libvirt smoke test
-	Memory          int    `json:"memory"`            // Memory in MB
-	VCPUs           int    `json:"vcpus"`             // Number of vCPUs
-	UEFI            bool   `json:"uefi"`              // Use UEFI
-	GenerateService bool   `json:"generate_service"`  // Generate systemd service
+	OSType          string `json:"os_type"`          // windows, linux
+	OSFlavor        string `json:"os_flavor"`        // windows-10, windows-11, ubuntu-22, rhel-10, photon-os
+	VMDKPath        string `json:"vmdk_path"`        // Source VMDK path
+	OutputDir       string `json:"output_dir"`       // Output directory
+	VMName          string `json:"vm_name"`          // VM name
+	Flatten         bool   `json:"flatten"`          // Flatten snapshots
+	Compress        bool   `json:"compress"`         // Compress output
+	VirtIODrivers   string `json:"virtio_drivers"`   // VirtIO drivers dir (Windows only)
+	LibvirtTest     bool   `json:"libvirt_test"`     // Run libvirt smoke test
+	Memory          int    `json:"memory"`           // Memory in MB
+	VCPUs           int    `json:"vcpus"`            // Number of vCPUs
+	UEFI            bool   `json:"uefi"`             // Use UEFI
+	GenerateService bool   `json:"generate_service"` // Generate systemd service
 }
 
 // Hyper2KVMConfig represents the full hyper2kvm YAML configuration
 type Hyper2KVMConfig struct {
-	Cmd             string `yaml:"cmd"`
-	VMDK            string `yaml:"vmdk"`
-	OutputDir       string `yaml:"output_dir"`
-	Flatten         bool   `yaml:"flatten,omitempty"`
-	FlattenFormat   string `yaml:"flatten_format,omitempty"`
-	ToOutput        string `yaml:"to_output"`
-	OutFormat       string `yaml:"out_format"`
-	Compress        bool   `yaml:"compress"`
-	Checksum        bool   `yaml:"checksum"`
-	PrintFstab      bool   `yaml:"print_fstab"`
-	FstabMode       string `yaml:"fstab_mode"`
-	NoGrub          bool   `yaml:"no_grub"`
-	RegenInitramfs  bool   `yaml:"regen_initramfs"`
-	NoBackup        bool   `yaml:"no_backup"`
-	DryRun          bool   `yaml:"dry_run"`
-	Verbose         int    `yaml:"verbose"`
-	LogFile         string `yaml:"log_file,omitempty"`
-	Report          string `yaml:"report,omitempty"`
+	Cmd              string `yaml:"cmd"`
+	VMDK             string `yaml:"vmdk"`
+	OutputDir        string `yaml:"output_dir"`
+	Flatten          bool   `yaml:"flatten,omitempty"`
+	FlattenFormat    string `yaml:"flatten_format,omitempty"`
+	ToOutput         string `yaml:"to_output"`
+	OutFormat        string `yaml:"out_format"`
+	Compress         bool   `yaml:"compress"`
+	Checksum         bool   `yaml:"checksum"`
+	PrintFstab       bool   `yaml:"print_fstab"`
+	FstabMode        string `yaml:"fstab_mode"`
+	NoGrub           bool   `yaml:"no_grub"`
+	RegenInitramfs   bool   `yaml:"regen_initramfs"`
+	NoBackup         bool   `yaml:"no_backup"`
+	DryRun           bool   `yaml:"dry_run"`
+	Verbose          int    `yaml:"verbose"`
+	LogFile          string `yaml:"log_file,omitempty"`
+	Report           string `yaml:"report,omitempty"`
 	VirtIODriversDir string `yaml:"virtio_drivers_dir,omitempty"`
-	LibvirtTest     bool   `yaml:"libvirt_test,omitempty"`
-	QemuTest        bool   `yaml:"qemu_test,omitempty"`
-	VMName          string `yaml:"vm_name,omitempty"`
-	Memory          int    `yaml:"memory,omitempty"`
-	VCPUs           int    `yaml:"vcpus,omitempty"`
-	UEFI            bool   `yaml:"uefi,omitempty"`
-	Timeout         int    `yaml:"timeout,omitempty"`
-	KeepDomain      bool   `yaml:"keep_domain,omitempty"`
-	Headless        bool   `yaml:"headless,omitempty"`
+	LibvirtTest      bool   `yaml:"libvirt_test,omitempty"`
+	QemuTest         bool   `yaml:"qemu_test,omitempty"`
+	VMName           string `yaml:"vm_name,omitempty"`
+	Memory           int    `yaml:"memory,omitempty"`
+	VCPUs            int    `yaml:"vcpus,omitempty"`
+	UEFI             bool   `yaml:"uefi,omitempty"`
+	Timeout          int    `yaml:"timeout,omitempty"`
+	KeepDomain       bool   `yaml:"keep_domain,omitempty"`
+	Headless         bool   `yaml:"headless,omitempty"`
 }
 
 // ConfigGeneratorResponse represents the generated configuration
 type ConfigGeneratorResponse struct {
-	ConfigYAML    string `json:"config_yaml"`
-	ConfigPath    string `json:"config_path"`
-	ServiceFile   string `json:"service_file,omitempty"`
-	ServicePath   string `json:"service_path,omitempty"`
+	ConfigYAML  string `json:"config_yaml"`
+	ConfigPath  string `json:"config_path"`
+	ServiceFile string `json:"service_file,omitempty"`
+	ServicePath string `json:"service_path,omitempty"`
 }
 
 // handleGenerateConfig generates hyper2kvm configuration files
@@ -196,16 +196,16 @@ func (s *Server) generateConfigHeader(req ConfigGeneratorRequest) string {
 	}
 
 	flavorName := map[string]string{
-		"windows-10":  "Windows 10",
-		"windows-11":  "Windows 11",
-		"ubuntu-22":   "Ubuntu 22.04 LTS",
-		"ubuntu-24":   "Ubuntu 24.04 LTS",
-		"rhel-10":     "Red Hat Enterprise Linux 10",
-		"rhel-9":      "Red Hat Enterprise Linux 9",
-		"photon-os":   "Photon OS",
-		"debian-12":   "Debian 12",
-		"rocky-9":     "Rocky Linux 9",
-		"alma-9":      "AlmaLinux 9",
+		"windows-10": "Windows 10",
+		"windows-11": "Windows 11",
+		"ubuntu-22":  "Ubuntu 22.04 LTS",
+		"ubuntu-24":  "Ubuntu 24.04 LTS",
+		"rhel-10":    "Red Hat Enterprise Linux 10",
+		"rhel-9":     "Red Hat Enterprise Linux 9",
+		"photon-os":  "Photon OS",
+		"debian-12":  "Debian 12",
+		"rocky-9":    "Rocky Linux 9",
+		"alma-9":     "AlmaLinux 9",
 	}
 
 	emoji := osEmoji[req.OSType]
@@ -293,17 +293,17 @@ func (s *Server) handleListConfigTemplates(w http.ResponseWriter, r *http.Reques
 
 	templates := []map[string]interface{}{
 		{
-			"id":          "windows-10",
-			"name":        "Windows 10",
-			"os_type":     "windows",
-			"description": "Windows 10 with VirtIO drivers",
+			"id":              "windows-10",
+			"name":            "Windows 10",
+			"os_type":         "windows",
+			"description":     "Windows 10 with VirtIO drivers",
 			"requires_virtio": true,
 		},
 		{
-			"id":          "windows-11",
-			"name":        "Windows 11",
-			"os_type":     "windows",
-			"description": "Windows 11 with VirtIO drivers and UEFI",
+			"id":              "windows-11",
+			"name":            "Windows 11",
+			"os_type":         "windows",
+			"description":     "Windows 11 with VirtIO drivers and UEFI",
 			"requires_virtio": true,
 			"requires_uefi":   true,
 		},

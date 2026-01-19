@@ -18,13 +18,13 @@ import (
 
 // Config holds Hyper-V provider configuration
 type Config struct {
-	Host         string        // Hyper-V host (empty for local)
-	Username     string        // Windows username for WinRM
-	Password     string        // Windows password for WinRM
-	UseWinRM     bool          // Use WinRM for remote connections
-	WinRMPort    int           // WinRM port (default 5985 for HTTP, 5986 for HTTPS)
-	UseHTTPS     bool          // Use HTTPS for WinRM
-	Timeout      time.Duration
+	Host      string // Hyper-V host (empty for local)
+	Username  string // Windows username for WinRM
+	Password  string // Windows password for WinRM
+	UseWinRM  bool   // Use WinRM for remote connections
+	WinRMPort int    // WinRM port (default 5985 for HTTP, 5986 for HTTPS)
+	UseHTTPS  bool   // Use HTTPS for WinRM
+	Timeout   time.Duration
 }
 
 // Client represents a Hyper-V client for VM operations
@@ -35,21 +35,21 @@ type Client struct {
 
 // VMInfo represents Hyper-V VM information
 type VMInfo struct {
-	Name              string            `json:"Name"`
-	ID                string            `json:"Id"`
-	State             string            `json:"State"`
-	CPUUsage          int               `json:"CPUUsage"`
-	MemoryAssigned    int64             `json:"MemoryAssigned"`
-	MemoryDemand      int64             `json:"MemoryDemand"`
-	Uptime            string            `json:"Uptime"`
-	Status            string            `json:"Status"`
-	Generation        int               `json:"Generation"`
-	Version           string            `json:"Version"`
-	Path              string            `json:"Path"`
-	ConfigurationPath string            `json:"ConfigurationLocation"`
-	VHDPath           []string          `json:"-"` // Populated separately
-	Notes             string            `json:"Notes"`
-	CreationTime      string            `json:"CreationTime"`
+	Name              string   `json:"Name"`
+	ID                string   `json:"Id"`
+	State             string   `json:"State"`
+	CPUUsage          int      `json:"CPUUsage"`
+	MemoryAssigned    int64    `json:"MemoryAssigned"`
+	MemoryDemand      int64    `json:"MemoryDemand"`
+	Uptime            string   `json:"Uptime"`
+	Status            string   `json:"Status"`
+	Generation        int      `json:"Generation"`
+	Version           string   `json:"Version"`
+	Path              string   `json:"Path"`
+	ConfigurationPath string   `json:"ConfigurationLocation"`
+	VHDPath           []string `json:"-"` // Populated separately
+	Notes             string   `json:"Notes"`
+	CreationTime      string   `json:"CreationTime"`
 }
 
 // NewClient creates a new Hyper-V client
@@ -350,7 +350,7 @@ func (c *Client) executePowerShellWinRM(ctx context.Context, script string) (str
 		"-username", c.config.Username,
 		"-password", c.config.Password,
 		"-port", fmt.Sprintf("%d", c.config.WinRMPort),
-		"-https=" + fmt.Sprintf("%t", c.config.UseHTTPS),
+		"-https="+fmt.Sprintf("%t", c.config.UseHTTPS),
 		"powershell", escapedScript,
 	)
 

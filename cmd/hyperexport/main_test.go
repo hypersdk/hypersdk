@@ -66,10 +66,10 @@ func TestGetOutputDir(t *testing.T) {
 	}()
 
 	tests := []struct {
-		name        string
-		flagValue   string
-		vmName      string
-		expected    string
+		name      string
+		flagValue string
+		vmName    string
+		expected  string
 	}{
 		{
 			name:      "default output dir",

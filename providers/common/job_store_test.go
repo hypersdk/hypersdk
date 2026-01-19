@@ -33,7 +33,7 @@ func TestSQLiteJobStore_CreateAndLoad(t *testing.T) {
 		Progress:  0.0,
 		User:      "testuser",
 		Metadata: map[string]interface{}{
-			"format": "ova",
+			"format":   "ova",
 			"compress": true,
 		},
 	}

@@ -14,13 +14,13 @@ import (
 
 // ExportOptions contains options for exporting an Alibaba Cloud ECS instance
 type ExportOptions struct {
-	OutputDir        string                    // Local output directory
-	Format           string                    // Export format: qcow2, raw
-	ImageName        string                    // Custom image name
-	UploadToOSS      bool                      // Upload to OSS storage
-	Bucket           string                    // OSS bucket name
-	DeleteAfterExport bool                     // Delete custom image after export
-	ProgressReporter progress.ProgressReporter // Progress reporter
+	OutputDir         string                    // Local output directory
+	Format            string                    // Export format: qcow2, raw
+	ImageName         string                    // Custom image name
+	UploadToOSS       bool                      // Upload to OSS storage
+	Bucket            string                    // OSS bucket name
+	DeleteAfterExport bool                      // Delete custom image after export
+	ProgressReporter  progress.ProgressReporter // Progress reporter
 }
 
 // ExportResult contains the result of an export operation

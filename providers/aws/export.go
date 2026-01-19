@@ -82,10 +82,10 @@ func (c *Client) ExportSnapshotToS3(ctx context.Context, snapshotID, outputDir s
 
 	// Create export task for snapshot
 	input := &ec2.ExportSnapshotInput{
-		SnapshotId: aws.String(snapshotID),
+		SnapshotId:      aws.String(snapshotID),
 		DiskImageFormat: types.DiskImageFormatVmdk,
-		S3Bucket: aws.String(c.config.S3Bucket),
-		S3Prefix: aws.String("exports/snapshots/"),
+		S3Bucket:        aws.String(c.config.S3Bucket),
+		S3Prefix:        aws.String("exports/snapshots/"),
 	}
 
 	result, err := c.ec2Client.ExportSnapshot(ctx, input)
@@ -122,7 +122,7 @@ func (c *Client) ExportSnapshotToS3(ctx context.Context, snapshotID, outputDir s
 // createExportTask creates an EC2 instance export task
 func (c *Client) createExportTask(ctx context.Context, instanceID string) (string, error) {
 	input := &ec2.CreateInstanceExportTaskInput{
-		InstanceId: aws.String(instanceID),
+		InstanceId:        aws.String(instanceID),
 		TargetEnvironment: types.ExportEnvironmentVmware,
 		ExportToS3Task: &types.ExportToS3TaskSpecification{
 			DiskImageFormat: types.DiskImageFormatVmdk,
@@ -239,7 +239,7 @@ func (c *Client) waitForSnapshotExport(ctx context.Context, snapshotID string, r
 			// Update progress
 			if reporter != nil && detail.Progress != nil {
 				progress := int(aws.ToFloat64(detail.Progress))
-				reporter.Update(progress)
+				reporter.Update(int64(progress))
 				if detail.StatusMessage != nil {
 					reporter.Describe(aws.ToString(detail.StatusMessage))
 				}
@@ -349,7 +349,7 @@ func (pr *progressReader) Read(p []byte) (int, error) {
 
 	if pr.reporter != nil && pr.total > 0 {
 		percentage := int((pr.current * 100) / pr.total)
-		pr.reporter.Update(percentage)
+		pr.reporter.Update(int64(percentage))
 	}
 
 	return n, err

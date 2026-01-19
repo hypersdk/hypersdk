@@ -57,21 +57,21 @@ const (
 
 // BackupMetadata contains metadata about a backup
 type BackupMetadata struct {
-	ID          string       `json:"id"`
-	Type        BackupType   `json:"type"`
-	Status      BackupStatus `json:"status"`
-	StartTime   time.Time    `json:"start_time"`
-	EndTime     time.Time    `json:"end_time"`
-	Size        int64        `json:"size"`
-	Checksum    string       `json:"checksum"`
-	SourcePath  string       `json:"source_path"`
-	BackupPath  string       `json:"backup_path"`
-	Files       []string     `json:"files"`
-	BaseBackup  string       `json:"base_backup,omitempty"` // For incremental backups
-	Encrypted   bool         `json:"encrypted"`
-	Compressed  bool         `json:"compressed"`
-	Version     string       `json:"version"`
-	Error       string       `json:"error,omitempty"`
+	ID         string       `json:"id"`
+	Type       BackupType   `json:"type"`
+	Status     BackupStatus `json:"status"`
+	StartTime  time.Time    `json:"start_time"`
+	EndTime    time.Time    `json:"end_time"`
+	Size       int64        `json:"size"`
+	Checksum   string       `json:"checksum"`
+	SourcePath string       `json:"source_path"`
+	BackupPath string       `json:"backup_path"`
+	Files      []string     `json:"files"`
+	BaseBackup string       `json:"base_backup,omitempty"` // For incremental backups
+	Encrypted  bool         `json:"encrypted"`
+	Compressed bool         `json:"compressed"`
+	Version    string       `json:"version"`
+	Error      string       `json:"error,omitempty"`
 }
 
 // Config holds backup configuration

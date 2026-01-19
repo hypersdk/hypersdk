@@ -40,28 +40,28 @@ type Config struct {
 		Disabled bool `yaml:"disabled" json:"disabled"` // Disable web dashboard (default: false, web enabled)
 	} `yaml:"web" json:"web"`
 	Security struct {
-		APIKey            string   `yaml:"api_key" json:"-"`                      // API key for authentication
-		AllowedOrigins    []string `yaml:"allowed_origins" json:"allowed_origins"` // Allowed WebSocket origins
-		MaxRequestSizeMB  int      `yaml:"max_request_size_mb" json:"max_request_size_mb"`
-		RateLimitPerMin   int      `yaml:"rate_limit_per_min" json:"rate_limit_per_min"`
-		EnableAuth        bool     `yaml:"enable_auth" json:"enable_auth"`
-		TrustedProxies    []string `yaml:"trusted_proxies" json:"trusted_proxies"`
-		BlockPrivateIPs   bool     `yaml:"block_private_ips" json:"block_private_ips"` // Block private IPs in webhooks
+		APIKey           string   `yaml:"api_key" json:"-"`                       // API key for authentication
+		AllowedOrigins   []string `yaml:"allowed_origins" json:"allowed_origins"` // Allowed WebSocket origins
+		MaxRequestSizeMB int      `yaml:"max_request_size_mb" json:"max_request_size_mb"`
+		RateLimitPerMin  int      `yaml:"rate_limit_per_min" json:"rate_limit_per_min"`
+		EnableAuth       bool     `yaml:"enable_auth" json:"enable_auth"`
+		TrustedProxies   []string `yaml:"trusted_proxies" json:"trusted_proxies"`
+		BlockPrivateIPs  bool     `yaml:"block_private_ips" json:"block_private_ips"` // Block private IPs in webhooks
 	} `yaml:"security" json:"security"`
 }
 
 // EnhancedServer extends the base server with new features
 type EnhancedServer struct {
 	*Server
-	scheduler       *scheduler.Scheduler
-	webhookMgr      *webhooks.Manager
-	store           store.JobStore
-	config          *Config
-	wsHub           *WSHub
-	statusTicker    *time.Ticker
-	shutdownCtx     context.Context
-	shutdownCancel  context.CancelFunc
-	authMgr         *auth.AuthManager
+	scheduler      *scheduler.Scheduler
+	webhookMgr     *webhooks.Manager
+	store          store.JobStore
+	config         *Config
+	wsHub          *WSHub
+	statusTicker   *time.Ticker
+	shutdownCtx    context.Context
+	shutdownCancel context.CancelFunc
+	authMgr        *auth.AuthManager
 }
 
 // jobExecutorAdapter adapts jobs.Manager to scheduler.JobExecutor interface

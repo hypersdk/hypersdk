@@ -103,9 +103,9 @@ func (cm *ConversionManager) DetectProvider(manifestPath string) (string, error)
 func AutoDetectConverterBinary(binaryName string) (string, error) {
 	// Try common locations
 	candidates := []string{
-		binaryName,                                            // In PATH
-		"/usr/local/bin/" + binaryName,                        // System install
-		"/usr/bin/" + binaryName,                              // Package manager
+		binaryName,                     // In PATH
+		"/usr/local/bin/" + binaryName, // System install
+		"/usr/bin/" + binaryName,       // Package manager
 		filepath.Join(os.Getenv("HOME"), ".local/bin", binaryName), // User install
 	}
 

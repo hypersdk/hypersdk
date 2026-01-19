@@ -2,7 +2,6 @@
 
 package completion
 
-
 // ZshCompletion generates zsh completion script
 func ZshCompletion() string {
 	return `#compdef hyperctl

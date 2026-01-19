@@ -75,9 +75,9 @@ func (s *Server) handleListISOs(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.jsonResponse(w, http.StatusOK, map[string]interface{}{
-		"isos":         isos,
-		"total":        len(isos),
-		"storage_dir":  ISOStorageDir,
+		"isos":        isos,
+		"total":       len(isos),
+		"storage_dir": ISOStorageDir,
 	})
 }
 
@@ -212,9 +212,9 @@ func (s *Server) handleAttachISO(w http.ResponseWriter, r *http.Request) {
 
 	var req struct {
 		VMName   string `json:"vm_name"`
-		Filename string `json:"filename"` // ISO filename
+		Filename string `json:"filename"`           // ISO filename
 		ISOPath  string `json:"iso_path,omitempty"` // Or full path
-		Device   string `json:"device,omitempty"` // Optional: hdc, sda, etc.
+		Device   string `json:"device,omitempty"`   // Optional: hdc, sda, etc.
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "invalid request body", http.StatusBadRequest)

@@ -13,13 +13,13 @@ import (
 
 // DomainStats represents VM resource statistics
 type DomainStats struct {
-	Name      string        `json:"name"`
-	State     string        `json:"state"`
-	CPUStats  CPUStats      `json:"cpu"`
-	MemStats  MemStats      `json:"memory"`
-	DiskStats []DiskStats   `json:"disks"`
-	NetStats  []NetStats    `json:"networks"`
-	Timestamp time.Time     `json:"timestamp"`
+	Name      string      `json:"name"`
+	State     string      `json:"state"`
+	CPUStats  CPUStats    `json:"cpu"`
+	MemStats  MemStats    `json:"memory"`
+	DiskStats []DiskStats `json:"disks"`
+	NetStats  []NetStats  `json:"networks"`
+	Timestamp time.Time   `json:"timestamp"`
 }
 
 // CPUStats represents CPU usage statistics
@@ -33,12 +33,12 @@ type CPUStats struct {
 
 // MemStats represents memory usage statistics
 type MemStats struct {
-	Total     uint64  `json:"total_kb"`       // KiB
-	Used      uint64  `json:"used_kb"`        // KiB
-	Available uint64  `json:"available_kb"`   // KiB
-	Usage     float64 `json:"usage_percent"`  // percentage
-	SwapIn    uint64  `json:"swap_in_kb"`     // KiB
-	SwapOut   uint64  `json:"swap_out_kb"`    // KiB
+	Total     uint64  `json:"total_kb"`      // KiB
+	Used      uint64  `json:"used_kb"`       // KiB
+	Available uint64  `json:"available_kb"`  // KiB
+	Usage     float64 `json:"usage_percent"` // percentage
+	SwapIn    uint64  `json:"swap_in_kb"`    // KiB
+	SwapOut   uint64  `json:"swap_out_kb"`   // KiB
 }
 
 // DiskStats represents disk I/O statistics
@@ -53,15 +53,15 @@ type DiskStats struct {
 
 // NetStats represents network I/O statistics
 type NetStats struct {
-	Interface  string `json:"interface"`
-	RxBytes    uint64 `json:"rx_bytes"`
-	RxPackets  uint64 `json:"rx_packets"`
-	RxErrors   uint64 `json:"rx_errors"`
-	RxDropped  uint64 `json:"rx_dropped"`
-	TxBytes    uint64 `json:"tx_bytes"`
-	TxPackets  uint64 `json:"tx_packets"`
-	TxErrors   uint64 `json:"tx_errors"`
-	TxDropped  uint64 `json:"tx_dropped"`
+	Interface string `json:"interface"`
+	RxBytes   uint64 `json:"rx_bytes"`
+	RxPackets uint64 `json:"rx_packets"`
+	RxErrors  uint64 `json:"rx_errors"`
+	RxDropped uint64 `json:"rx_dropped"`
+	TxBytes   uint64 `json:"tx_bytes"`
+	TxPackets uint64 `json:"tx_packets"`
+	TxErrors  uint64 `json:"tx_errors"`
+	TxDropped uint64 `json:"tx_dropped"`
 }
 
 // handleGetDomainStats gets current resource statistics for a VM
@@ -175,9 +175,9 @@ func (s *Server) handleGetMemoryStats(w http.ResponseWriter, r *http.Request) {
 	memStats := s.parseMemoryStats(string(output))
 
 	s.jsonResponse(w, http.StatusOK, map[string]interface{}{
-		"name":       name,
-		"memory":     memStats,
-		"timestamp":  time.Now(),
+		"name":      name,
+		"memory":    memStats,
+		"timestamp": time.Now(),
 	})
 }
 

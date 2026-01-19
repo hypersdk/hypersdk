@@ -34,12 +34,12 @@ func ExampleBuilder() {
 		).
 		// VM hardware metadata
 		WithVM(
-			4,                 // CPUs
-			16,                // memory GB
-			"uefi",            // firmware
-			"linux",           // OS hint
-			"Ubuntu 22.04",    // OS version
-			false,             // secure boot
+			4,              // CPUs
+			16,             // memory GB
+			"uefi",         // firmware
+			"linux",        // OS hint
+			"Ubuntu 22.04", // OS version
+			false,          // secure boot
 		).
 		// Add boot disk
 		AddDisk(
@@ -61,9 +61,9 @@ func ExampleBuilder() {
 		).
 		// Add network interface
 		AddNIC(
-			"eth0",                // ID
-			"00:50:56:ab:cd:ef",   // MAC address
-			"VM Network",          // network name
+			"eth0",              // ID
+			"00:50:56:ab:cd:ef", // MAC address
+			"VM Network",        // network name
 		).
 		// Add informational notes
 		AddNote("Exported from vSphere 7.0").

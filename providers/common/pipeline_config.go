@@ -30,10 +30,10 @@ type PipelineStageConfig struct {
 
 // PipelineConfig defines a custom conversion pipeline
 type PipelineConfig struct {
-	Name        string                          `json:"name"`
-	Description string                          `json:"description"`
+	Name        string                                 `json:"name"`
+	Description string                                 `json:"description"`
 	Stages      map[PipelineStage]*PipelineStageConfig `json:"stages"`
-	Hooks       *PipelineHooks                  `json:"hooks,omitempty"`
+	Hooks       *PipelineHooks                         `json:"hooks,omitempty"`
 }
 
 // PipelineHooks defines custom hooks for pipeline stages

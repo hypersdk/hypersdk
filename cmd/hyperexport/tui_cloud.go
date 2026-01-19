@@ -38,12 +38,12 @@ type cloudConfig struct {
 
 // cloudSelectionModel handles cloud provider selection
 type cloudSelectionModel struct {
-	providers      []cloudProviderOption
-	cursor         int
-	selected       CloudProvider
-	uploadEnabled  bool
-	streamUpload   bool
-	keepLocal      bool
+	providers     []cloudProviderOption
+	cursor        int
+	selected      CloudProvider
+	uploadEnabled bool
+	streamUpload  bool
+	keepLocal     bool
 
 	// Parent model reference
 	parent *tuiModel
@@ -110,27 +110,27 @@ type cloudCredentialsModel struct {
 
 // Cloud upload progress model
 type cloudUploadModel struct {
-	provider       CloudProvider
-	currentFile    string
-	currentBytes   int64
-	totalBytes     int64
-	filesUploaded  int
-	totalFiles     int
-	speed          float64 // MB/s
-	err            error
-	done           bool
+	provider      CloudProvider
+	currentFile   string
+	currentBytes  int64
+	totalBytes    int64
+	filesUploaded int
+	totalFiles    int
+	speed         float64 // MB/s
+	err           error
+	done          bool
 
 	parent *tuiModel
 }
 
 // Cloud browser model for browsing and downloading exports
 type cloudBrowserModel struct {
-	provider   CloudProvider
-	files      []CloudFile
-	cursor     int
-	loading    bool
-	message    string
-	err        error
+	provider CloudProvider
+	files    []CloudFile
+	cursor   int
+	loading  bool
+	message  string
+	err      error
 
 	parent *tuiModel
 }
@@ -145,12 +145,12 @@ type cloudConfigCompleteMsg struct {
 }
 
 type cloudUploadProgressMsg struct {
-	file         string
-	bytes        int64
-	totalBytes   int64
+	file          string
+	bytes         int64
+	totalBytes    int64
 	filesUploaded int
-	totalFiles   int
-	speed        float64
+	totalFiles    int
+	speed         float64
 }
 
 type cloudUploadDoneMsg struct {

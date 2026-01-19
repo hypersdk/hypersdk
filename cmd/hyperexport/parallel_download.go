@@ -24,10 +24,10 @@ type DownloadTask struct {
 
 // DownloadResult contains the result of a download operation
 type DownloadResult struct {
-	Task     DownloadTask
-	Success  bool
-	Error    error
-	Duration time.Duration
+	Task            DownloadTask
+	Success         bool
+	Error           error
+	Duration        time.Duration
 	BytesDownloaded int64
 }
 
@@ -156,7 +156,7 @@ func (p *DownloadWorkerPool) downloadFile(workerID int, task DownloadTask) Downl
 		// Simulate chunk write
 		// In production: written, err := io.CopyN(destFile, reader, toWrite)
 		time.Sleep(10 * time.Millisecond) // Simulate network delay
-		written := toWrite // Simulated
+		written := toWrite                // Simulated
 
 		bytesWritten += written
 		atomic.AddInt64(&p.downloadedBytes, written)

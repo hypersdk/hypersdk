@@ -140,15 +140,15 @@ func TestCheckPermission(t *testing.T) {
 		{"operator", ResourceVM, ActionExport, true},
 		{"operator", ResourceJob, ActionCreate, true},
 		{"operator", ResourceJob, ActionCancel, true},
-		{"operator", ResourceVM, ActionDelete, false}, // No delete permission
+		{"operator", ResourceVM, ActionDelete, false},   // No delete permission
 		{"operator", ResourceUser, ActionCreate, false}, // No user management
 
 		// Viewer tests
 		{"viewer", ResourceVM, ActionRead, true},
 		{"viewer", ResourceJob, ActionRead, true},
-		{"viewer", ResourceVM, ActionCreate, false}, // Read-only
+		{"viewer", ResourceVM, ActionCreate, false},  // Read-only
 		{"viewer", ResourceJob, ActionDelete, false}, // Read-only
-		{"viewer", ResourceVM, ActionExport, false}, // Read-only
+		{"viewer", ResourceVM, ActionExport, false},  // Read-only
 	}
 
 	for _, tt := range tests {

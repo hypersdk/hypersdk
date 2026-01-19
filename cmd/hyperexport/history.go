@@ -140,13 +140,13 @@ func (h *ExportHistory) GetStatistics() (*ExportStatistics, error) {
 	}
 
 	stats := &ExportStatistics{
-		TotalExports:    len(entries),
-		SuccessfulCount: 0,
-		FailedCount:     0,
+		TotalExports:      len(entries),
+		SuccessfulCount:   0,
+		FailedCount:       0,
 		TotalDataExported: 0,
-		AverageDuration: 0,
-		FormatCounts:    make(map[string]int),
-		ProviderCounts:  make(map[string]int),
+		AverageDuration:   0,
+		FormatCounts:      make(map[string]int),
+		ProviderCounts:    make(map[string]int),
 	}
 
 	var totalDuration time.Duration

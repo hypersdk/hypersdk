@@ -14,14 +14,14 @@ import (
 
 // BatchOperationResult represents the result of a batch operation
 type BatchOperationResult struct {
-	Operation  string              `json:"operation"`
-	Total      int                 `json:"total"`
-	Successful int                 `json:"successful"`
-	Failed     int                 `json:"failed"`
-	Results    []DomainOpResult    `json:"results"`
-	StartTime  time.Time           `json:"start_time"`
-	EndTime    time.Time           `json:"end_time"`
-	Duration   string              `json:"duration"`
+	Operation  string           `json:"operation"`
+	Total      int              `json:"total"`
+	Successful int              `json:"successful"`
+	Failed     int              `json:"failed"`
+	Results    []DomainOpResult `json:"results"`
+	StartTime  time.Time        `json:"start_time"`
+	EndTime    time.Time        `json:"end_time"`
+	Duration   string           `json:"duration"`
 }
 
 // DomainOpResult represents the result of an operation on a single domain
@@ -147,10 +147,10 @@ func (s *Server) handleBatchSnapshot(w http.ResponseWriter, r *http.Request) {
 
 	var req struct {
 		Domains     []string `json:"domains"`
-		NamePrefix  string   `json:"name_prefix"`  // Snapshot name prefix (e.g., "backup")
+		NamePrefix  string   `json:"name_prefix"` // Snapshot name prefix (e.g., "backup")
 		Description string   `json:"description"`
-		Atomic      bool     `json:"atomic"`       // Create snapshot atomically
-		DiskOnly    bool     `json:"disk_only"`    // Disk-only snapshot (no memory)
+		Atomic      bool     `json:"atomic"`    // Create snapshot atomically
+		DiskOnly    bool     `json:"disk_only"` // Disk-only snapshot (no memory)
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "invalid request body", http.StatusBadRequest)
@@ -199,9 +199,9 @@ func (s *Server) handleBatchDelete(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req struct {
-		Domains        []string `json:"domains"`
-		RemoveStorage  bool     `json:"remove_storage"`  // Delete storage volumes
-		SnapshotsOnly  bool     `json:"snapshots_only"`  // Only delete snapshots
+		Domains       []string `json:"domains"`
+		RemoveStorage bool     `json:"remove_storage"` // Delete storage volumes
+		SnapshotsOnly bool     `json:"snapshots_only"` // Only delete snapshots
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "invalid request body", http.StatusBadRequest)

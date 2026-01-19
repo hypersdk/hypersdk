@@ -231,17 +231,17 @@ func (c *Client) ListNodes(ctx context.Context) ([]Node, error) {
 
 // Node represents a Proxmox cluster node
 type Node struct {
-	Node          string  `json:"node"`
-	Status        string  `json:"status"`
-	CPU           float64 `json:"cpu"`
-	MaxCPU        int     `json:"maxcpu"`
-	Memory        int64   `json:"mem"`
-	MaxMemory     int64   `json:"maxmem"`
-	Disk          int64   `json:"disk"`
-	MaxDisk       int64   `json:"maxdisk"`
-	Uptime        int64   `json:"uptime"`
-	Level         string  `json:"level"`
-	Type          string  `json:"type"`
+	Node           string  `json:"node"`
+	Status         string  `json:"status"`
+	CPU            float64 `json:"cpu"`
+	MaxCPU         int     `json:"maxcpu"`
+	Memory         int64   `json:"mem"`
+	MaxMemory      int64   `json:"maxmem"`
+	Disk           int64   `json:"disk"`
+	MaxDisk        int64   `json:"maxdisk"`
+	Uptime         int64   `json:"uptime"`
+	Level          string  `json:"level"`
+	Type           string  `json:"type"`
 	SSLFingerprint string  `json:"ssl_fingerprint"`
 }
 

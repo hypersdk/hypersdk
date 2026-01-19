@@ -49,9 +49,9 @@ func (s *Server) handleGetCostSummary(w http.ResponseWriter, r *http.Request) {
 		ChangePercent: 29.6,
 		Annual:        28500.00,
 		Breakdown: map[string]float64{
-			"storage":  1200.00,
-			"network":  850.00,
-			"compute":  400.00,
+			"storage": 1200.00,
+			"network": 850.00,
+			"compute": 400.00,
 		},
 	}
 

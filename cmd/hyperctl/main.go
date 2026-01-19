@@ -67,7 +67,7 @@ func showBanner() {
 
 	pterm.DefaultCenter.WithCenterEachLineSeparately().Println(
 		pterm.LightYellow("Multi-Cloud VM Migration Control CLI\n") +
-		pterm.Gray("Version " + version),
+			pterm.Gray("Version "+version),
 	)
 }
 
@@ -1262,9 +1262,9 @@ func handleVM(daemonURL, operation, vmPath string, timeout int) {
 	// Parse response
 	if operation == "info" {
 		var infoResp struct {
-			Success  bool              `json:"success"`
-			VMInfo   vsphere.VMInfo    `json:"vm_info"`
-			Timestamp time.Time        `json:"timestamp"`
+			Success   bool           `json:"success"`
+			VMInfo    vsphere.VMInfo `json:"vm_info"`
+			Timestamp time.Time      `json:"timestamp"`
 		}
 		if err := json.NewDecoder(resp.Body).Decode(&infoResp); err != nil {
 			spinner.Fail(fmt.Sprintf("Failed to parse response: %v", err))

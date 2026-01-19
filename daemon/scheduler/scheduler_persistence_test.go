@@ -97,10 +97,10 @@ func TestScheduler_LoadSchedules(t *testing.T) {
 	sched1.Start()
 
 	sj := &ScheduledJob{
-		ID:          "persistent-schedule",
-		Name:        "Persistent Schedule",
-		Schedule:    "0 * * * *",
-		Enabled:     true,
+		ID:       "persistent-schedule",
+		Name:     "Persistent Schedule",
+		Schedule: "0 * * * *",
+		Enabled:  true,
 		JobTemplate: models.JobDefinition{
 			Name: "hourly-backup",
 		},

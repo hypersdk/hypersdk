@@ -162,9 +162,9 @@ func (s *Server) handleGetJobLogs(w http.ResponseWriter, r *http.Request) {
 
 		if job.Result != nil {
 			logEntry["details"] = map[string]interface{}{
-				"total_size":   job.Result.TotalSize,
-				"duration":     job.Result.Duration.String(),
-				"files_count":  len(job.Result.Files),
+				"total_size":  job.Result.TotalSize,
+				"duration":    job.Result.Duration.String(),
+				"files_count": len(job.Result.Files),
 			}
 		}
 

@@ -20,15 +20,15 @@ type MetricsCollector struct {
 	migrationsFailed    int64
 
 	// Migration durations (in seconds)
-	exportDurationTotal      float64
-	conversionDurationTotal  float64
-	uploadDurationTotal      float64
-	migrationDurationTotal   float64
+	exportDurationTotal     float64
+	conversionDurationTotal float64
+	uploadDurationTotal     float64
+	migrationDurationTotal  float64
 
 	// Bytes transferred
-	bytesExported   int64
-	bytesConverted  int64
-	bytesUploaded   int64
+	bytesExported  int64
+	bytesConverted int64
+	bytesUploaded  int64
 
 	// Current active migrations
 	activeMigrations int64
@@ -214,14 +214,14 @@ func (mc *MetricsCollector) GetStats() map[string]interface{} {
 		},
 		"success_rate": successRate,
 		"durations": map[string]interface{}{
-			"export_total":      mc.exportDurationTotal,
-			"conversion_total":  mc.conversionDurationTotal,
-			"upload_total":      mc.uploadDurationTotal,
-			"migration_total":   mc.migrationDurationTotal,
-			"export_avg":        avgExportDuration,
-			"conversion_avg":    avgConversionDuration,
-			"upload_avg":        avgUploadDuration,
-			"migration_avg":     avgMigrationDuration,
+			"export_total":     mc.exportDurationTotal,
+			"conversion_total": mc.conversionDurationTotal,
+			"upload_total":     mc.uploadDurationTotal,
+			"migration_total":  mc.migrationDurationTotal,
+			"export_avg":       avgExportDuration,
+			"conversion_avg":   avgConversionDuration,
+			"upload_avg":       avgUploadDuration,
+			"migration_avg":    avgMigrationDuration,
 		},
 		"bytes": map[string]interface{}{
 			"exported":  mc.bytesExported,

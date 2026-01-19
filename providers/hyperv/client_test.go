@@ -1,4 +1,7 @@
+//go:build integration
 // SPDX-License-Identifier: LGPL-3.0-or-later
+
+//go:build integration && integration
 
 package hyperv
 
@@ -287,7 +290,6 @@ func containsAtIndex(s, substr string) bool {
 // These tests are disabled by default - enable with build tag 'integration'
 
 // TestListVMs_Integration tests VM listing
-// +build integration
 func TestListVMs_Integration(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping integration test")
@@ -302,7 +304,6 @@ func TestListVMs_Integration(t *testing.T) {
 }
 
 // TestExportVM_Integration tests VM export
-// +build integration
 func TestExportVM_Integration(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping integration test")

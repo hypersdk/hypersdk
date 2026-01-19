@@ -10,20 +10,20 @@ import (
 
 // Tag represents a VM tag
 type Tag struct {
-	ID       string   `json:"id"`
-	Name     string   `json:"name"`
-	Category string   `json:"category"`
-	Color    string   `json:"color"`
-	VMCount  int      `json:"vm_count"`
+	ID       string `json:"id"`
+	Name     string `json:"name"`
+	Category string `json:"category"`
+	Color    string `json:"color"`
+	VMCount  int    `json:"vm_count"`
 }
 
 // Collection represents a VM collection
 type Collection struct {
-	ID          string   `json:"id"`
-	Name        string   `json:"name"`
-	Description string   `json:"description"`
-	VMIDs       []string `json:"vm_ids"`
-	VMCount     int      `json:"vm_count"`
+	ID          string    `json:"id"`
+	Name        string    `json:"name"`
+	Description string    `json:"description"`
+	VMIDs       []string  `json:"vm_ids"`
+	VMCount     int       `json:"vm_count"`
 	CreatedAt   time.Time `json:"created_at"`
 }
 

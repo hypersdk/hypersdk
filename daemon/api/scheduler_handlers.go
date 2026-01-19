@@ -21,12 +21,12 @@ type Schedule struct {
 
 // BackupPolicy represents an automated backup policy
 type BackupPolicy struct {
-	ID        string   `json:"id"`
-	Name      string   `json:"name"`
-	Frequency string   `json:"frequency"` // daily, weekly, monthly
-	Retention int      `json:"retention"` // days
+	ID         string   `json:"id"`
+	Name       string   `json:"name"`
+	Frequency  string   `json:"frequency"` // daily, weekly, monthly
+	Retention  int      `json:"retention"` // days
 	TargetTags []string `json:"target_tags"`
-	Enabled   bool     `json:"enabled"`
+	Enabled    bool     `json:"enabled"`
 }
 
 // Workflow represents an automation workflow

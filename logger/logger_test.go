@@ -57,9 +57,9 @@ func TestLoggerLevels(t *testing.T) {
 		{"debug", "debug"},
 		{"info", "info"},
 		{"warn", "warn"},
-		{"warning", "warning"},  // alternative spelling
+		{"warning", "warning"}, // alternative spelling
 		{"error", "error"},
-		{"invalid", "invalid"},  // should default to INFO
+		{"invalid", "invalid"}, // should default to INFO
 	}
 
 	for _, tt := range tests {

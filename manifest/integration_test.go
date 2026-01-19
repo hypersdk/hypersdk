@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: LGPL-3.0-or-later
 
+//go:build integration
 // +build integration
 
 package manifest_test
@@ -52,8 +53,8 @@ func TestIntegrationWithFedoraVMDK(t *testing.T) {
 
 	// Set source metadata
 	builder.WithSource(
-		"local",       // provider (local disk, not exported from cloud)
-		"fedora-test", // VM ID
+		"local",                // provider (local disk, not exported from cloud)
+		"fedora-test",          // VM ID
 		"fedora-photon-os-5.0", // VM name
 		"local",                // datacenter
 		"local-disk",           // export method
@@ -61,24 +62,24 @@ func TestIntegrationWithFedoraVMDK(t *testing.T) {
 
 	// Set VM metadata (based on Photon OS)
 	builder.WithVM(
-		4,              // CPUs
-		8,              // memory GB
-		"bios",         // firmware
-		"linux",        // OS hint
+		4,               // CPUs
+		8,               // memory GB
+		"bios",          // firmware
+		"linux",         // OS hint
 		"Photon OS 5.0", // OS version
-		false,          // secure boot
+		false,           // secure boot
 	)
 
 	// Add the disk with checksum computation
 	t.Log("Computing SHA-256 checksum...")
 	builder.AddDiskWithChecksum(
-		"boot-disk",      // disk ID
-		"vmdk",           // source format
-		vmdkPath,         // local path
-		fileInfo.Size(),  // bytes
-		0,                // boot order hint (primary)
-		"boot",           // disk type
-		true,             // compute checksum (this will take a while for large files)
+		"boot-disk",     // disk ID
+		"vmdk",          // source format
+		vmdkPath,        // local path
+		fileInfo.Size(), // bytes
+		0,               // boot order hint (primary)
+		"boot",          // disk type
+		true,            // compute checksum (this will take a while for large files)
 	)
 
 	// Add NIC information (example)
@@ -95,7 +96,7 @@ func TestIntegrationWithFedoraVMDK(t *testing.T) {
 
 	// Configure hypersdk metadata
 	builder.WithMetadata(
-		"0.1.0",   // hypersdk version
+		"0.1.0",    // hypersdk version
 		"test-123", // job ID
 		map[string]string{
 			"test":        "integration",

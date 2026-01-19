@@ -24,12 +24,12 @@ type Provider struct {
 func NewProvider(cfg providers.ProviderConfig, log logger.Logger) (providers.Provider, error) {
 	// Convert generic config to Proxmox-specific config
 	proxmoxCfg := &config.ProxmoxConfig{
-		Host:       cfg.Host,
-		Port:       cfg.Port,
-		Username:   cfg.Username,
-		Password:   cfg.Password,
-		Node:       cfg.Region, // Reuse Region field for default node
-		VerifySSL:  !cfg.Insecure,
+		Host:      cfg.Host,
+		Port:      cfg.Port,
+		Username:  cfg.Username,
+		Password:  cfg.Password,
+		Node:      cfg.Region, // Reuse Region field for default node
+		VerifySSL: !cfg.Insecure,
 	}
 
 	// Set defaults

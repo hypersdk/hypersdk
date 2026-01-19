@@ -28,14 +28,14 @@ func getBackupStorageDir() string {
 
 // BackupInfo represents a backup
 type BackupInfo struct {
-	Name         string    `json:"name"`
-	VMName       string    `json:"vm_name"`
-	Path         string    `json:"path"`
-	Type         string    `json:"type"` // full, incremental
-	Size         int64     `json:"size"`
-	CreatedAt    time.Time `json:"created_at"`
-	Compressed   bool      `json:"compressed"`
-	Verified     bool      `json:"verified"`
+	Name       string    `json:"name"`
+	VMName     string    `json:"vm_name"`
+	Path       string    `json:"path"`
+	Type       string    `json:"type"` // full, incremental
+	Size       int64     `json:"size"`
+	CreatedAt  time.Time `json:"created_at"`
+	Compressed bool      `json:"compressed"`
+	Verified   bool      `json:"verified"`
 }
 
 // handleCreateBackup creates a full VM backup
@@ -145,14 +145,14 @@ func (s *Server) handleCreateBackup(w http.ResponseWriter, r *http.Request) {
 	totalSize, _ := calculateDirectorySize(backupDir)
 
 	s.jsonResponse(w, http.StatusCreated, map[string]interface{}{
-		"status":       "success",
-		"message":      fmt.Sprintf("Backup created for %s", req.VMName),
-		"vm_name":      req.VMName,
-		"backup_name":  req.BackupName,
-		"backup_path":  backupDir,
+		"status":          "success",
+		"message":         fmt.Sprintf("Backup created for %s", req.VMName),
+		"vm_name":         req.VMName,
+		"backup_name":     req.BackupName,
+		"backup_path":     backupDir,
 		"disks_backed_up": len(backedUpDisks),
-		"total_size":   totalSize,
-		"compressed":   req.Compress,
+		"total_size":      totalSize,
+		"compressed":      req.Compress,
 	})
 }
 
@@ -251,7 +251,7 @@ func (s *Server) handleRestoreBackup(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		BackupName string `json:"backup_name"`
 		NewVMName  string `json:"new_vm_name,omitempty"` // Optional: restore with different name
-		Start      bool   `json:"start"` // Start VM after restore
+		Start      bool   `json:"start"`                 // Start VM after restore
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "invalid request body", http.StatusBadRequest)

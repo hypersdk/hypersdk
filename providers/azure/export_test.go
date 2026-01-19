@@ -1,5 +1,8 @@
 // SPDX-License-Identifier: LGPL-3.0-or-later
 
+//go:build integration && integration
+// +build integration,integration
+
 package azure
 
 import (
@@ -278,7 +281,6 @@ func containsAtIndex(s, substr string) bool {
 // These tests are disabled by default - enable with build tag 'integration'
 
 // TestExportDiskToVHD_Integration tests full VHD export flow
-// +build integration
 func TestExportDiskToVHD_Integration(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping integration test")
@@ -294,7 +296,6 @@ func TestExportDiskToVHD_Integration(t *testing.T) {
 }
 
 // TestExportVMToVHD_Integration tests VM multi-disk export
-// +build integration
 func TestExportVMToVHD_Integration(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping integration test")

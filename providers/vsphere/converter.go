@@ -166,14 +166,13 @@ func (c *Hyper2KVMConverter) Convert(ctx context.Context, manifestPath string, o
 	return result, nil
 }
 
-
 // detectHyper2KVMBinary attempts to find hyper2kvm binary in PATH
 func detectHyper2KVMBinary() (string, error) {
 	// Try common locations
 	candidates := []string{
-		"hyper2kvm",                                    // In PATH
-		"/usr/local/bin/hyper2kvm",                     // System install
-		"/usr/bin/hyper2kvm",                           // Package manager
+		"hyper2kvm",                // In PATH
+		"/usr/local/bin/hyper2kvm", // System install
+		"/usr/bin/hyper2kvm",       // Package manager
 		filepath.Join(os.Getenv("HOME"), ".local/bin/hyper2kvm"), // User install
 	}
 
@@ -233,7 +232,7 @@ func (c *Hyper2KVMConverter) parseConversionResults(outputDir string) (*common.C
 
 	// Parse report
 	var report struct {
-		Success bool `json:"success"`
+		Success  bool `json:"success"`
 		Pipeline struct {
 			Stages map[string]struct {
 				Success bool `json:"success"`

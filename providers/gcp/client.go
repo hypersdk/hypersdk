@@ -20,12 +20,12 @@ import (
 
 // Config holds GCP provider configuration
 type Config struct {
-	ProjectID           string
-	Zone                string
-	Region              string
-	CredentialsJSON     string // Path to service account JSON or JSON content
-	DestinationBucket   string // GCS bucket for exports
-	Timeout             time.Duration
+	ProjectID         string
+	Zone              string
+	Region            string
+	CredentialsJSON   string // Path to service account JSON or JSON content
+	DestinationBucket string // GCS bucket for exports
+	Timeout           time.Duration
 }
 
 // Client represents a GCP Compute Engine client for VM operations

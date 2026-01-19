@@ -90,13 +90,13 @@ func (c *Client) ListInstances(ctx context.Context) ([]InstanceInfo, error) {
 		var instances []InstanceInfo
 		for _, instance := range response.Items {
 			instances = append(instances, InstanceInfo{
-				ID:               *instance.Id,
-				Name:             *instance.DisplayName,
-				State:            string(instance.LifecycleState),
-				CompartmentOCID:  *instance.CompartmentId,
+				ID:                 *instance.Id,
+				Name:               *instance.DisplayName,
+				State:              string(instance.LifecycleState),
+				CompartmentOCID:    *instance.CompartmentId,
 				AvailabilityDomain: *instance.AvailabilityDomain,
-				Shape:            *instance.Shape,
-				TimeCreated:      instance.TimeCreated.Time,
+				Shape:              *instance.Shape,
+				TimeCreated:        instance.TimeCreated.Time,
 			})
 		}
 
@@ -268,7 +268,7 @@ func IsNotFoundError(err error) bool {
 func contains(s, substr string) bool {
 	return len(s) >= len(substr) && (s == substr || len(s) > len(substr) &&
 		(s[:len(substr)] == substr || s[len(s)-len(substr):] == substr ||
-		len(s) > len(substr)+1 && findSubstring(s, substr)))
+			len(s) > len(substr)+1 && findSubstring(s, substr)))
 }
 
 func findSubstring(s, substr string) bool {

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: LGPL-3.0-or-later
 
+//go:build integration
 // +build integration
 
 package main
@@ -460,7 +461,7 @@ func TestLargeFileUpload(t *testing.T) {
 	}
 
 	fileSize := int64(100 * 1024 * 1024) // 100MB
-	chunk := make([]byte, 1024*1024)      // 1MB chunks
+	chunk := make([]byte, 1024*1024)     // 1MB chunks
 	written := int64(0)
 
 	for written < fileSize {

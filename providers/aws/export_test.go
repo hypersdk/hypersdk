@@ -1,5 +1,8 @@
 // SPDX-License-Identifier: LGPL-3.0-or-later
 
+//go:build integration && integration
+// +build integration,integration
+
 package aws
 
 import (
@@ -163,7 +166,6 @@ func (m *mockReader) Read(p []byte) (int, error) {
 // These tests are disabled by default - enable with build tag 'integration'
 
 // TestExportInstanceToS3_Integration tests full S3 export flow
-// +build integration
 func TestExportInstanceToS3_Integration(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping integration test")
@@ -212,7 +214,6 @@ func TestExportInstanceToS3_Integration(t *testing.T) {
 }
 
 // TestExportSnapshotToS3_Integration tests snapshot export
-// +build integration
 func TestExportSnapshotToS3_Integration(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping integration test")

@@ -12,11 +12,11 @@ func TestGetConfigSteps(t *testing.T) {
 		provider CloudProvider
 		expected int
 	}{
-		{CloudProviderS3, 5},       // bucket, region, accessKey, secretKey, prefix
-		{CloudProviderAzure, 4},    // bucket, accessKey, secretKey, prefix
-		{CloudProviderGCS, 2},      // bucket, prefix
-		{CloudProviderSFTP, 5},     // host, port, username, password, prefix
-		{CloudProviderNone, 1},     // none
+		{CloudProviderS3, 5},    // bucket, region, accessKey, secretKey, prefix
+		{CloudProviderAzure, 4}, // bucket, accessKey, secretKey, prefix
+		{CloudProviderGCS, 2},   // bucket, prefix
+		{CloudProviderSFTP, 5},  // host, port, username, password, prefix
+		{CloudProviderNone, 1},  // none
 	}
 
 	for _, tt := range tests {
@@ -204,8 +204,8 @@ func TestNewCloudBrowserModel(t *testing.T) {
 // Test cloud config phase transitions
 func TestCloudConfigPhaseTransitions(t *testing.T) {
 	tests := []struct {
-		provider      CloudProvider
-		phases        []string
+		provider CloudProvider
+		phases   []string
 	}{
 		{
 			CloudProviderS3,
@@ -291,9 +291,9 @@ func TestCloudConfigPhaseTransitions(t *testing.T) {
 // Test cloud config validation
 func TestCloudConfigValidation(t *testing.T) {
 	tests := []struct {
-		name     string
-		config   *cloudConfig
-		valid    bool
+		name   string
+		config *cloudConfig
+		valid  bool
 	}{
 		{
 			name: "Valid S3 config",

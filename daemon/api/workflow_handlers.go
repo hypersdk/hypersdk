@@ -19,19 +19,19 @@ import (
 
 // ConversionWorkflow represents a complete conversion workflow
 type ConversionWorkflow struct {
-	ID              string                  `json:"id"`
-	Status          string                  `json:"status"` // pending, config_generated, converting, converted, importing, completed, failed
-	CreatedAt       time.Time               `json:"created_at"`
-	UpdatedAt       time.Time               `json:"updated_at"`
-	Request         ConfigGeneratorRequest  `json:"request"`
-	ConfigYAML      string                  `json:"config_yaml,omitempty"`
-	ConfigPath      string                  `json:"config_path,omitempty"`
-	ServiceFile     string                  `json:"service_file,omitempty"`
-	ServicePath     string                  `json:"service_path,omitempty"`
-	ConversionLog   string                  `json:"conversion_log,omitempty"`
-	LibvirtDomain   string                  `json:"libvirt_domain,omitempty"`
-	Error           string                  `json:"error,omitempty"`
-	Steps           []WorkflowStep          `json:"steps"`
+	ID            string                 `json:"id"`
+	Status        string                 `json:"status"` // pending, config_generated, converting, converted, importing, completed, failed
+	CreatedAt     time.Time              `json:"created_at"`
+	UpdatedAt     time.Time              `json:"updated_at"`
+	Request       ConfigGeneratorRequest `json:"request"`
+	ConfigYAML    string                 `json:"config_yaml,omitempty"`
+	ConfigPath    string                 `json:"config_path,omitempty"`
+	ServiceFile   string                 `json:"service_file,omitempty"`
+	ServicePath   string                 `json:"service_path,omitempty"`
+	ConversionLog string                 `json:"conversion_log,omitempty"`
+	LibvirtDomain string                 `json:"libvirt_domain,omitempty"`
+	Error         string                 `json:"error,omitempty"`
+	Steps         []WorkflowStep         `json:"steps"`
 }
 
 // WorkflowStep represents a step in the workflow

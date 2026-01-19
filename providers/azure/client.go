@@ -21,27 +21,27 @@ import (
 
 // Config holds Azure provider configuration
 type Config struct {
-	SubscriptionID   string
-	TenantID         string
-	ClientID         string
-	ClientSecret     string
-	ResourceGroup    string
-	Location         string
-	StorageAccount   string // Storage account name for blob storage
-	Container        string // Container name for VHD exports
-	ContainerURL     string // Full container URL
-	ExportFormat     string // "image" or "vhd"
-	Timeout          time.Duration
+	SubscriptionID string
+	TenantID       string
+	ClientID       string
+	ClientSecret   string
+	ResourceGroup  string
+	Location       string
+	StorageAccount string // Storage account name for blob storage
+	Container      string // Container name for VHD exports
+	ContainerURL   string // Full container URL
+	ExportFormat   string // "image" or "vhd"
+	Timeout        time.Duration
 }
 
 // Client represents an Azure Compute client for VM operations
 type Client struct {
-	vmClient      *armcompute.VirtualMachinesClient
-	imageClient   *armcompute.ImagesClient
-	diskClient    *armcompute.DisksClient
-	nicClient     *armnetwork.InterfacesClient
-	config        *Config
-	logger        logger.Logger
+	vmClient    *armcompute.VirtualMachinesClient
+	imageClient *armcompute.ImagesClient
+	diskClient  *armcompute.DisksClient
+	nicClient   *armnetwork.InterfacesClient
+	config      *Config
+	logger      logger.Logger
 }
 
 // VMInfo represents Azure VM information

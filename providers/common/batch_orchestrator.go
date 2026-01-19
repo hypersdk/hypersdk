@@ -39,8 +39,8 @@ type BatchMigrationConfig struct {
 	CloudStorage  *CloudStorageConfig `json:"cloud_storage,omitempty"`
 
 	// Retry configuration
-	MaxRetries  int           `json:"max_retries,omitempty"`
-	RetryDelay  time.Duration `json:"retry_delay,omitempty"`
+	MaxRetries int           `json:"max_retries,omitempty"`
+	RetryDelay time.Duration `json:"retry_delay,omitempty"`
 
 	// Continue on error
 	ContinueOnError bool `json:"continue_on_error,omitempty"`
@@ -75,15 +75,15 @@ type VMMigrationTask struct {
 
 // VMMigrationResult represents the result of a VM migration
 type VMMigrationResult struct {
-	Task             *VMMigrationTask
-	Success          bool
-	Error            string
-	ExportDuration   time.Duration
+	Task               *VMMigrationTask
+	Success            bool
+	Error              string
+	ExportDuration     time.Duration
 	ConversionDuration time.Duration
-	TotalDuration    time.Duration
-	ConvertedFiles   []string
-	UploadResults    []*UploadResult
-	Metadata         map[string]interface{}
+	TotalDuration      time.Duration
+	ConvertedFiles     []string
+	UploadResults      []*UploadResult
+	Metadata           map[string]interface{}
 }
 
 // BatchOrchestrator orchestrates batch VM migrations
@@ -208,7 +208,7 @@ func (bo *BatchOrchestrator) migrateVM(ctx context.Context, task *VMMigrationTas
 	bo.logger.Info("starting VM migration", "vm_id", task.ID, "provider", task.Provider)
 
 	result := &VMMigrationResult{
-		Task: task,
+		Task:     task,
 		Metadata: make(map[string]interface{}),
 	}
 

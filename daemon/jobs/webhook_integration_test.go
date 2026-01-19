@@ -18,11 +18,11 @@ import (
 
 // MockWebhookManager for testing
 type MockWebhookManager struct {
-	mu      sync.Mutex
-	created []string
-	started []string
+	mu        sync.Mutex
+	created   []string
+	started   []string
 	completed []string
-	failed  []string
+	failed    []string
 	cancelled []string
 }
 

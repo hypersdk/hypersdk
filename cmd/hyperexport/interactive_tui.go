@@ -59,29 +59,29 @@ var exportTemplates = []exportTemplate{
 
 // TUI model for interactive hyperexport
 type tuiModel struct {
-	vms            []tuiVMItem
-	filteredVMs    []tuiVMItem
-	cursor         int
-	phase          string // "select", "confirm", "template", "regex", "cloud", "export", "cloudupload", "done"
-	searchQuery    string
-	sortMode       string // "name", "cpu", "memory", "storage", "power"
-	filterPower    string // "", "on", "off"
-	filterOS       string
-	quickFilter    string
-	showHelp       bool
-	regexPattern   string
+	vms              []tuiVMItem
+	filteredVMs      []tuiVMItem
+	cursor           int
+	phase            string // "select", "confirm", "template", "regex", "cloud", "export", "cloudupload", "done"
+	searchQuery      string
+	sortMode         string // "name", "cpu", "memory", "storage", "power"
+	filterPower      string // "", "on", "off"
+	filterOS         string
+	quickFilter      string
+	showHelp         bool
+	regexPattern     string
 	selectedTemplate *exportTemplate
-	message        string
-	err            error
+	message          string
+	err              error
 
 	// Export state
-	currentExport  int
-	exportProgress exportProgressState
-	currentVMName  string
+	currentExport   int
+	exportProgress  exportProgressState
+	currentVMName   string
 	currentFileName string
 
 	// Cloud configuration
-	cloudConfig    *cloudConfig
+	cloudConfig       *cloudConfig
 	enableCloudUpload bool
 
 	// Configuration

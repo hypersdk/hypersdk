@@ -263,9 +263,9 @@ func (p *HyperVProvider) ExportVM(ctx context.Context, identifier string, opts p
 func (p *HyperVProvider) GetExportCapabilities() providers.ExportCapabilities {
 	return providers.ExportCapabilities{
 		SupportedFormats:    []string{"vhdx", "vhd", "hyperv"},
-		SupportsCompression: false, // VHDX supports internal compression
-		SupportsStreaming:   false, // File-based export
-		SupportsSnapshots:   true,  // Hyper-V checkpoints
+		SupportsCompression: false,     // VHDX supports internal compression
+		SupportsStreaming:   false,     // File-based export
+		SupportsSnapshots:   true,      // Hyper-V checkpoints
 		MaxVMSizeGB:         64 * 1024, // 64TB max VHDX size
 		SupportedTargets:    []string{"local", "smb"},
 	}

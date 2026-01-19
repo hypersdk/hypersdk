@@ -150,12 +150,12 @@ func (p *VSphereProvider) ExportVM(ctx context.Context, identifier string, opts 
 
 	// Convert generic export options to vSphere-specific options
 	exportOpts := ExportOptions{
-		Format:            opts.Format,
-		OutputPath:        opts.OutputPath,
-		RemoveCDROM:       opts.RemoveCDROM,
-		Compress:          opts.Compress,
-		CompressionLevel:  opts.CompressionLevel,
-		ParallelDownloads: 3,
+		Format:              opts.Format,
+		OutputPath:          opts.OutputPath,
+		RemoveCDROM:         opts.RemoveCDROM,
+		Compress:            opts.Compress,
+		CompressionLevel:    opts.CompressionLevel,
+		ParallelDownloads:   3,
 		ShowOverallProgress: true,
 	}
 

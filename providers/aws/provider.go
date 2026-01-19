@@ -173,9 +173,9 @@ func (p *AWSProvider) ExportVM(ctx context.Context, identifier string, opts prov
 			OutputPath: result.LocalPath,
 			Size:       result.Size,
 			Metadata: map[string]interface{}{
-				"ami_id":     result.ImageID,
-				"s3_bucket":  result.S3Bucket,
-				"s3_key":     result.S3Key,
+				"ami_id":      result.ImageID,
+				"s3_bucket":   result.S3Bucket,
+				"s3_key":      result.S3Key,
 				"instance_id": result.InstanceID,
 			},
 		}, nil

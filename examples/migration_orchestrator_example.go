@@ -10,7 +10,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
 	"time"
 
 	"hypersdk/logger"

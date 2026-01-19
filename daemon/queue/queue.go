@@ -233,14 +233,26 @@ func (q *Queue) IsFull() bool {
 }
 
 // GetMetrics returns current metrics
-func (q *Queue) GetMetrics() Metrics {
+func (q *Queue) GetMetrics() *Metrics {
 	q.metrics.mu.RLock()
 	defer q.metrics.mu.RUnlock()
 
 	// Update active workers
 	q.metrics.ActiveWorkers = q.activeWorkerCount()
 
-	return *q.metrics
+	// Return a copy without the mutex
+	return &Metrics{
+		JobsEnqueued:      q.metrics.JobsEnqueued,
+		JobsDequeued:      q.metrics.JobsDequeued,
+		JobsCompleted:     q.metrics.JobsCompleted,
+		JobsFailed:        q.metrics.JobsFailed,
+		JobsTimeout:       q.metrics.JobsTimeout,
+		JobsRetried:       q.metrics.JobsRetried,
+		CurrentQueueSize:  q.metrics.CurrentQueueSize,
+		ActiveWorkers:     q.metrics.ActiveWorkers,
+		AverageWaitTime:   q.metrics.AverageWaitTime,
+		AverageProcessing: q.metrics.AverageProcessing,
+	}
 }
 
 // activeWorkerCount returns the number of active workers

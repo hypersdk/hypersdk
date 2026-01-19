@@ -462,8 +462,8 @@ func (s *Server) handleGetSerialDevice(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.jsonResponse(w, http.StatusOK, map[string]interface{}{
-		"vm_name": vmName,
-		"device":  device,
+		"vm_name":    vmName,
+		"device":     device,
 		"has_serial": device != "",
 	})
 }
@@ -490,10 +490,10 @@ func (s *Server) handleScreenshot(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.jsonResponse(w, http.StatusOK, map[string]interface{}{
-		"status": "success",
+		"status":  "success",
 		"message": "Screenshot saved",
-		"path": "/tmp/" + vmName + "-screenshot.ppm",
-		"note": "Convert with: convert screenshot.ppm screenshot.png",
+		"path":    "/tmp/" + vmName + "-screenshot.ppm",
+		"note":    "Convert with: convert screenshot.ppm screenshot.png",
 	})
 }
 
@@ -525,7 +525,7 @@ func (s *Server) handleSendKeys(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.jsonResponse(w, http.StatusOK, map[string]string{
-		"status": "success",
+		"status":  "success",
 		"message": "Keys sent successfully",
 	})
 }

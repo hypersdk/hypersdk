@@ -20,28 +20,28 @@ import (
 
 // ExportOptions contains options for exporting an OCI instance
 type ExportOptions struct {
-	OutputDir          string                 // Local output directory
-	Format             string                 // Export format: qcow2, vmdk
-	ImageName          string                 // Custom image name
-	ExportToObjectStorage bool                // Export to OCI Object Storage
-	Bucket             string                 // Object Storage bucket name
-	Namespace          string                 // Object Storage namespace
-	ObjectNamePrefix   string                 // Prefix for object names
-	DeleteAfterExport  bool                   // Delete custom image after export
-	ProgressReporter   progress.ProgressReporter // Progress reporter
+	OutputDir             string                    // Local output directory
+	Format                string                    // Export format: qcow2, vmdk
+	ImageName             string                    // Custom image name
+	ExportToObjectStorage bool                      // Export to OCI Object Storage
+	Bucket                string                    // Object Storage bucket name
+	Namespace             string                    // Object Storage namespace
+	ObjectNamePrefix      string                    // Prefix for object names
+	DeleteAfterExport     bool                      // Delete custom image after export
+	ProgressReporter      progress.ProgressReporter // Progress reporter
 }
 
 // ExportResult contains the result of an export operation
 type ExportResult struct {
-	InstanceID     string
-	InstanceName   string
-	ImageID        string
-	ImageName      string
-	ExportFormat   string
-	LocalPath      string
+	InstanceID       string
+	InstanceName     string
+	ImageID          string
+	ImageName        string
+	ExportFormat     string
+	LocalPath        string
 	ObjectStorageURL string
-	Size           int64
-	Duration       time.Duration
+	Size             int64
+	Duration         time.Duration
 }
 
 // ExportInstance exports an OCI instance to a custom image and optionally downloads it

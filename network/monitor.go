@@ -18,10 +18,10 @@ import (
 type State int
 
 const (
-	StateUnknown State = iota
-	StateUp            // Network is available
-	StateDown          // Network is unavailable
-	StateDegraded      // Network is available but degraded (high latency, packet loss)
+	StateUnknown  State = iota
+	StateUp             // Network is available
+	StateDown           // Network is unavailable
+	StateDegraded       // Network is available but degraded (high latency, packet loss)
 )
 
 func (s State) String() string {

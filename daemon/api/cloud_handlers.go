@@ -10,11 +10,11 @@ import (
 
 // CloudProvider represents a cloud provider configuration
 type CloudProvider struct {
-	ID        string    `json:"id"`
-	Name      string    `json:"name"` // aws, azure, gcp
-	Enabled   bool      `json:"enabled"`
+	ID        string              `json:"id"`
+	Name      string              `json:"name"` // aws, azure, gcp
+	Enabled   bool                `json:"enabled"`
 	Config    CloudProviderConfig `json:"config"`
-	CreatedAt time.Time `json:"created_at"`
+	CreatedAt time.Time           `json:"created_at"`
 }
 
 // CloudProviderConfig represents cloud provider specific configuration
@@ -51,16 +51,16 @@ type GCPConfig struct {
 
 // VCenterServer represents a vCenter server configuration
 type VCenterServer struct {
-	ID         string    `json:"id"`
-	Name       string    `json:"name"`
-	Hostname   string    `json:"hostname"`
-	Username   string    `json:"username"`
-	Password   string    `json:"password,omitempty"`
-	Insecure   bool      `json:"insecure"`
-	VMCount    int       `json:"vm_count"`
-	Status     string    `json:"status"`
-	LastSync   time.Time `json:"last_sync"`
-	CreatedAt  time.Time `json:"created_at"`
+	ID        string    `json:"id"`
+	Name      string    `json:"name"`
+	Hostname  string    `json:"hostname"`
+	Username  string    `json:"username"`
+	Password  string    `json:"password,omitempty"`
+	Insecure  bool      `json:"insecure"`
+	VMCount   int       `json:"vm_count"`
+	Status    string    `json:"status"`
+	LastSync  time.Time `json:"last_sync"`
+	CreatedAt time.Time `json:"created_at"`
 }
 
 // Integration represents an external integration

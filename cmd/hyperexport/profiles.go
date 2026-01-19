@@ -20,16 +20,16 @@ type ExportProfile struct {
 	Modified    time.Time `json:"modified"`
 
 	// Export settings
-	Format      string `json:"format"`       // ovf, ova
-	Compress    bool   `json:"compress"`     // Enable compression
-	Verify      bool   `json:"verify"`       // Verify with checksums
-	PowerOff    bool   `json:"power_off"`    // Power off VM before export
-	Parallel    int    `json:"parallel"`     // Parallel downloads
-	CleanupOVF  bool   `json:"cleanup_ovf"`  // Cleanup OVF files after OVA creation
+	Format     string `json:"format"`      // ovf, ova
+	Compress   bool   `json:"compress"`    // Enable compression
+	Verify     bool   `json:"verify"`      // Verify with checksums
+	PowerOff   bool   `json:"power_off"`   // Power off VM before export
+	Parallel   int    `json:"parallel"`    // Parallel downloads
+	CleanupOVF bool   `json:"cleanup_ovf"` // Cleanup OVF files after OVA creation
 
 	// Cloud storage
-	UploadTo   string `json:"upload_to"`   // Cloud storage URL
-	KeepLocal  bool   `json:"keep_local"`  // Keep local copy after upload
+	UploadTo  string `json:"upload_to"`  // Cloud storage URL
+	KeepLocal bool   `json:"keep_local"` // Keep local copy after upload
 
 	// Encryption
 	Encrypt       bool   `json:"encrypt"`        // Enable encryption
@@ -40,15 +40,15 @@ type ExportProfile struct {
 	ValidateOnly bool `json:"validate_only"` // Only run validation
 
 	// Artifact Manifest v1.0
-	GenerateManifest      bool   `json:"generate_manifest"`       // Generate Artifact Manifest v1.0
-	VerifyManifest        bool   `json:"verify_manifest"`         // Verify manifest after generation
-	ManifestChecksum      bool   `json:"manifest_checksum"`       // Compute checksums in manifest
-	ManifestTargetFormat  string `json:"manifest_target_format"`  // Target format for conversion
+	GenerateManifest     bool   `json:"generate_manifest"`      // Generate Artifact Manifest v1.0
+	VerifyManifest       bool   `json:"verify_manifest"`        // Verify manifest after generation
+	ManifestChecksum     bool   `json:"manifest_checksum"`      // Compute checksums in manifest
+	ManifestTargetFormat string `json:"manifest_target_format"` // Target format for conversion
 
 	// Automatic conversion (Phase 2)
-	AutoConvert           bool   `json:"auto_convert"`            // Automatically convert with hyper2kvm
-	Hyper2KVMBinary       string `json:"hyper2kvm_binary"`        // Path to hyper2kvm binary
-	StreamConversion      bool   `json:"stream_conversion"`       // Stream conversion output
+	AutoConvert      bool   `json:"auto_convert"`      // Automatically convert with hyper2kvm
+	Hyper2KVMBinary  string `json:"hyper2kvm_binary"`  // Path to hyper2kvm binary
+	StreamConversion bool   `json:"stream_conversion"` // Stream conversion output
 
 	// Retention
 	RetentionDays  int `json:"retention_days"`  // Keep exports for N days
@@ -223,14 +223,14 @@ func (pm *ProfileManager) CreateDefaultProfiles() error {
 
 	// Encrypted Backup profile
 	encryptedBackup := &ExportProfile{
-		Name:        "encrypted-backup",
-		Description: "Encrypted backup for sensitive data",
-		Format:      "ova",
-		Compress:    true,
-		Verify:      true,
-		PowerOff:    true,
-		Parallel:    4,
-		Encrypt:     true,
+		Name:          "encrypted-backup",
+		Description:   "Encrypted backup for sensitive data",
+		Format:        "ova",
+		Compress:      true,
+		Verify:        true,
+		PowerOff:      true,
+		Parallel:      4,
+		Encrypt:       true,
 		EncryptMethod: "aes256",
 	}
 	if err := pm.SaveProfile(encryptedBackup); err != nil {

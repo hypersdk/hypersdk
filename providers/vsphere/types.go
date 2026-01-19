@@ -9,9 +9,9 @@ import (
 )
 
 const (
-	defaultDirPerm     = 0755
-	leaseWaitTimeout   = 5 * time.Minute
-	downloadTimeout    = 2 * time.Hour
+	defaultDirPerm   = 0755
+	leaseWaitTimeout = 5 * time.Minute
+	downloadTimeout  = 2 * time.Hour
 )
 
 type VMInfo struct {

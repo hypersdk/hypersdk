@@ -48,9 +48,9 @@ func (s *Server) handleCreateVolume(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Pool     string `json:"pool"`
 		Name     string `json:"name"`
-		Format   string `json:"format"`    // qcow2, raw, etc.
-		Capacity int    `json:"capacity"`  // GB
-		Prealloc bool   `json:"prealloc"`  // preallocate space
+		Format   string `json:"format"`   // qcow2, raw, etc.
+		Capacity int    `json:"capacity"` // GB
+		Prealloc bool   `json:"prealloc"` // preallocate space
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "invalid request body", http.StatusBadRequest)

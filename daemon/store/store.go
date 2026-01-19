@@ -25,11 +25,11 @@ type JobStore interface {
 
 // JobFilter defines query filters for jobs
 type JobFilter struct {
-	Status    []models.JobStatus
-	Since     *time.Time
-	Until     *time.Time
-	Limit     int
-	Offset    int
+	Status []models.JobStatus
+	Since  *time.Time
+	Until  *time.Time
+	Limit  int
+	Offset int
 }
 
 // SQLiteStore implements JobStore using SQLite

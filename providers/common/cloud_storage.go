@@ -15,10 +15,10 @@ import (
 type CloudStorageProvider string
 
 const (
-	ProviderS3    CloudStorageProvider = "s3"      // AWS S3
-	ProviderAzure CloudStorageProvider = "azure"   // Azure Blob Storage
-	ProviderGCS   CloudStorageProvider = "gcs"     // Google Cloud Storage
-	ProviderLocal CloudStorageProvider = "local"   // Local filesystem
+	ProviderS3    CloudStorageProvider = "s3"    // AWS S3
+	ProviderAzure CloudStorageProvider = "azure" // Azure Blob Storage
+	ProviderGCS   CloudStorageProvider = "gcs"   // Google Cloud Storage
+	ProviderLocal CloudStorageProvider = "local" // Local filesystem
 )
 
 // CloudStorageConfig holds cloud storage configuration
@@ -48,28 +48,28 @@ type S3Config struct {
 	Region          string `json:"region"`
 	AccessKeyID     string `json:"access_key_id,omitempty"`
 	SecretAccessKey string `json:"secret_access_key,omitempty"`
-	Endpoint        string `json:"endpoint,omitempty"` // Custom endpoint (for S3-compatible storage)
-	Prefix          string `json:"prefix,omitempty"`   // Object key prefix
+	Endpoint        string `json:"endpoint,omitempty"`      // Custom endpoint (for S3-compatible storage)
+	Prefix          string `json:"prefix,omitempty"`        // Object key prefix
 	StorageClass    string `json:"storage_class,omitempty"` // Storage class (STANDARD, GLACIER, etc.)
 }
 
 // AzureStorageConfig holds Azure Blob Storage configuration
 type AzureStorageConfig struct {
-	AccountName   string `json:"account_name"`
-	AccountKey    string `json:"account_key,omitempty"`
+	AccountName      string `json:"account_name"`
+	AccountKey       string `json:"account_key,omitempty"`
 	ConnectionString string `json:"connection_string,omitempty"`
-	Container     string `json:"container"`
-	Prefix        string `json:"prefix,omitempty"`
-	BlobType      string `json:"blob_type,omitempty"` // BlockBlob, PageBlob, AppendBlob
+	Container        string `json:"container"`
+	Prefix           string `json:"prefix,omitempty"`
+	BlobType         string `json:"blob_type,omitempty"` // BlockBlob, PageBlob, AppendBlob
 }
 
 // GCSConfig holds Google Cloud Storage configuration
 type GCSConfig struct {
-	Bucket            string `json:"bucket"`
-	ProjectID         string `json:"project_id"`
-	CredentialsFile   string `json:"credentials_file,omitempty"`
-	Prefix            string `json:"prefix,omitempty"`
-	StorageClass      string `json:"storage_class,omitempty"` // STANDARD, NEARLINE, COLDLINE, ARCHIVE
+	Bucket          string `json:"bucket"`
+	ProjectID       string `json:"project_id"`
+	CredentialsFile string `json:"credentials_file,omitempty"`
+	Prefix          string `json:"prefix,omitempty"`
+	StorageClass    string `json:"storage_class,omitempty"` // STANDARD, NEARLINE, COLDLINE, ARCHIVE
 }
 
 // CloudStorageUploader defines interface for cloud storage uploaders
@@ -182,7 +182,7 @@ func (csm *CloudStorageManager) UploadConvertedImages(ctx context.Context, resul
 		VerifyChecksum:   true,
 		CompressionLevel: 0, // Already compressed by converter
 		Metadata: map[string]string{
-			"source":         "hypersdk",
+			"source":          "hypersdk",
 			"conversion-tool": "hyper2kvm",
 		},
 	}

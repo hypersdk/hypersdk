@@ -40,7 +40,7 @@ type WebhookConfig struct {
 	SlackIconURL  string `json:"slack_icon_url,omitempty"`
 
 	// Discord-specific
-	DiscordUsername string `json:"discord_username,omitempty"`
+	DiscordUsername  string `json:"discord_username,omitempty"`
 	DiscordAvatarURL string `json:"discord_avatar_url,omitempty"`
 
 	// Email-specific
@@ -56,16 +56,16 @@ type WebhookConfig struct {
 
 // WebhookEvent represents an event to send via webhook
 type WebhookEvent struct {
-	EventType  string                 `json:"event_type"`
-	TaskID     string                 `json:"task_id"`
-	VMName     string                 `json:"vm_name"`
-	Provider   string                 `json:"provider"`
-	Status     string                 `json:"status"`
-	Message    string                 `json:"message"`
-	Timestamp  time.Time              `json:"timestamp"`
-	Duration   time.Duration          `json:"duration,omitempty"`
-	Error      string                 `json:"error,omitempty"`
-	Metadata   map[string]interface{} `json:"metadata,omitempty"`
+	EventType string                 `json:"event_type"`
+	TaskID    string                 `json:"task_id"`
+	VMName    string                 `json:"vm_name"`
+	Provider  string                 `json:"provider"`
+	Status    string                 `json:"status"`
+	Message   string                 `json:"message"`
+	Timestamp time.Time              `json:"timestamp"`
+	Duration  time.Duration          `json:"duration,omitempty"`
+	Error     string                 `json:"error,omitempty"`
+	Metadata  map[string]interface{} `json:"metadata,omitempty"`
 }
 
 // WebhookNotifier sends webhook notifications

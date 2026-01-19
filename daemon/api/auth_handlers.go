@@ -15,8 +15,8 @@ type LoginRequest struct {
 
 // LoginResponse represents a login response
 type LoginResponse struct {
-	Token    string `json:"token"`
-	Username string `json:"username"`
+	Token     string `json:"token"`
+	Username  string `json:"username"`
 	ExpiresAt string `json:"expires_at"`
 }
 
@@ -41,8 +41,8 @@ func (es *EnhancedServer) handleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	response := LoginResponse{
-		Token:    session.Token,
-		Username: session.Username,
+		Token:     session.Token,
+		Username:  session.Username,
 		ExpiresAt: session.ExpiresAt.Format("2006-01-02T15:04:05Z07:00"),
 	}
 

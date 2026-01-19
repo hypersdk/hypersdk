@@ -58,37 +58,37 @@ type Dashboard struct {
 
 // Metrics holds dashboard metrics
 type Metrics struct {
-	Timestamp         time.Time         `json:"timestamp"`
-	JobsActive        int               `json:"jobs_active"`
-	JobsCompleted     int               `json:"jobs_completed"`
-	JobsFailed        int               `json:"jobs_failed"`
-	JobsPending       int               `json:"jobs_pending"`
-	QueueLength       int               `json:"queue_length"`
-	HTTPRequests      int64             `json:"http_requests"`
-	HTTPErrors        int64             `json:"http_errors"`
-	AvgResponseTime   float64           `json:"avg_response_time"`
-	MemoryUsage       int64             `json:"memory_usage"`
-	CPUUsage          float64           `json:"cpu_usage"`
-	Goroutines        int               `json:"goroutines"`
-	ActiveConnections int               `json:"active_connections"`
-	ProviderStats     map[string]int    `json:"provider_stats"`
-	RecentJobs        []JobInfo         `json:"recent_jobs"`
-	SystemHealth      string            `json:"system_health"`
-	Alerts            []Alert           `json:"alerts"`
+	Timestamp         time.Time      `json:"timestamp"`
+	JobsActive        int            `json:"jobs_active"`
+	JobsCompleted     int            `json:"jobs_completed"`
+	JobsFailed        int            `json:"jobs_failed"`
+	JobsPending       int            `json:"jobs_pending"`
+	QueueLength       int            `json:"queue_length"`
+	HTTPRequests      int64          `json:"http_requests"`
+	HTTPErrors        int64          `json:"http_errors"`
+	AvgResponseTime   float64        `json:"avg_response_time"`
+	MemoryUsage       int64          `json:"memory_usage"`
+	CPUUsage          float64        `json:"cpu_usage"`
+	Goroutines        int            `json:"goroutines"`
+	ActiveConnections int            `json:"active_connections"`
+	ProviderStats     map[string]int `json:"provider_stats"`
+	RecentJobs        []JobInfo      `json:"recent_jobs"`
+	SystemHealth      string         `json:"system_health"`
+	Alerts            []Alert        `json:"alerts"`
 }
 
 // JobInfo represents job information
 type JobInfo struct {
-	ID          string    `json:"id"`
-	Name        string    `json:"name"`
-	Status      string    `json:"status"`
-	Progress    int       `json:"progress"`
-	StartTime   time.Time `json:"start_time"`
-	EndTime     time.Time `json:"end_time,omitempty"`
-	Duration    float64   `json:"duration"`
-	Provider    string    `json:"provider"`
-	VMName      string    `json:"vm_name"`
-	ErrorMsg    string    `json:"error_msg,omitempty"`
+	ID        string    `json:"id"`
+	Name      string    `json:"name"`
+	Status    string    `json:"status"`
+	Progress  int       `json:"progress"`
+	StartTime time.Time `json:"start_time"`
+	EndTime   time.Time `json:"end_time,omitempty"`
+	Duration  float64   `json:"duration"`
+	Provider  string    `json:"provider"`
+	VMName    string    `json:"vm_name"`
+	ErrorMsg  string    `json:"error_msg,omitempty"`
 }
 
 // Alert represents a system alert

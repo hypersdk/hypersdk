@@ -69,11 +69,11 @@ type MigrationConfig struct {
 
 // MigrationResult holds the results of a complete migration
 type MigrationResult struct {
-	TaskID        string
-	VMName        string
-	Provider      string
-	Success       bool
-	Error         string
+	TaskID   string
+	VMName   string
+	Provider string
+	Success  bool
+	Error    string
 
 	// Export results
 	ExportDuration time.Duration
@@ -93,10 +93,10 @@ type MigrationResult struct {
 	CloudDestination string
 
 	// Overall results
-	TotalDuration  time.Duration
-	TotalSize      int64
-	StartTime      time.Time
-	EndTime        time.Time
+	TotalDuration time.Duration
+	TotalSize     int64
+	StartTime     time.Time
+	EndTime       time.Time
 }
 
 // NewMigrationOrchestrator creates a new migration orchestrator

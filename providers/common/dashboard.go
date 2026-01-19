@@ -36,13 +36,13 @@ type DashboardData struct {
 
 // MetricsSummary summarizes key metrics
 type MetricsSummary struct {
-	TotalMigrations     int64   `json:"total_migrations"`
+	TotalMigrations      int64   `json:"total_migrations"`
 	SuccessfulMigrations int64   `json:"successful_migrations"`
-	FailedMigrations    int64   `json:"failed_migrations"`
-	ActiveMigrations    int64   `json:"active_migrations"`
-	SuccessRate         float64 `json:"success_rate"`
-	AvgMigrationTime    float64 `json:"avg_migration_time"`
-	TotalBytesProcessed int64   `json:"total_bytes_processed"`
+	FailedMigrations     int64   `json:"failed_migrations"`
+	ActiveMigrations     int64   `json:"active_migrations"`
+	SuccessRate          float64 `json:"success_rate"`
+	AvgMigrationTime     float64 `json:"avg_migration_time"`
+	TotalBytesProcessed  int64   `json:"total_bytes_processed"`
 }
 
 // TaskSummary summarizes a completed task
@@ -58,11 +58,11 @@ type TaskSummary struct {
 
 // ProviderStats holds statistics for a specific provider
 type ProviderStats struct {
-	TotalMigrations     int64   `json:"total_migrations"`
+	TotalMigrations      int64   `json:"total_migrations"`
 	SuccessfulMigrations int64   `json:"successful_migrations"`
-	FailedMigrations    int64   `json:"failed_migrations"`
-	SuccessRate         float64 `json:"success_rate"`
-	AvgDuration         float64 `json:"avg_duration"`
+	FailedMigrations     int64   `json:"failed_migrations"`
+	SuccessRate          float64 `json:"success_rate"`
+	AvgDuration          float64 `json:"avg_duration"`
 }
 
 // PerformanceTrends holds performance trend data
@@ -75,17 +75,17 @@ type PerformanceTrends struct {
 
 // DashboardProvider provides dashboard data
 type DashboardProvider struct {
-	progressTracker *ProgressTracker
+	progressTracker  *ProgressTracker
 	metricsCollector *MetricsCollector
-	auditLogger     *AuditLogger
+	auditLogger      *AuditLogger
 }
 
 // NewDashboardProvider creates a new dashboard provider
 func NewDashboardProvider(tracker *ProgressTracker, collector *MetricsCollector, audit *AuditLogger) *DashboardProvider {
 	return &DashboardProvider{
-		progressTracker: tracker,
+		progressTracker:  tracker,
 		metricsCollector: collector,
-		auditLogger:     audit,
+		auditLogger:      audit,
 	}
 }
 
@@ -312,12 +312,12 @@ func (ds *DashboardServer) handleRecentFailures(w http.ResponseWriter, r *http.R
 
 // HealthStatus represents the health status of the system
 type HealthStatus struct {
-	Healthy     bool              `json:"healthy"`
-	Status      string            `json:"status"`
-	Checks      map[string]bool   `json:"checks"`
-	Timestamp   time.Time         `json:"timestamp"`
-	Uptime      float64           `json:"uptime"`
-	Version     string            `json:"version"`
+	Healthy   bool            `json:"healthy"`
+	Status    string          `json:"status"`
+	Checks    map[string]bool `json:"checks"`
+	Timestamp time.Time       `json:"timestamp"`
+	Uptime    float64         `json:"uptime"`
+	Version   string          `json:"version"`
 }
 
 // GetHealthStatus returns the system health status

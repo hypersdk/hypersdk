@@ -56,28 +56,28 @@ type ProgressCallback func(bytesTransferred, totalBytes int64)
 
 // CloudStorageConfig contains cloud storage configuration
 type CloudStorageConfig struct {
-	Provider    string        // s3, azure, gcs, sftp, oci
-	Bucket      string        // S3 bucket, Azure container, GCS bucket, OCI bucket
-	Region      string        // AWS region, OCI region
-	Endpoint    string        // Custom endpoint (for S3-compatible storage)
-	AccessKey   string        // AWS access key, Azure account name
-	SecretKey   string        // AWS secret key, Azure account key
-	Host        string        // SFTP host
-	Port        int           // SFTP port
-	Username    string              // SFTP username
-	Password    string              // SFTP password
-	PrivateKey  string              // SFTP private key path
-	Prefix      string              // Path prefix in bucket/container
-	RetryConfig *retry.RetryConfig  // Retry configuration (nil = use defaults)
+	Provider    string             // s3, azure, gcs, sftp, oci
+	Bucket      string             // S3 bucket, Azure container, GCS bucket, OCI bucket
+	Region      string             // AWS region, OCI region
+	Endpoint    string             // Custom endpoint (for S3-compatible storage)
+	AccessKey   string             // AWS access key, Azure account name
+	SecretKey   string             // AWS secret key, Azure account key
+	Host        string             // SFTP host
+	Port        int                // SFTP port
+	Username    string             // SFTP username
+	Password    string             // SFTP password
+	PrivateKey  string             // SFTP private key path
+	Prefix      string             // Path prefix in bucket/container
+	RetryConfig *retry.RetryConfig // Retry configuration (nil = use defaults)
 
 	// OCI-specific fields
-	OCINamespace    string // OCI Object Storage namespace
-	OCITenancyOCID  string // OCI tenancy OCID
-	OCIUserOCID     string // OCI user OCID
-	OCIFingerprint  string // API key fingerprint
-	OCIPrivateKey   string // Private key content or path
-	OCIConfigPath   string // Path to OCI config file (~/.oci/config)
-	OCIProfile      string // Profile name in config file (default: DEFAULT)
+	OCINamespace   string // OCI Object Storage namespace
+	OCITenancyOCID string // OCI tenancy OCID
+	OCIUserOCID    string // OCI user OCID
+	OCIFingerprint string // API key fingerprint
+	OCIPrivateKey  string // Private key content or path
+	OCIConfigPath  string // Path to OCI config file (~/.oci/config)
+	OCIProfile     string // Profile name in config file (default: DEFAULT)
 
 	// OpenStack Swift specific fields
 	SwiftAuthURL    string // Keystone auth URL

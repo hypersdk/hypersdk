@@ -19,26 +19,26 @@ import (
 
 // ExportOptions contains options for exporting an OpenStack instance
 type ExportOptions struct {
-	OutputDir          string                    // Local output directory
-	Format             string                    // Export format: qcow2, vmdk, raw
-	SnapshotName       string                    // Custom snapshot name
-	UploadToSwift      bool                      // Upload to Swift storage
-	Container          string                    // Swift container name
-	DeleteAfterExport  bool                      // Delete snapshot after export
-	ProgressReporter   progress.ProgressReporter // Progress reporter
+	OutputDir         string                    // Local output directory
+	Format            string                    // Export format: qcow2, vmdk, raw
+	SnapshotName      string                    // Custom snapshot name
+	UploadToSwift     bool                      // Upload to Swift storage
+	Container         string                    // Swift container name
+	DeleteAfterExport bool                      // Delete snapshot after export
+	ProgressReporter  progress.ProgressReporter // Progress reporter
 }
 
 // ExportResult contains the result of an export operation
 type ExportResult struct {
-	InstanceID     string
-	InstanceName   string
-	ImageID        string
-	ImageName      string
-	ExportFormat   string
-	LocalPath      string
-	SwiftURL       string
-	Size           int64
-	Duration       time.Duration
+	InstanceID   string
+	InstanceName string
+	ImageID      string
+	ImageName    string
+	ExportFormat string
+	LocalPath    string
+	SwiftURL     string
+	Size         int64
+	Duration     time.Duration
 }
 
 // ExportInstance exports an OpenStack instance to a snapshot and downloads it

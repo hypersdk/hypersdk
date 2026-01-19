@@ -50,9 +50,9 @@ func NewServer(manager *jobs.Manager, detector *capabilities.Detector, log logge
 	mux.HandleFunc("/jobs/", s.handleGetJob) // /jobs/{id}
 
 	// Job Progress Tracking
-	mux.HandleFunc("/jobs/progress/", s.handleGetJobProgress)  // /jobs/progress/{id}
-	mux.HandleFunc("/jobs/logs/", s.handleGetJobLogs)          // /jobs/logs/{id}
-	mux.HandleFunc("/jobs/eta/", s.handleGetJobETA)            // /jobs/eta/{id}
+	mux.HandleFunc("/jobs/progress/", s.handleGetJobProgress) // /jobs/progress/{id}
+	mux.HandleFunc("/jobs/logs/", s.handleGetJobLogs)         // /jobs/logs/{id}
+	mux.HandleFunc("/jobs/eta/", s.handleGetJobETA)           // /jobs/eta/{id}
 
 	// VM discovery and management
 	mux.HandleFunc("/vms/list", s.handleListVMs)

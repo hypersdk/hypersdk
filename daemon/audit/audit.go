@@ -67,14 +67,14 @@ type Logger interface {
 
 // QueryFilter for filtering audit log queries
 type QueryFilter struct {
-	StartTime  *time.Time
-	EndTime    *time.Time
-	Username   string
-	EventType  EventType
-	Status     EventStatus
-	Resource   string
-	Limit      int
-	Offset     int
+	StartTime *time.Time
+	EndTime   *time.Time
+	Username  string
+	EventType EventType
+	Status    EventStatus
+	Resource  string
+	Limit     int
+	Offset    int
 }
 
 // FileLogger writes audit logs to rotating files

@@ -10,9 +10,9 @@ import (
 
 // EncryptionConfig represents encryption configuration
 type EncryptionConfig struct {
-	AtRest    EncryptionAtRest    `json:"at_rest"`
-	InTransit EncryptionInTransit `json:"in_transit"`
-	KeyManagement KeyManagement    `json:"key_management"`
+	AtRest        EncryptionAtRest    `json:"at_rest"`
+	InTransit     EncryptionInTransit `json:"in_transit"`
+	KeyManagement KeyManagement       `json:"key_management"`
 }
 
 // EncryptionAtRest configuration
@@ -23,34 +23,34 @@ type EncryptionAtRest struct {
 
 // EncryptionInTransit configuration
 type EncryptionInTransit struct {
-	RequireTLS13     bool `json:"require_tls13"`
-	VerifySSLCerts   bool `json:"verify_ssl_certs"`
+	RequireTLS13   bool `json:"require_tls13"`
+	VerifySSLCerts bool `json:"verify_ssl_certs"`
 }
 
 // KeyManagement configuration
 type KeyManagement struct {
-	Storage string `json:"storage"` // local, vault, aws-kms, azure-keyvault
+	Storage  string `json:"storage"` // local, vault, aws-kms, azure-keyvault
 	VaultURL string `json:"vault_url,omitempty"`
 }
 
 // ComplianceFramework represents a compliance framework
 type ComplianceFramework struct {
-	ID          string  `json:"id"`
-	Name        string  `json:"name"`
-	Description string  `json:"description"`
-	Status      string  `json:"status"` // compliant, non-compliant, pending
-	Score       float64 `json:"score"`
+	ID          string    `json:"id"`
+	Name        string    `json:"name"`
+	Description string    `json:"description"`
+	Status      string    `json:"status"` // compliant, non-compliant, pending
+	Score       float64   `json:"score"`
 	LastChecked time.Time `json:"last_checked"`
 }
 
 // AuditLog represents an audit log entry
 type AuditLog struct {
-	ID        string    `json:"id"`
-	Timestamp time.Time `json:"timestamp"`
-	User      string    `json:"user"`
-	Action    string    `json:"action"`
-	Resource  string    `json:"resource"`
-	IPAddress string    `json:"ip_address"`
+	ID        string                 `json:"id"`
+	Timestamp time.Time              `json:"timestamp"`
+	User      string                 `json:"user"`
+	Action    string                 `json:"action"`
+	Resource  string                 `json:"resource"`
+	IPAddress string                 `json:"ip_address"`
 	Details   map[string]interface{} `json:"details,omitempty"`
 }
 
@@ -77,8 +77,8 @@ type MigrationDestination struct {
 
 // CompatibilityCheck represents compatibility check result
 type CompatibilityCheck struct {
-	Item   string `json:"item"`
-	Status string `json:"status"` // pass, warning, fail
+	Item    string `json:"item"`
+	Status  string `json:"status"` // pass, warning, fail
 	Message string `json:"message"`
 }
 
@@ -95,8 +95,8 @@ func (s *Server) handleGetEncryptionConfig(w http.ResponseWriter, r *http.Reques
 			Algorithm: "AES-256",
 		},
 		InTransit: EncryptionInTransit{
-			RequireTLS13:    true,
-			VerifySSLCerts:  true,
+			RequireTLS13:   true,
+			VerifySSLCerts: true,
 		},
 		KeyManagement: KeyManagement{
 			Storage: "local",

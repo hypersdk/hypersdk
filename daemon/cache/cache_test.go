@@ -201,8 +201,8 @@ func TestMemoryCacheStats(t *testing.T) {
 	// Perform operations
 	cache.Set(ctx, "key1", "value1", 1*time.Hour)
 	cache.Set(ctx, "key2", "value2", 1*time.Hour)
-	cache.Get(ctx, "key1")  // hit
-	cache.Get(ctx, "key3")  // miss
+	cache.Get(ctx, "key1") // hit
+	cache.Get(ctx, "key3") // miss
 	cache.Delete(ctx, "key2")
 
 	stats := cache.Stats()

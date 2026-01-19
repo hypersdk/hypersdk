@@ -521,8 +521,8 @@ func (c *VSphereClient) downloadFileWithRetry(
 		if err != nil {
 			// Check for non-retryable errors (file not found, permission denied, etc.)
 			if strings.Contains(err.Error(), "404") ||
-			   strings.Contains(err.Error(), "403") ||
-			   strings.Contains(err.Error(), "not found") {
+				strings.Contains(err.Error(), "403") ||
+				strings.Contains(err.Error(), "not found") {
 				return nil, retry.IsNonRetryable(err)
 			}
 			return nil, fmt.Errorf("download file %s: %w", fileName, err)
@@ -680,11 +680,11 @@ func (c *VSphereClient) generateArtifactManifest(
 	}
 
 	builder.WithSource(
-		"vsphere",           // provider
-		moVM.Value,          // VM ID (MoRef)
-		vm.Name(),           // VM name
-		datacenter,          // datacenter
-		"hypersdk-govc",     // export method
+		"vsphere",       // provider
+		moVM.Value,      // VM ID (MoRef)
+		vm.Name(),       // VM name
+		datacenter,      // datacenter
+		"hypersdk-govc", // export method
 	)
 
 	// Set VM hardware metadata
@@ -702,12 +702,12 @@ func (c *VSphereClient) generateArtifactManifest(
 	}
 
 	builder.WithVM(
-		int(vmProps.NumCPU),     // CPUs
-		int(vmProps.MemoryGB),   // memory GB
-		firmware,                // firmware
-		osHint,                  // OS hint
-		osVersion,               // OS version
-		false,                   // secure boot (unknown)
+		int(vmProps.NumCPU),   // CPUs
+		int(vmProps.MemoryGB), // memory GB
+		firmware,              // firmware
+		osHint,                // OS hint
+		osVersion,             // OS version
+		false,                 // secure boot (unknown)
 	)
 
 	// Add disk artifacts
@@ -738,9 +738,9 @@ func (c *VSphereClient) generateArtifactManifest(
 				"vmdk",
 				diskFile,
 				fileInfo.Size(),
-				i,           // boot_order_hint
+				i, // boot_order_hint
 				diskType,
-				true,        // compute checksum
+				true, // compute checksum
 			)
 		} else {
 			builder.AddDisk(
@@ -748,7 +748,7 @@ func (c *VSphereClient) generateArtifactManifest(
 				"vmdk",
 				diskFile,
 				fileInfo.Size(),
-				i,           // boot_order_hint
+				i, // boot_order_hint
 				diskType,
 			)
 		}
@@ -763,12 +763,12 @@ func (c *VSphereClient) generateArtifactManifest(
 
 	// Configure hypersdk metadata
 	builder.WithMetadata(
-		"0.1.0",  // hypersdk version
+		"0.1.0",    // hypersdk version
 		moVM.Value, // job ID (use VM ID)
 		map[string]string{
-			"provider":     "vsphere",
+			"provider":      "vsphere",
 			"export_format": opts.Format,
-			"vcenter_url":  c.config.VCenterURL,
+			"vcenter_url":   c.config.VCenterURL,
 		},
 	)
 

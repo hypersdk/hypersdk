@@ -97,29 +97,29 @@ type model struct {
 	showHelp       bool   // Show help panel
 
 	// Export progress tracking
-	exportProgress     exportProgress
-	currentVMName      string
-	currentFileName    string
+	exportProgress  exportProgress
+	currentVMName   string
+	currentFileName string
 
 	// Regex/pattern selection
-	regexPattern       string
+	regexPattern string
 
 	// Export template
-	selectedTemplate   *exportTemplate
+	selectedTemplate *exportTemplate
 
 	// Quick filter
-	quickFilter        string
+	quickFilter string
 }
 
 type exportProgress struct {
-	currentBytes    int64
-	totalBytes      int64
-	currentFileIdx  int
-	totalFiles      int
-	speed           float64 // MB/s
-	startTime       time.Time
-	lastUpdateTime  time.Time
-	lastBytes       int64
+	currentBytes   int64
+	totalBytes     int64
+	currentFileIdx int
+	totalFiles     int
+	speed          float64 // MB/s
+	startTime      time.Time
+	lastUpdateTime time.Time
+	lastBytes      int64
 }
 
 type exportTemplate struct {

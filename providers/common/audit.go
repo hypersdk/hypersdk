@@ -15,19 +15,19 @@ import (
 type AuditEventType string
 
 const (
-	EventMigrationStart    AuditEventType = "migration_start"
-	EventMigrationComplete AuditEventType = "migration_complete"
-	EventMigrationFailed   AuditEventType = "migration_failed"
-	EventExportStart       AuditEventType = "export_start"
-	EventExportComplete    AuditEventType = "export_complete"
-	EventConversionStart   AuditEventType = "conversion_start"
+	EventMigrationStart     AuditEventType = "migration_start"
+	EventMigrationComplete  AuditEventType = "migration_complete"
+	EventMigrationFailed    AuditEventType = "migration_failed"
+	EventExportStart        AuditEventType = "export_start"
+	EventExportComplete     AuditEventType = "export_complete"
+	EventConversionStart    AuditEventType = "conversion_start"
 	EventConversionComplete AuditEventType = "conversion_complete"
-	EventUploadStart       AuditEventType = "upload_start"
-	EventUploadComplete    AuditEventType = "upload_complete"
-	EventConfigChange      AuditEventType = "config_change"
-	EventAPIAccess         AuditEventType = "api_access"
-	EventWarning           AuditEventType = "warning"
-	EventError             AuditEventType = "error"
+	EventUploadStart        AuditEventType = "upload_start"
+	EventUploadComplete     AuditEventType = "upload_complete"
+	EventConfigChange       AuditEventType = "config_change"
+	EventAPIAccess          AuditEventType = "api_access"
+	EventWarning            AuditEventType = "warning"
+	EventError              AuditEventType = "error"
 )
 
 // AuditEvent represents a single audit log entry
@@ -67,11 +67,11 @@ type AuditEvent struct {
 
 // AuditLogger handles audit logging
 type AuditLogger struct {
-	mu         sync.Mutex
-	logFile    *os.File
-	logPath    string
-	rotateSize int64  // Rotate when log exceeds this size
-	maxFiles   int    // Keep this many rotated files
+	mu          sync.Mutex
+	logFile     *os.File
+	logPath     string
+	rotateSize  int64 // Rotate when log exceeds this size
+	maxFiles    int   // Keep this many rotated files
 	currentSize int64
 }
 
@@ -100,7 +100,7 @@ func NewAuditLogger(logPath string) (*AuditLogger, error) {
 		logFile:     file,
 		logPath:     logPath,
 		rotateSize:  100 * 1024 * 1024, // 100 MB default
-		maxFiles:    10,                  // Keep 10 rotated files
+		maxFiles:    10,                // Keep 10 rotated files
 		currentSize: currentSize,
 	}, nil
 }
@@ -327,8 +327,8 @@ func (al *AuditLogger) LogUploadComplete(taskID, vmName, destination string, dur
 		Status:      "completed",
 		Duration:    duration,
 		Details: map[string]interface{}{
-			"destination":     destination,
-			"bytes_uploaded":  bytesUploaded,
+			"destination":    destination,
+			"bytes_uploaded": bytesUploaded,
 		},
 		Success: true,
 	})

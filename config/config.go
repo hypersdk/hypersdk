@@ -111,57 +111,57 @@ type HyperVConfig struct {
 
 // OCIConfig holds Oracle Cloud Infrastructure settings
 type OCIConfig struct {
-	TenancyOCID     string `yaml:"tenancy_ocid"`      // OCI tenancy OCID
-	UserOCID        string `yaml:"user_ocid"`         // OCI user OCID
-	Fingerprint     string `yaml:"fingerprint"`       // API key fingerprint
-	PrivateKeyPath  string `yaml:"private_key_path"`  // Path to private key file
-	Region          string `yaml:"region"`            // OCI region (e.g., us-phoenix-1)
-	CompartmentOCID string `yaml:"compartment_ocid"`  // Compartment OCID for resources
-	Bucket          string `yaml:"bucket"`            // Object Storage bucket name
-	Namespace       string `yaml:"namespace"`         // Object Storage namespace
-	ExportFormat    string `yaml:"export_format"`     // qcow2, vmdk
+	TenancyOCID     string `yaml:"tenancy_ocid"`     // OCI tenancy OCID
+	UserOCID        string `yaml:"user_ocid"`        // OCI user OCID
+	Fingerprint     string `yaml:"fingerprint"`      // API key fingerprint
+	PrivateKeyPath  string `yaml:"private_key_path"` // Path to private key file
+	Region          string `yaml:"region"`           // OCI region (e.g., us-phoenix-1)
+	CompartmentOCID string `yaml:"compartment_ocid"` // Compartment OCID for resources
+	Bucket          string `yaml:"bucket"`           // Object Storage bucket name
+	Namespace       string `yaml:"namespace"`        // Object Storage namespace
+	ExportFormat    string `yaml:"export_format"`    // qcow2, vmdk
 	Enabled         bool   `yaml:"enabled"`
 }
 
 // OpenStackConfig holds OpenStack settings
 type OpenStackConfig struct {
-	AuthURL          string `yaml:"auth_url"`           // Keystone auth URL
-	Username         string `yaml:"username"`           // OpenStack username
-	Password         string `yaml:"password"`           // OpenStack password
-	TenantName       string `yaml:"tenant_name"`        // Tenant/Project name
-	TenantID         string `yaml:"tenant_id"`          // Tenant/Project ID
-	DomainName       string `yaml:"domain_name"`        // Domain name (default: Default)
-	Region           string `yaml:"region"`             // Region name
-	Container        string `yaml:"container"`          // Swift container name
-	ExportFormat     string `yaml:"export_format"`      // qcow2, vmdk, raw
-	IdentityVersion  string `yaml:"identity_version"`   // v2.0, v3 (default: v3)
-	Enabled          bool   `yaml:"enabled"`
+	AuthURL         string `yaml:"auth_url"`         // Keystone auth URL
+	Username        string `yaml:"username"`         // OpenStack username
+	Password        string `yaml:"password"`         // OpenStack password
+	TenantName      string `yaml:"tenant_name"`      // Tenant/Project name
+	TenantID        string `yaml:"tenant_id"`        // Tenant/Project ID
+	DomainName      string `yaml:"domain_name"`      // Domain name (default: Default)
+	Region          string `yaml:"region"`           // Region name
+	Container       string `yaml:"container"`        // Swift container name
+	ExportFormat    string `yaml:"export_format"`    // qcow2, vmdk, raw
+	IdentityVersion string `yaml:"identity_version"` // v2.0, v3 (default: v3)
+	Enabled         bool   `yaml:"enabled"`
 }
 
 // AlibabaCloudConfig holds Alibaba Cloud settings
 type AlibabaCloudConfig struct {
-	AccessKeyID     string `yaml:"access_key_id"`      // Alibaba Cloud AccessKey ID
-	AccessKeySecret string `yaml:"access_key_secret"`  // Alibaba Cloud AccessKey Secret
-	RegionID        string `yaml:"region_id"`          // Region ID (e.g., cn-hangzhou)
-	Bucket          string `yaml:"bucket"`             // OSS bucket name
-	Endpoint        string `yaml:"endpoint"`           // OSS endpoint (optional)
-	ExportFormat    string `yaml:"export_format"`      // qcow2, raw
+	AccessKeyID     string `yaml:"access_key_id"`     // Alibaba Cloud AccessKey ID
+	AccessKeySecret string `yaml:"access_key_secret"` // Alibaba Cloud AccessKey Secret
+	RegionID        string `yaml:"region_id"`         // Region ID (e.g., cn-hangzhou)
+	Bucket          string `yaml:"bucket"`            // OSS bucket name
+	Endpoint        string `yaml:"endpoint"`          // OSS endpoint (optional)
+	ExportFormat    string `yaml:"export_format"`     // qcow2, raw
 	Enabled         bool   `yaml:"enabled"`
 }
 
 // ProxmoxConfig holds Proxmox VE settings
 type ProxmoxConfig struct {
-	Host            string `yaml:"host"`               // Proxmox host (IP or hostname)
-	Port            int    `yaml:"port"`               // API port (default: 8006)
-	Username        string `yaml:"username"`           // Username (e.g., root@pam)
-	Password        string `yaml:"password"`           // Password
-	TokenID         string `yaml:"token_id"`           // API token ID (alternative to password)
-	TokenSecret     string `yaml:"token_secret"`       // API token secret
-	Node            string `yaml:"node"`               // Proxmox node name
-	Storage         string `yaml:"storage"`            // Storage name for backups
-	ExportFormat    string `yaml:"export_format"`      // qcow2, raw, vmdk
-	VerifySSL       bool   `yaml:"verify_ssl"`         // Verify SSL certificate
-	Enabled         bool   `yaml:"enabled"`
+	Host         string `yaml:"host"`          // Proxmox host (IP or hostname)
+	Port         int    `yaml:"port"`          // API port (default: 8006)
+	Username     string `yaml:"username"`      // Username (e.g., root@pam)
+	Password     string `yaml:"password"`      // Password
+	TokenID      string `yaml:"token_id"`      // API token ID (alternative to password)
+	TokenSecret  string `yaml:"token_secret"`  // API token secret
+	Node         string `yaml:"node"`          // Proxmox node name
+	Storage      string `yaml:"storage"`       // Storage name for backups
+	ExportFormat string `yaml:"export_format"` // qcow2, raw, vmdk
+	VerifySSL    bool   `yaml:"verify_ssl"`    // Verify SSL certificate
+	Enabled      bool   `yaml:"enabled"`
 }
 
 // ConnectionPoolConfig holds connection pool settings

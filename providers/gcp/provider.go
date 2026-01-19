@@ -226,13 +226,13 @@ func (p *GCPProvider) ExportVM(ctx context.Context, identifier string, opts prov
 			OutputPath: firstDisk.LocalPath,
 			Size:       firstDisk.Size,
 			Metadata: map[string]interface{}{
-				"disk_count":  len(results),
-				"gcs_bucket":  firstDisk.GCSBucket,
-				"gcs_object":  firstDisk.GCSObject,
-				"gcs_uri":     firstDisk.GCSURI,
-				"image_name":  firstDisk.ImageName,
-				"disk_name":   firstDisk.DiskName,
-				"disk_type":   firstDisk.DiskType,
+				"disk_count": len(results),
+				"gcs_bucket": firstDisk.GCSBucket,
+				"gcs_object": firstDisk.GCSObject,
+				"gcs_uri":    firstDisk.GCSURI,
+				"image_name": firstDisk.ImageName,
+				"disk_name":  firstDisk.DiskName,
+				"disk_type":  firstDisk.DiskType,
 			},
 		}, nil
 	}

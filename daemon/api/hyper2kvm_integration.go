@@ -21,16 +21,16 @@ type Hyper2KVMBinaryConfig struct {
 
 // ConversionRequest represents a VM conversion request
 type ConversionRequest struct {
-	SourcePath   string            `json:"source_path"`
-	DestPath     string            `json:"dest_path"`
-	Format       string            `json:"format"` // qcow2, raw, vmdk
-	Compression  string            `json:"compression"`
-	ConvertOnly  bool              `json:"convert_only"`
-	ImportToKVM  bool              `json:"import_to_kvm"`
-	VMName       string            `json:"vm_name"`
-	Memory       int               `json:"memory"` // MB
-	CPUs         int               `json:"cpus"`
-	Network      string            `json:"network"`
+	SourcePath   string              `json:"source_path"`
+	DestPath     string              `json:"dest_path"`
+	Format       string              `json:"format"` // qcow2, raw, vmdk
+	Compression  string              `json:"compression"`
+	ConvertOnly  bool                `json:"convert_only"`
+	ImportToKVM  bool                `json:"import_to_kvm"`
+	VMName       string              `json:"vm_name"`
+	Memory       int                 `json:"memory"` // MB
+	CPUs         int                 `json:"cpus"`
+	Network      string              `json:"network"`
 	VCenterCreds *VCenterCredentials `json:"vcenter_creds,omitempty"`
 }
 
@@ -270,11 +270,11 @@ func (s *Server) handleListConversions(w http.ResponseWriter, r *http.Request) {
 	// List conversion history
 	conversions := []map[string]interface{}{
 		{
-			"id":          "conv-abc123",
-			"source":      "/vmfs/volumes/datastore1/vm1/vm1.vmdk",
-			"destination": "/var/lib/libvirt/images/vm1.qcow2",
-			"status":      "completed",
-			"started_at":  "2026-01-19T14:30:00Z",
+			"id":           "conv-abc123",
+			"source":       "/vmfs/volumes/datastore1/vm1/vm1.vmdk",
+			"destination":  "/var/lib/libvirt/images/vm1.qcow2",
+			"status":       "completed",
+			"started_at":   "2026-01-19T14:30:00Z",
 			"completed_at": "2026-01-19T14:45:00Z",
 		},
 	}

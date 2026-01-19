@@ -3,10 +3,10 @@
 package api
 
 import (
-	"context"
-	"hypersdk/daemon/capabilities"
 	"bytes"
+	"context"
 	"encoding/json"
+	"hypersdk/daemon/capabilities"
 	"net/http"
 	"net/http/httptest"
 	"testing"

@@ -18,12 +18,12 @@ func (s *Server) handleCloneDomain(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req struct {
-		Source        string   `json:"source"`          // Source domain name
-		Target        string   `json:"target"`          // Target domain name
-		Files         []string `json:"files,omitempty"` // New disk paths (optional)
-		NewMAC        bool     `json:"new_mac"`         // Generate new MAC addresses
-		AutoClone     bool     `json:"auto_clone"`      // Auto-generate clone names
-		Preserve      bool     `json:"preserve"`        // Preserve original domain
+		Source    string   `json:"source"`          // Source domain name
+		Target    string   `json:"target"`          // Target domain name
+		Files     []string `json:"files,omitempty"` // New disk paths (optional)
+		NewMAC    bool     `json:"new_mac"`         // Generate new MAC addresses
+		AutoClone bool     `json:"auto_clone"`      // Auto-generate clone names
+		Preserve  bool     `json:"preserve"`        // Preserve original domain
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "invalid request body", http.StatusBadRequest)
@@ -80,10 +80,10 @@ func (s *Server) handleCloneMultipleDomains(w http.ResponseWriter, r *http.Reque
 	}
 
 	var req struct {
-		Source     string `json:"source"`       // Source domain name
-		NamePrefix string `json:"name_prefix"`  // Prefix for cloned VMs
-		Count      int    `json:"count"`        // Number of clones to create
-		StartIndex int    `json:"start_index"`  // Starting index (default 1)
+		Source     string `json:"source"`      // Source domain name
+		NamePrefix string `json:"name_prefix"` // Prefix for cloned VMs
+		Count      int    `json:"count"`       // Number of clones to create
+		StartIndex int    `json:"start_index"` // Starting index (default 1)
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "invalid request body", http.StatusBadRequest)
@@ -228,13 +228,13 @@ func (s *Server) handleDeployFromTemplate(w http.ResponseWriter, r *http.Request
 	}
 
 	var req struct {
-		Template   string            `json:"template"`    // Template name
-		Name       string            `json:"name"`        // New VM name
-		Memory     int               `json:"memory"`      // Memory in MB (optional)
-		VCPUs      int               `json:"vcpus"`       // Number of CPUs (optional)
-		Network    string            `json:"network"`     // Network name (optional)
-		AutoStart  bool              `json:"autostart"`   // Start after creation
-		Customize  map[string]string `json:"customize"`   // Customization options
+		Template  string            `json:"template"`  // Template name
+		Name      string            `json:"name"`      // New VM name
+		Memory    int               `json:"memory"`    // Memory in MB (optional)
+		VCPUs     int               `json:"vcpus"`     // Number of CPUs (optional)
+		Network   string            `json:"network"`   // Network name (optional)
+		AutoStart bool              `json:"autostart"` // Start after creation
+		Customize map[string]string `json:"customize"` // Customization options
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "invalid request body", http.StatusBadRequest)

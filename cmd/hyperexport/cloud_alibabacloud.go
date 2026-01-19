@@ -18,10 +18,10 @@ import (
 
 // AlibabaCloudOSSStorage implements CloudStorage for Alibaba Cloud OSS
 type AlibabaCloudOSSStorage struct {
-	client *oss.Client
-	bucket *oss.Bucket
-	prefix string
-	log    logger.Logger
+	client  *oss.Client
+	bucket  *oss.Bucket
+	prefix  string
+	log     logger.Logger
 	retryer *retry.Retryer
 }
 

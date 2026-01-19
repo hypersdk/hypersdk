@@ -29,8 +29,8 @@ func (e *ValidationError) Error() string {
 
 // ValidationResult contains the result of configuration validation
 type ValidationResult struct {
-	Valid   bool
-	Errors  []*ValidationError
+	Valid    bool
+	Errors   []*ValidationError
 	Warnings []string
 }
 
@@ -51,15 +51,15 @@ func (r *ValidationResult) AddWarning(message string) {
 
 // Config represents the application configuration
 type Config struct {
-	Daemon      DaemonConfig      `yaml:"daemon" json:"daemon"`
-	Dashboard   DashboardConfig   `yaml:"dashboard" json:"dashboard"`
-	Queue       QueueConfig       `yaml:"queue" json:"queue"`
-	Cache       CacheConfig       `yaml:"cache" json:"cache"`
-	Backup      BackupConfig      `yaml:"backup" json:"backup"`
-	Monitoring  MonitoringConfig  `yaml:"monitoring" json:"monitoring"`
-	Auth        AuthConfig        `yaml:"auth" json:"auth"`
-	RateLimit   RateLimitConfig   `yaml:"rate_limit" json:"rate_limit"`
-	Logging     LoggingConfig     `yaml:"logging" json:"logging"`
+	Daemon     DaemonConfig     `yaml:"daemon" json:"daemon"`
+	Dashboard  DashboardConfig  `yaml:"dashboard" json:"dashboard"`
+	Queue      QueueConfig      `yaml:"queue" json:"queue"`
+	Cache      CacheConfig      `yaml:"cache" json:"cache"`
+	Backup     BackupConfig     `yaml:"backup" json:"backup"`
+	Monitoring MonitoringConfig `yaml:"monitoring" json:"monitoring"`
+	Auth       AuthConfig       `yaml:"auth" json:"auth"`
+	RateLimit  RateLimitConfig  `yaml:"rate_limit" json:"rate_limit"`
+	Logging    LoggingConfig    `yaml:"logging" json:"logging"`
 }
 
 type DaemonConfig struct {

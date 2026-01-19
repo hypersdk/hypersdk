@@ -111,12 +111,12 @@ func (c *Client) ListInstances(ctx context.Context) ([]InstanceInfo, error) {
 		var instances []InstanceInfo
 		for _, server := range serverList {
 			instances = append(instances, InstanceInfo{
-				ID:      server.ID,
-				Name:    server.Name,
-				Status:  server.Status,
+				ID:       server.ID,
+				Name:     server.Name,
+				Status:   server.Status,
 				TenantID: server.TenantID,
-				Flavor:  server.Flavor["id"].(string),
-				Created: server.Created,
+				Flavor:   server.Flavor["id"].(string),
+				Created:  server.Created,
 			})
 		}
 

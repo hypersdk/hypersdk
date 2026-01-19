@@ -66,16 +66,16 @@ var (
 	createDefaults = flag.Bool("create-default-profiles", false, "Create default profiles")
 
 	// Artifact Manifest v1.0 options
-	generateManifest    = flag.Bool("manifest", false, "Generate Artifact Manifest v1.0 for hyper2kvm")
-	verifyManifestFlag  = flag.Bool("verify-manifest", false, "Verify manifest after generation")
-	manifestChecksum    = flag.Bool("manifest-checksum", true, "Compute SHA-256 checksums for disks in manifest")
+	generateManifest     = flag.Bool("manifest", false, "Generate Artifact Manifest v1.0 for hyper2kvm")
+	verifyManifestFlag   = flag.Bool("verify-manifest", false, "Verify manifest after generation")
+	manifestChecksum     = flag.Bool("manifest-checksum", true, "Compute SHA-256 checksums for disks in manifest")
 	manifestTargetFormat = flag.String("manifest-target", "qcow2", "Target disk format for conversion (qcow2, raw, vdi)")
 
 	// Automatic conversion options (Phase 2)
-	autoConvert         = flag.Bool("convert", false, "Automatically convert with hyper2kvm after export")
-	hyper2kvmBinary     = flag.String("hyper2kvm-binary", "", "Path to hyper2kvm binary (auto-detect if empty)")
-	conversionTimeout   = flag.Duration("conversion-timeout", 2*time.Hour, "Timeout for hyper2kvm conversion")
-	streamConversion    = flag.Bool("stream-conversion", true, "Stream hyper2kvm output to console")
+	autoConvert       = flag.Bool("convert", false, "Automatically convert with hyper2kvm after export")
+	hyper2kvmBinary   = flag.String("hyper2kvm-binary", "", "Path to hyper2kvm binary (auto-detect if empty)")
+	conversionTimeout = flag.Duration("conversion-timeout", 2*time.Hour, "Timeout for hyper2kvm conversion")
+	streamConversion  = flag.Bool("stream-conversion", true, "Stream hyper2kvm output to console")
 
 	// Phase 6: Orchestration & Monitoring options
 	enableOrchestration = flag.Bool("orchestrate", false, "Enable Phase 6 migration orchestration")
@@ -1054,12 +1054,12 @@ func run(ctx context.Context, cfg *config.Config, log logger.Logger) error {
 			}
 			totalDuration := time.Since(exportStartTime)
 			metadata := map[string]interface{}{
-				"format":         result.Format,
-				"files":          len(result.Files),
-				"compressed":     *compress,
-				"verified":       *verify,
-				"manifest":       result.ManifestPath != "",
-				"converted":      result.ConversionResult != nil && result.ConversionResult.Success,
+				"format":     result.Format,
+				"files":      len(result.Files),
+				"compressed": *compress,
+				"verified":   *verify,
+				"manifest":   result.ManifestPath != "",
+				"converted":  result.ConversionResult != nil && result.ConversionResult.Success,
 			}
 			if *uploadTo != "" {
 				metadata["uploaded_to"] = *uploadTo
@@ -1479,15 +1479,15 @@ func runInteractiveTUI(ctx context.Context, client *vsphere.VSphereClient, cfg *
 
 	// Create initial model
 	m := tuiModel{
-		vms:            []tuiVMItem{},
-		filteredVMs:    []tuiVMItem{},
-		cursor:         0,
-		phase:          "loading",
-		sortMode:       "name",
-		client:         client,
-		outputDir:      outputDirPath,
-		log:            log,
-		ctx:            ctx,
+		vms:         []tuiVMItem{},
+		filteredVMs: []tuiVMItem{},
+		cursor:      0,
+		phase:       "loading",
+		sortMode:    "name",
+		client:      client,
+		outputDir:   outputDirPath,
+		log:         log,
+		ctx:         ctx,
 	}
 
 	// Run the TUI program

@@ -682,11 +682,11 @@ func TestValidateBackupInvalidMaxBackups(t *testing.T) {
 
 func TestValidateMonitoringPortConflicts(t *testing.T) {
 	tests := []struct {
-		name          string
-		daemonPort    int
-		dashboardPort int
+		name           string
+		daemonPort     int
+		dashboardPort  int
 		prometheusPort int
-		expectError   bool
+		expectError    bool
 	}{
 		{"conflict with daemon", 9090, 8081, 9090, true},
 		{"conflict with dashboard", 8080, 9090, 9090, true},
@@ -1028,10 +1028,10 @@ func TestValidateLoggingInvalidOutput(t *testing.T) {
 
 func TestValidateLoggingNegativeValues(t *testing.T) {
 	tests := []struct {
-		name      string
-		maxSize   int
-		maxBackups int
-		maxAge    int
+		name        string
+		maxSize     int
+		maxBackups  int
+		maxAge      int
 		expectField string
 	}{
 		{"negative max_size", -1, 5, 30, "logging.max_size"},
@@ -1186,14 +1186,14 @@ func TestBackupDirectoryCreation(t *testing.T) {
 func TestMultipleErrors(t *testing.T) {
 	config := &Config{
 		Daemon: DaemonConfig{
-			Port:     -1,     // Invalid
+			Port:     -1,        // Invalid
 			LogLevel: "invalid", // Invalid
 		},
 		Dashboard: DashboardConfig{
 			Enabled:        true,
-			Port:           99999, // Invalid
+			Port:           99999,            // Invalid
 			UpdateInterval: -1 * time.Second, // Invalid
-			MaxClients:     0, // Invalid
+			MaxClients:     0,                // Invalid
 		},
 		Logging: LoggingConfig{
 			Level:  "invalid", // Invalid

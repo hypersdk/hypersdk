@@ -82,12 +82,12 @@ type JobStore interface {
 
 // JobStats contains statistics about jobs
 type JobStats struct {
-	Total      int64
-	Pending    int64
-	Running    int64
-	Completed  int64
-	Failed     int64
-	Cancelled  int64
+	Total       int64
+	Pending     int64
+	Running     int64
+	Completed   int64
+	Failed      int64
+	Cancelled   int64
 	SuccessRate float64
 }
 

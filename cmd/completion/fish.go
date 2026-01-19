@@ -2,7 +2,6 @@
 
 package completion
 
-
 // FishCompletion generates fish completion script
 func FishCompletion() string {
 	return `# hyperctl fish completion script

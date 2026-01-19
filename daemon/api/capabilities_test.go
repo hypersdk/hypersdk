@@ -130,7 +130,7 @@ func TestHandleCapabilities_VerifyCapabilityFields(t *testing.T) {
 	server.handleCapabilities(w, req)
 
 	var response struct {
-		Capabilities  map[string]struct {
+		Capabilities map[string]struct {
 			Method      string `json:"method"`
 			Available   bool   `json:"available"`
 			Version     string `json:"version"`
@@ -187,7 +187,7 @@ func TestHandleCapabilities_DefaultMethodPriority(t *testing.T) {
 	server.handleCapabilities(w, req)
 
 	var response struct {
-		Capabilities  map[string]struct {
+		Capabilities map[string]struct {
 			Available bool `json:"available"`
 			Priority  int  `json:"priority"`
 		} `json:"capabilities"`

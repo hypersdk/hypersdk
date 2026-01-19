@@ -29,9 +29,9 @@ const (
 
 // EncryptionConfig contains encryption configuration
 type EncryptionConfig struct {
-	Method     EncryptionMethod
-	Passphrase string
-	KeyFile    string
+	Method       EncryptionMethod
+	Passphrase   string
+	KeyFile      string
 	GPGRecipient string
 }
 

@@ -194,7 +194,7 @@ func (s *S3Storage) Download(ctx context.Context, remotePath, localPath string, 
 
 		// Copy with progress
 		written := int64(0)
-		buf := make([]byte, 32 * 1024) // 32 KB buffer
+		buf := make([]byte, 32*1024) // 32 KB buffer
 
 		for {
 			nr, er := result.Body.Read(buf)

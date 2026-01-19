@@ -587,12 +587,12 @@ func TestSendJobProgress(t *testing.T) {
 			Name: "Progress Job",
 		},
 		Progress: &models.JobProgress{
-			Phase:            "downloading",
-			PercentComplete:  50,
-			FilesDownloaded:  5,
-			TotalFiles:       10,
-			BytesDownloaded:  1024 * 1024 * 500, // 500 MB
-			TotalBytes:       1024 * 1024 * 1000, // 1 GB
+			Phase:           "downloading",
+			PercentComplete: 50,
+			FilesDownloaded: 5,
+			TotalFiles:      10,
+			BytesDownloaded: 1024 * 1024 * 500,  // 500 MB
+			TotalBytes:      1024 * 1024 * 1000, // 1 GB
 		},
 	}
 
@@ -723,7 +723,7 @@ func TestWebhookTimeout(t *testing.T) {
 			Events:  []string{EventJobCompleted},
 			Enabled: true,
 			Timeout: 100 * time.Millisecond, // Short timeout
-			Retry:   0,                       // No retries
+			Retry:   0,                      // No retries
 		},
 	}
 

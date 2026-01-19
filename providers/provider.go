@@ -11,12 +11,12 @@ import (
 type ProviderType string
 
 const (
-	ProviderVSphere  ProviderType = "vsphere"
-	ProviderAWS      ProviderType = "aws"
-	ProviderAzure    ProviderType = "azure"
-	ProviderGCP      ProviderType = "gcp"
-	ProviderHyperV   ProviderType = "hyperv"
-	ProviderProxmox  ProviderType = "proxmox"
+	ProviderVSphere ProviderType = "vsphere"
+	ProviderAWS     ProviderType = "aws"
+	ProviderAzure   ProviderType = "azure"
+	ProviderGCP     ProviderType = "gcp"
+	ProviderHyperV  ProviderType = "hyperv"
+	ProviderProxmox ProviderType = "proxmox"
 )
 
 // Provider defines the unified interface for all virtualization/cloud providers
@@ -60,22 +60,22 @@ type ProviderConfig struct {
 
 // VMFilter defines filtering criteria for VM listing
 type VMFilter struct {
-	NamePattern  string            // Glob pattern for VM name
-	State        string            // VM state (running, stopped, suspended, etc.)
-	PowerState   string            // Alternative to State for backward compatibility
-	Tags         map[string]string // Filter by tags/labels
-	Location     string            // Datacenter, region, resource group, etc.
-	MinMemoryMB  int64             // Minimum memory in MB
-	MinCPUs      int               // Minimum number of CPUs
+	NamePattern string            // Glob pattern for VM name
+	State       string            // VM state (running, stopped, suspended, etc.)
+	PowerState  string            // Alternative to State for backward compatibility
+	Tags        map[string]string // Filter by tags/labels
+	Location    string            // Datacenter, region, resource group, etc.
+	MinMemoryMB int64             // Minimum memory in MB
+	MinCPUs     int               // Minimum number of CPUs
 }
 
 // VMInfo represents metadata about a virtual machine
 type VMInfo struct {
 	Provider    ProviderType
-	ID          string                 // Provider-specific unique identifier
+	ID          string // Provider-specific unique identifier
 	Name        string
-	State       string                 // running, stopped, suspended, etc.
-	Location    string                 // Datacenter, region, availability zone, etc.
+	State       string // running, stopped, suspended, etc.
+	Location    string // Datacenter, region, availability zone, etc.
 	PowerState  string
 	GuestOS     string
 	MemoryMB    int64
