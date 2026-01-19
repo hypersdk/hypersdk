@@ -317,6 +317,42 @@ func (c *VSphereClient) ExportOVF(ctx context.Context, vmPath string, opts Expor
 					c.logger.Info("manifest verification successful")
 				}
 			}
+
+			// Run automatic conversion if requested (Phase 2)
+			if opts.AutoConvert {
+				c.logger.Info("starting automatic conversion with hyper2kvm")
+
+				converter, err := NewHyper2KVMConverter(opts.Hyper2KVMBinary, c.logger)
+				if err != nil {
+					c.logger.Error("failed to initialize hyper2kvm converter", "error", err)
+					// Don't fail the export, just skip conversion
+				} else {
+					// Create conversion context with timeout
+					convCtx, convCancel := context.WithTimeout(ctx, opts.ConversionTimeout)
+					defer convCancel()
+
+					convertOpts := ConvertOptions{
+						StreamOutput: opts.StreamConversionOutput,
+						Verbose:      c.config.LogLevel == "debug",
+						DryRun:       false,
+					}
+
+					convResult, err := converter.Convert(convCtx, manifestPath, convertOpts)
+					if err != nil {
+						c.logger.Error("hyper2kvm conversion failed", "error", err)
+						// Store the error in result
+						result.ConversionResult = &ConversionResult{
+							Success: false,
+							Error:   err.Error(),
+						}
+					} else {
+						result.ConversionResult = convResult
+						c.logger.Info("hyper2kvm conversion completed successfully",
+							"converted_files", len(convResult.ConvertedFiles),
+							"duration", convResult.Duration)
+					}
+				}
+			}
 		}
 	}
 

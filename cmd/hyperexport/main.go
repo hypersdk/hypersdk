@@ -69,6 +69,12 @@ var (
 	verifyManifestFlag  = flag.Bool("verify-manifest", false, "Verify manifest after generation")
 	manifestChecksum    = flag.Bool("manifest-checksum", true, "Compute SHA-256 checksums for disks in manifest")
 	manifestTargetFormat = flag.String("manifest-target", "qcow2", "Target disk format for conversion (qcow2, raw, vdi)")
+
+	// Automatic conversion options (Phase 2)
+	autoConvert         = flag.Bool("convert", false, "Automatically convert with hyper2kvm after export")
+	hyper2kvmBinary     = flag.String("hyper2kvm-binary", "", "Path to hyper2kvm binary (auto-detect if empty)")
+	conversionTimeout   = flag.Duration("conversion-timeout", 2*time.Hour, "Timeout for hyper2kvm conversion")
+	streamConversion    = flag.Bool("stream-conversion", true, "Stream hyper2kvm output to console")
 )
 
 func main() {
@@ -185,6 +191,13 @@ func main() {
 		if loadedProfile.ManifestTargetFormat != "" {
 			*manifestTargetFormat = loadedProfile.ManifestTargetFormat
 		}
+
+		// Apply conversion settings (Phase 2)
+		*autoConvert = loadedProfile.AutoConvert
+		if loadedProfile.Hyper2KVMBinary != "" {
+			*hyper2kvmBinary = loadedProfile.Hyper2KVMBinary
+		}
+		*streamConversion = loadedProfile.StreamConversion
 	}
 
 	// Handle history operations (don't require provider connection)
@@ -603,6 +616,20 @@ func run(ctx context.Context, cfg *config.Config, log logger.Logger) error {
 	opts.ManifestComputeChecksum = *manifestChecksum
 	opts.ManifestTargetFormat = *manifestTargetFormat
 
+	// Automatic conversion options (Phase 2)
+	opts.AutoConvert = *autoConvert
+	opts.Hyper2KVMBinary = *hyper2kvmBinary
+	opts.ConversionTimeout = *conversionTimeout
+	opts.StreamConversionOutput = *streamConversion
+
+	// If auto-convert is enabled, force manifest generation
+	if opts.AutoConvert {
+		opts.GenerateManifest = true
+		if !*quiet {
+			pterm.Info.Println("Auto-convert enabled: manifest generation forced")
+		}
+	}
+
 	if !*quiet {
 		pterm.Info.Printfln("Starting %s export to: %s", strings.ToUpper(*format), exportDir)
 	}
@@ -921,6 +948,25 @@ func showExportSummary(info *vsphere.VMInfo, result *vsphere.ExportResult) {
 		data = append(data, []string{"Artifact Manifest", result.ManifestPath})
 	}
 
+	// Add conversion results if present (Phase 2)
+	if result.ConversionResult != nil {
+		convStatus := pterm.Red("FAILED")
+		if result.ConversionResult.Success {
+			convStatus = pterm.Green("SUCCESS")
+		}
+		data = append(data, []string{"Conversion Status", convStatus})
+
+		if result.ConversionResult.Success {
+			data = append(data, []string{"Converted Files", fmt.Sprintf("%d", len(result.ConversionResult.ConvertedFiles))})
+			data = append(data, []string{"Conversion Duration", result.ConversionResult.Duration.Round(time.Second).String()})
+			if result.ConversionResult.ReportPath != "" {
+				data = append(data, []string{"Conversion Report", result.ConversionResult.ReportPath})
+			}
+		} else if result.ConversionResult.Error != "" {
+			data = append(data, []string{"Conversion Error", result.ConversionResult.Error})
+		}
+	}
+
 	pterm.DefaultSection.Println("Export Summary")
 	pterm.DefaultTable.
 		WithHasHeader().
@@ -938,6 +984,20 @@ func showExportSummary(info *vsphere.VMInfo, result *vsphere.ExportResult) {
 			items = append(items, pterm.BulletListItem{
 				Level: 0,
 				Text:  file,
+			})
+		}
+		fileList.WithItems(items).Render()
+	}
+
+	// Show converted files if present (Phase 2)
+	if result.ConversionResult != nil && result.ConversionResult.Success && len(result.ConversionResult.ConvertedFiles) > 0 {
+		pterm.DefaultSection.Println("Converted Files (KVM-Ready)")
+		fileList := pterm.DefaultBulletList
+		items := make([]pterm.BulletListItem, 0, len(result.ConversionResult.ConvertedFiles))
+		for _, file := range result.ConversionResult.ConvertedFiles {
+			items = append(items, pterm.BulletListItem{
+				Level: 0,
+				Text:  pterm.Green(file),
 			})
 		}
 		fileList.WithItems(items).Render()

@@ -45,6 +45,11 @@ type ExportProfile struct {
 	ManifestChecksum      bool   `json:"manifest_checksum"`       // Compute checksums in manifest
 	ManifestTargetFormat  string `json:"manifest_target_format"`  // Target format for conversion
 
+	// Automatic conversion (Phase 2)
+	AutoConvert           bool   `json:"auto_convert"`            // Automatically convert with hyper2kvm
+	Hyper2KVMBinary       string `json:"hyper2kvm_binary"`        // Path to hyper2kvm binary
+	StreamConversion      bool   `json:"stream_conversion"`       // Stream conversion output
+
 	// Retention
 	RetentionDays  int `json:"retention_days"`  // Keep exports for N days
 	RetentionCount int `json:"retention_count"` // Keep last N exports

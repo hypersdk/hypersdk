@@ -25,6 +25,12 @@ type ExportOptions struct {
 	VerifyManifest         bool   // Verify manifest after generation
 	ManifestComputeChecksum bool  // Compute SHA-256 checksums for all disks
 	ManifestTargetFormat   string // Target format for hyper2kvm conversion (e.g., "qcow2")
+
+	// Automatic conversion options (Phase 2)
+	AutoConvert            bool   // Automatically run hyper2kvm after export
+	Hyper2KVMBinary        string // Path to hyper2kvm binary (auto-detect if empty)
+	ConversionTimeout      time.Duration // Timeout for conversion process
+	StreamConversionOutput bool   // Stream hyper2kvm output to console
 }
 
 func DefaultExportOptions() ExportOptions {
