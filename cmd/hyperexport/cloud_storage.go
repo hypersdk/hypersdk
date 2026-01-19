@@ -78,6 +78,13 @@ type CloudStorageConfig struct {
 	OCIPrivateKey   string // Private key content or path
 	OCIConfigPath   string // Path to OCI config file (~/.oci/config)
 	OCIProfile      string // Profile name in config file (default: DEFAULT)
+
+	// OpenStack Swift specific fields
+	SwiftAuthURL    string // Keystone auth URL
+	SwiftUsername   string // OpenStack username
+	SwiftPassword   string // OpenStack password
+	SwiftTenantName string // Tenant/Project name
+	SwiftDomainName string // Domain name (default: Default)
 }
 
 // NewCloudStorage creates a cloud storage client from URL
@@ -152,6 +159,22 @@ func NewCloudStorage(storageURL string, log logger.Logger) (CloudStorage, error)
 		}
 		config.Region = os.Getenv("OCI_REGION")
 		return NewOCIStorage(config, log)
+
+	case "swift":
+		// Format: swift://container/prefix
+		config.Bucket = u.Host // container name
+		config.Prefix = strings.TrimPrefix(u.Path, "/")
+		// Get credentials from environment
+		config.SwiftAuthURL = os.Getenv("OS_AUTH_URL")
+		config.SwiftUsername = os.Getenv("OS_USERNAME")
+		config.SwiftPassword = os.Getenv("OS_PASSWORD")
+		config.SwiftTenantName = os.Getenv("OS_TENANT_NAME")
+		config.SwiftDomainName = os.Getenv("OS_DOMAIN_NAME")
+		config.Region = os.Getenv("OS_REGION_NAME")
+		if config.SwiftDomainName == "" {
+			config.SwiftDomainName = "Default"
+		}
+		return NewOpenStackSwiftStorage(config, log)
 
 	default:
 		return nil, fmt.Errorf("unsupported storage provider: %s", u.Scheme)
