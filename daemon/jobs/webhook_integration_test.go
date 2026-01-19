@@ -4,6 +4,7 @@ package jobs
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -56,6 +57,11 @@ func (m *MockWebhookManager) SendJobCancelled(job *models.Job) {
 	m.cancelled = append(m.cancelled, job.Definition.ID)
 }
 
+func (m *MockWebhookManager) SendJobProgress(job *models.Job) {
+	// Mock implementation - just track that it was called
+	// In a real scenario, this would send progress updates
+}
+
 func (m *MockWebhookManager) GetCreated() []string {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -72,6 +78,18 @@ func (m *MockWebhookManager) GetCompleted() []string {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return append([]string{}, m.completed...)
+}
+
+func (m *MockWebhookManager) GetFailed() []string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return append([]string{}, m.failed...)
+}
+
+func (m *MockWebhookManager) GetCancelled() []string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return append([]string{}, m.cancelled...)
 }
 
 func TestWebhookIntegration_JobCreated(t *testing.T) {

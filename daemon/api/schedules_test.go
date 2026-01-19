@@ -39,7 +39,7 @@ func TestHandleListSchedules(t *testing.T) {
 	defer server.scheduler.Stop()
 
 	// Add test schedule
-	testSchedule := &scheduler.ScheduledJob{
+	testSchedule := &models.ScheduledJob{
 		ID:       "test-schedule-1",
 		Name:     "Test Schedule",
 		Schedule: "0 2 * * *",
@@ -92,7 +92,7 @@ func TestHandleCreateSchedule(t *testing.T) {
 	server := setupTestServer(t)
 	defer server.scheduler.Stop()
 
-	schedule := scheduler.ScheduledJob{
+	schedule := models.ScheduledJob{
 		ID:       "new-schedule",
 		Name:     "New Schedule",
 		Schedule: "*/15 * * * *",
@@ -141,7 +141,7 @@ func TestHandleCreateScheduleMissingID(t *testing.T) {
 	server := setupTestServer(t)
 	defer server.scheduler.Stop()
 
-	schedule := scheduler.ScheduledJob{
+	schedule := models.ScheduledJob{
 		// Missing ID
 		Name:     "Test",
 		Schedule: "0 0 * * *",
@@ -163,7 +163,7 @@ func TestHandleGetSchedule(t *testing.T) {
 	defer server.scheduler.Stop()
 
 	// Add test schedule
-	testSchedule := &scheduler.ScheduledJob{
+	testSchedule := &models.ScheduledJob{
 		ID:       "get-test",
 		Name:     "Get Test",
 		Schedule: "0 2 * * *",
@@ -180,7 +180,7 @@ func TestHandleGetSchedule(t *testing.T) {
 		t.Errorf("Expected status 200, got %d", w.Code)
 	}
 
-	var schedule scheduler.ScheduledJob
+	var schedule models.ScheduledJob
 	if err := json.Unmarshal(w.Body.Bytes(), &schedule); err != nil {
 		t.Fatalf("Failed to parse response: %v", err)
 	}
@@ -209,7 +209,7 @@ func TestHandleUpdateSchedule(t *testing.T) {
 	defer server.scheduler.Stop()
 
 	// Add initial schedule
-	testSchedule := &scheduler.ScheduledJob{
+	testSchedule := &models.ScheduledJob{
 		ID:       "update-test",
 		Name:     "Original Name",
 		Schedule: "0 2 * * *",
@@ -218,7 +218,7 @@ func TestHandleUpdateSchedule(t *testing.T) {
 	server.scheduler.AddScheduledJob(testSchedule)
 
 	// Update schedule
-	updates := scheduler.ScheduledJob{
+	updates := models.ScheduledJob{
 		Name:     "Updated Name",
 		Schedule: "0 3 * * *",
 		Enabled:  false,
@@ -249,7 +249,7 @@ func TestHandleDeleteSchedule(t *testing.T) {
 	defer server.scheduler.Stop()
 
 	// Add schedule to delete
-	testSchedule := &scheduler.ScheduledJob{
+	testSchedule := &models.ScheduledJob{
 		ID:       "delete-test",
 		Name:     "To Delete",
 		Schedule: "0 2 * * *",
@@ -278,7 +278,7 @@ func TestHandleEnableSchedule(t *testing.T) {
 	defer server.scheduler.Stop()
 
 	// Add disabled schedule
-	testSchedule := &scheduler.ScheduledJob{
+	testSchedule := &models.ScheduledJob{
 		ID:       "enable-test",
 		Name:     "Enable Test",
 		Schedule: "0 2 * * *",
@@ -307,7 +307,7 @@ func TestHandleDisableSchedule(t *testing.T) {
 	defer server.scheduler.Stop()
 
 	// Add enabled schedule
-	testSchedule := &scheduler.ScheduledJob{
+	testSchedule := &models.ScheduledJob{
 		ID:       "disable-test",
 		Name:     "Disable Test",
 		Schedule: "0 2 * * *",
@@ -336,7 +336,7 @@ func TestHandleTriggerSchedule(t *testing.T) {
 	defer server.scheduler.Stop()
 
 	// Add schedule
-	testSchedule := &scheduler.ScheduledJob{
+	testSchedule := &models.ScheduledJob{
 		ID:       "trigger-test",
 		Name:     "Trigger Test",
 		Schedule: "0 2 * * *",
@@ -364,7 +364,7 @@ func TestHandleScheduleStats(t *testing.T) {
 
 	// Add some schedules
 	for i := 0; i < 3; i++ {
-		schedule := &scheduler.ScheduledJob{
+		schedule := &models.ScheduledJob{
 			ID:       "stats-test-" + string(rune('a'+i)),
 			Name:     "Stats Test",
 			Schedule: "0 2 * * *",

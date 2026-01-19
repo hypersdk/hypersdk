@@ -63,7 +63,7 @@ func basicMigrationExample(log logger.Logger) {
 		TargetFormat:     "qcow2",
 		EnableConversion: true,
 		ConvertOptions: common.ConvertOptions{
-			OutputFormat: "qcow2",
+			TargetFormat: "qcow2",
 		},
 		User: "admin",
 	}
@@ -161,7 +161,7 @@ func fullMonitoringExample(log logger.Logger) {
 	fmt.Println("\n✓ Full monitoring configured successfully")
 
 	// Cleanup servers
-	progressServer.Stop()
+	progressServer.Stop(ctx)
 	metricsServer.Stop()
 }
 

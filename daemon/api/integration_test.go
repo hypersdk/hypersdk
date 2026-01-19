@@ -65,7 +65,7 @@ func TestFullIntegrationFlow(t *testing.T) {
 	}
 
 	// Step 3: Create a schedule
-	schedule := scheduler.ScheduledJob{
+	schedule := models.ScheduledJob{
 		ID:       "integration-schedule",
 		Name:     "Integration Test Schedule",
 		Schedule: "*/5 * * * *",
@@ -217,7 +217,7 @@ func TestScheduleWebhookIntegration(t *testing.T) {
 	defer server.scheduler.Stop()
 
 	// Create schedule
-	schedule := &scheduler.ScheduledJob{
+	schedule := &models.ScheduledJob{
 		ID:       "webhook-test",
 		Name:     "Webhook Test",
 		Schedule: "* * * * *",
@@ -347,7 +347,7 @@ func TestScheduleCRUDFlow(t *testing.T) {
 	scheduleID := "crud-test"
 
 	// Create
-	schedule := scheduler.ScheduledJob{
+	schedule := models.ScheduledJob{
 		ID:       scheduleID,
 		Name:     "CRUD Test",
 		Schedule: "0 0 * * *",
@@ -374,7 +374,7 @@ func TestScheduleCRUDFlow(t *testing.T) {
 	}
 
 	// Update
-	updates := scheduler.ScheduledJob{
+	updates := models.ScheduledJob{
 		Name:    "Updated Name",
 		Enabled: false,
 	}

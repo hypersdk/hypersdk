@@ -3,6 +3,7 @@
 package proxmox
 
 import (
+	"hypersdk/config"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -34,7 +35,7 @@ func TestNewClient(t *testing.T) {
 
 	log := logger.New("info")
 
-	cfg := &Config{
+	cfg := &config.ProxmoxConfig{
 		Host:     server.URL[7:], // Remove "http://"
 		Port:     0,              // Will be determined from Host
 		Username: "test",

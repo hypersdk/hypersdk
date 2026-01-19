@@ -18,9 +18,9 @@ type mockExecutor struct {
 	submittedJobs []models.JobDefinition
 }
 
-func (m *mockExecutor) SubmitJob(def models.JobDefinition) error {
+func (m *mockExecutor) SubmitJob(def models.JobDefinition) (string, error) {
 	m.submittedJobs = append(m.submittedJobs, def)
-	return nil
+	return def.ID, nil
 }
 
 func TestScheduler_Persistence(t *testing.T) {
@@ -44,7 +44,7 @@ func TestScheduler_Persistence(t *testing.T) {
 	defer sched.Stop()
 
 	// Add scheduled job
-	sj := &ScheduledJob{
+	sj := &models.ScheduledJob{
 		ID:          "test-schedule",
 		Name:        "Test Schedule",
 		Description: "Test Description",
@@ -96,7 +96,7 @@ func TestScheduler_LoadSchedules(t *testing.T) {
 	sched1.SetStore(db)
 	sched1.Start()
 
-	sj := &ScheduledJob{
+	sj := &models.ScheduledJob{
 		ID:       "persistent-schedule",
 		Name:     "Persistent Schedule",
 		Schedule: "0 * * * *",
@@ -150,7 +150,7 @@ func TestScheduler_UpdatePersistence(t *testing.T) {
 	defer sched.Stop()
 
 	// Add schedule
-	sj := &ScheduledJob{
+	sj := &models.ScheduledJob{
 		ID:          "update-test",
 		Name:        "Original Name",
 		Schedule:    "0 * * * *",
@@ -161,7 +161,7 @@ func TestScheduler_UpdatePersistence(t *testing.T) {
 	sched.AddScheduledJob(sj)
 
 	// Update schedule
-	updates := &ScheduledJob{
+	updates := &models.ScheduledJob{
 		Name:     "Updated Name",
 		Schedule: "0 2 * * *",
 		Enabled:  false,
@@ -210,7 +210,7 @@ func TestScheduler_DeletePersistence(t *testing.T) {
 	defer sched.Stop()
 
 	// Add schedule
-	sj := &ScheduledJob{
+	sj := &models.ScheduledJob{
 		ID:          "delete-test",
 		Name:        "To Be Deleted",
 		Schedule:    "0 * * * *",
