@@ -21,6 +21,7 @@ type RetryConfig struct {
 	Multiplier      float64       // Exponential backoff multiplier (default: 2.0)
 	Jitter          bool          // Add random jitter to delays (default: true)
 	RetryableErrors []error       // Specific errors that should trigger retry
+	WaitForNetwork  bool          // Wait for network to come back up before retrying (default: false)
 }
 
 // DefaultRetryConfig returns default retry configuration
@@ -37,10 +38,17 @@ func DefaultRetryConfig() *RetryConfig {
 // RetryOperation represents an operation that can be retried
 type RetryOperation func(ctx context.Context, attempt int) error
 
+// NetworkMonitor represents a network state monitor
+type NetworkMonitor interface {
+	IsUp() bool
+	WaitForNetwork(ctx context.Context) error
+}
+
 // Retryer handles retry logic with exponential backoff
 type Retryer struct {
-	config *RetryConfig
-	log    logger.Logger
+	config         *RetryConfig
+	log            logger.Logger
+	networkMonitor NetworkMonitor // Optional network monitor
 }
 
 // NewRetryer creates a new retryer with the given configuration
@@ -67,6 +75,11 @@ func NewRetryer(config *RetryConfig, log logger.Logger) *Retryer {
 		config: config,
 		log:    log,
 	}
+}
+
+// SetNetworkMonitor sets the network monitor for the retryer
+func (r *Retryer) SetNetworkMonitor(monitor NetworkMonitor) {
+	r.networkMonitor = monitor
 }
 
 // Do executes the operation with retry logic
@@ -112,6 +125,29 @@ func (r *Retryer) Do(ctx context.Context, operation RetryOperation, operationNam
 				"attempts", r.config.MaxAttempts,
 				"error", err)
 			return fmt.Errorf("%s failed after %d attempts: %w", operationName, r.config.MaxAttempts, err)
+		}
+
+		// Check network state if network monitor is available
+		if r.networkMonitor != nil && r.config.WaitForNetwork {
+			if !r.networkMonitor.IsUp() {
+				r.log.Warn("network is down, waiting for network to recover",
+					"operation", operationName,
+					"attempt", attempt)
+
+				// Wait for network to come back up
+				if err := r.networkMonitor.WaitForNetwork(ctx); err != nil {
+					// Context cancelled while waiting for network
+					return fmt.Errorf("%s: network wait cancelled: %w", operationName, err)
+				}
+
+				r.log.Info("network recovered, retrying operation",
+					"operation", operationName,
+					"attempt", attempt)
+
+				// Network is back up, continue with retry
+				// Don't sleep since we already waited for network
+				continue
+			}
 		}
 
 		// Calculate delay with exponential backoff
@@ -175,6 +211,29 @@ func (r *Retryer) DoWithResult(ctx context.Context, operation func(ctx context.C
 				"attempts", r.config.MaxAttempts,
 				"error", err)
 			return nil, fmt.Errorf("%s failed after %d attempts: %w", operationName, r.config.MaxAttempts, err)
+		}
+
+		// Check network state if network monitor is available
+		if r.networkMonitor != nil && r.config.WaitForNetwork {
+			if !r.networkMonitor.IsUp() {
+				r.log.Warn("network is down, waiting for network to recover",
+					"operation", operationName,
+					"attempt", attempt)
+
+				// Wait for network to come back up
+				if err := r.networkMonitor.WaitForNetwork(ctx); err != nil {
+					// Context cancelled while waiting for network
+					return nil, fmt.Errorf("%s: network wait cancelled: %w", operationName, err)
+				}
+
+				r.log.Info("network recovered, retrying operation",
+					"operation", operationName,
+					"attempt", attempt)
+
+				// Network is back up, continue with retry
+				// Don't sleep since we already waited for network
+				continue
+			}
 		}
 
 		delay := r.calculateDelay(attempt)
