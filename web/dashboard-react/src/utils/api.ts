@@ -1,6 +1,6 @@
-// API utility functions for HyperSDK Dashboard
+// API utility functions for HyperSDK
 
-const API_BASE = '/api';
+const API_BASE = ''; // No /api prefix - endpoints already include it
 
 export async function fetchAPI<T>(endpoint: string, options?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE}${endpoint}`, {

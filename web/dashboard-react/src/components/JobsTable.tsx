@@ -57,36 +57,51 @@ export const JobsTable: React.FC<JobsTableProps> = ({ jobs, onCancelJob }) => {
   }, [jobs, sortField, sortDirection, filterStatus]);
 
   const tableHeaderStyle: React.CSSProperties = {
-    padding: '12px 16px',
+    padding: '16px',
     textAlign: 'left',
     fontSize: '12px',
-    fontWeight: '600',
-    color: '#374151',
-    backgroundColor: '#f9fafb',
-    borderBottom: '1px solid #e5e7eb',
+    fontWeight: '700',
+    color: '#000',
+    backgroundColor: '#f0f2f7',
+    borderBottom: '2px solid #e0e0e0',
     cursor: 'pointer',
     userSelect: 'none',
+    textTransform: 'uppercase',
+    letterSpacing: '0.5px',
   };
 
   const tableCellStyle: React.CSSProperties = {
-    padding: '12px 16px',
+    padding: '16px',
     fontSize: '14px',
-    borderBottom: '1px solid #e5e7eb',
+    borderBottom: '1px solid #e0e0e0',
   };
 
   return (
-    <div style={{ backgroundColor: '#fff', borderRadius: '8px', boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)' }}>
-      <div style={{ padding: '16px', borderBottom: '1px solid #e5e7eb', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '600' }}>Recent Jobs</h3>
+    <div style={{ backgroundColor: '#fff', borderRadius: '4px', border: '2px solid #e0e0e0' }}>
+      <div style={{ padding: '20px', borderBottom: '2px solid #e0e0e0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+          <div style={{
+            width: '4px',
+            height: '24px',
+            backgroundColor: '#f0583a',
+          }} />
+          <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Filter Jobs</h3>
+        </div>
         <select
           value={filterStatus}
           onChange={(e) => setFilterStatus(e.target.value)}
           style={{
-            padding: '6px 12px',
+            padding: '10px 16px',
             borderRadius: '4px',
-            border: '1px solid #d1d5db',
+            border: '2px solid #222324',
             fontSize: '14px',
+            fontWeight: '600',
+            backgroundColor: '#fff',
+            cursor: 'pointer',
+            transition: 'all 0.25s cubic-bezier(0.215, 0.61, 0.355, 1)',
           }}
+          onFocus={(e) => e.currentTarget.style.borderColor = '#f0583a'}
+          onBlur={(e) => e.currentTarget.style.borderColor = '#222324'}
         >
           <option value="all">All Status</option>
           <option value="pending">Pending</option>

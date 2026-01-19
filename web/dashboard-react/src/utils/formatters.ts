@@ -1,4 +1,4 @@
-// Formatting utilities for HyperSDK Dashboard
+// Formatting utilities for HyperSDK
 
 export function formatBytes(bytes: number): string {
   if (bytes === 0) return '0 B';

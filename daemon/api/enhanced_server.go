@@ -351,10 +351,24 @@ func (es *EnhancedServer) registerEnhancedRoutes() {
 	mux.HandleFunc("/webhooks/test", es.handleTestWebhook)
 	mux.HandleFunc("/webhooks/", es.handleDeleteWebhook)
 
+	// Create a wrapper handler that bypasses middleware for WebSocket endpoint
+	wsHandler := http.HandlerFunc(es.handleWebSocket)
+
 	// Update the HTTP server with middleware chain
-	handler := es.loggingMiddleware(mux)
-	handler = es.requestSizeLimitMiddleware(handler)
-	handler = es.authMiddleware(handler)
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Bypass all middleware for WebSocket connections
+		if r.URL.Path == "/ws" {
+			wsHandler.ServeHTTP(w, r)
+			return
+		}
+
+		// Apply middleware chain for all other requests
+		h := es.loggingMiddleware(mux)
+		h = es.requestSizeLimitMiddleware(h)
+		h = es.authMiddleware(h)
+		h.ServeHTTP(w, r)
+	})
+
 	es.httpServer.Handler = handler
 }
 

@@ -24,22 +24,39 @@ export const StatCard: React.FC<StatCardProps> = ({
     <div
       style={{
         backgroundColor: '#fff',
-        borderRadius: '8px',
-        padding: '20px',
-        boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
-        border: '1px solid #e5e7eb',
+        borderRadius: '4px',
+        padding: '24px',
+        border: '2px solid #e0e0e0',
+        transition: 'all 0.25s cubic-bezier(0.215, 0.61, 0.355, 1)',
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.borderColor = '#f0583a';
+        e.currentTarget.style.transform = 'translateY(-2px)';
+        e.currentTarget.style.boxShadow = '0 8px 16px rgba(0, 0, 0, 0.1)';
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.borderColor = '#e0e0e0';
+        e.currentTarget.style.transform = 'translateY(0)';
+        e.currentTarget.style.boxShadow = 'none';
       }}
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div style={{ flex: 1 }}>
-          <div style={{ fontSize: '14px', color: '#6b7280', marginBottom: '8px' }}>
+          <div style={{
+            fontSize: '12px',
+            color: '#6b7280',
+            marginBottom: '12px',
+            fontWeight: '600',
+            textTransform: 'uppercase',
+            letterSpacing: '0.5px',
+          }}>
             {title}
           </div>
-          <div style={{ fontSize: '28px', fontWeight: 'bold', color: color, marginBottom: '4px' }}>
+          <div style={{ fontSize: '32px', fontWeight: '700', color: color, marginBottom: '4px' }}>
             {value}
           </div>
           {subtitle && (
-            <div style={{ fontSize: '12px', color: '#9ca3af' }}>
+            <div style={{ fontSize: '14px', color: '#6b7280', fontWeight: '500' }}>
               {subtitle}
             </div>
           )}
@@ -49,6 +66,7 @@ export const StatCard: React.FC<StatCardProps> = ({
                 fontSize: '12px',
                 color: trend.isPositive ? '#10b981' : '#ef4444',
                 marginTop: '8px',
+                fontWeight: '600',
               }}
             >
               {trend.isPositive ? '↑' : '↓'} {Math.abs(trend.value)}%
@@ -56,7 +74,7 @@ export const StatCard: React.FC<StatCardProps> = ({
           )}
         </div>
         {icon && (
-          <div style={{ fontSize: '32px', opacity: 0.8 }}>
+          <div style={{ fontSize: '40px', opacity: 0.5, color: color }}>
             {icon}
           </div>
         )}

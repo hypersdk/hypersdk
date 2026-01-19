@@ -1,4 +1,4 @@
-// TypeScript types for HyperSDK Dashboard
+// TypeScript types for HyperSDK
 
 export interface Metrics {
   timestamp: string;
