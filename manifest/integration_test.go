@@ -5,7 +5,6 @@
 package manifest_test
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"testing"

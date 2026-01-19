@@ -110,9 +110,9 @@ func ExampleBuilder() {
 	fmt.Printf("   Ready for hyper2kvm processing\n")
 }
 
-// ExampleBuilderWithChecksums demonstrates creating a manifest with
+// Example_builderWithChecksums demonstrates creating a manifest with
 // checksum verification enabled.
-func ExampleBuilderWithChecksums() {
+func Example_builderWithChecksums() {
 	outputDir := "/work/export-vm-checksums"
 	os.MkdirAll(outputDir, 0755)
 
@@ -158,9 +158,9 @@ func ExampleBuilderWithChecksums() {
 	}
 }
 
-// ExampleLoadManifest demonstrates loading and validating an existing
+// Example_loadManifest demonstrates loading and validating an existing
 // Artifact Manifest from a file.
-func ExampleLoadManifest() {
+func Example_loadManifest() {
 	manifestPath := "/work/export-vm/artifact-manifest.json"
 
 	// Load manifest from file
@@ -196,9 +196,9 @@ func ExampleLoadManifest() {
 	}
 }
 
-// ExampleMinimalManifest demonstrates creating the absolute minimum
+// Example_minimalManifest demonstrates creating the absolute minimum
 // required manifest (for testing or simple use cases).
-func ExampleMinimalManifest() {
+func Example_minimalManifest() {
 	diskPath := "/tmp/test-disk.vmdk"
 
 	// Minimal manifest: just version and one disk
