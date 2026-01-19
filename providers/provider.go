@@ -46,8 +46,11 @@ type ProviderConfig struct {
 
 	// Common fields
 	Endpoint string
+	Host     string // Alternative to Endpoint for providers that need separate host/port
+	Port     int    // Port number (used with Host)
 	Username string
 	Password string
+	Region   string // AWS region, Azure location, GCP zone, Proxmox realm, etc.
 	Insecure bool
 	Timeout  time.Duration
 
@@ -58,7 +61,8 @@ type ProviderConfig struct {
 // VMFilter defines filtering criteria for VM listing
 type VMFilter struct {
 	NamePattern  string            // Glob pattern for VM name
-	PowerState   string            // running, stopped, suspended, etc.
+	State        string            // VM state (running, stopped, suspended, etc.)
+	PowerState   string            // Alternative to State for backward compatibility
 	Tags         map[string]string // Filter by tags/labels
 	Location     string            // Datacenter, region, resource group, etc.
 	MinMemoryMB  int64             // Minimum memory in MB

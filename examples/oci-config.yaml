@@ -1,0 +1,114 @@
+# HyperSDK Configuration with OCI Integration
+# Example configuration for Oracle Cloud Infrastructure
+
+# vCenter configuration (for vSphere exports)
+vcenter_url: "https://vcenter.example.com/sdk"
+username: "administrator@vsphere.local"
+password: "your-password"
+insecure: false
+timeout: 3600s
+download_workers: 3
+chunk_size: 33554432  # 32MB
+retry_attempts: 5
+retry_delay: 5s
+log_level: "info"
+progress_style: "bar"
+show_eta: true
+refresh_rate: 100ms
+daemon_addr: "localhost:8080"
+database_path: "./hypersdk.db"
+
+# Connection pool configuration
+connection_pool:
+  enabled: true
+  max_connections: 5
+  idle_timeout: 5m
+  health_check_interval: 30s
+
+# Webhook configuration
+webhooks:
+  - url: "https://example.com/webhooks/hypersdk"
+    events:
+      - "job.started"
+      - "job.completed"
+      - "job.failed"
+    headers:
+      Authorization: "Bearer your-webhook-token"
+    timeout: 10s
+    retry: 3
+    enabled: true
+
+# ===================================================================
+# Oracle Cloud Infrastructure (OCI) Configuration
+# ===================================================================
+oci:
+  # Authentication
+  # Get these values from the OCI Console
+  tenancy_ocid: "ocid1.tenancy.oc1..aaaaaaaaXXXXXXXXXXXX"
+  user_ocid: "ocid1.user.oc1..aaaaaaaaXXXXXXXXXXXX"
+  fingerprint: "aa:bb:cc:dd:ee:ff:00:11:22:33:44:55:66:77:88:99"
+  private_key_path: "~/.oci/oci_api_key.pem"
+  region: "us-phoenix-1"
+
+  # Resource Configuration
+  compartment_ocid: "ocid1.compartment.oc1..aaaaaaaaXXXXXXXXXXXX"
+
+  # Object Storage Configuration
+  bucket: "vm-exports"
+  namespace: "your-tenancy-namespace"
+
+  # Export Settings
+  export_format: "qcow2"  # Options: qcow2, vmdk
+  enabled: true
+
+# ===================================================================
+# AWS Configuration (if using AWS)
+# ===================================================================
+aws:
+  region: "us-east-1"
+  access_key: ""  # Leave empty to use IAM role or environment variables
+  secret_key: ""
+  s3_bucket: "vm-exports"
+  export_format: "vmdk"
+  enabled: false
+
+# ===================================================================
+# Azure Configuration (if using Azure)
+# ===================================================================
+azure:
+  subscription_id: ""
+  tenant_id: ""
+  client_id: ""
+  client_secret: ""
+  resource_group: "vm-exports"
+  location: "eastus"
+  storage_account: "vmexportsstorage"
+  container: "exports"
+  container_url: ""
+  export_format: "vhd"
+  enabled: false
+
+# ===================================================================
+# GCP Configuration (if using Google Cloud)
+# ===================================================================
+gcp:
+  project_id: ""
+  zone: "us-central1-a"
+  region: "us-central1"
+  credentials_json: "~/.gcp/service-account.json"
+  gcs_bucket: "vm-exports"
+  export_format: "vmdk"
+  enabled: false
+
+# ===================================================================
+# Hyper-V Configuration (if using Hyper-V)
+# ===================================================================
+hyperv:
+  host: ""  # Empty for local Hyper-V
+  username: ""
+  password: ""
+  use_winrm: false
+  winrm_port: 5985
+  use_https: false
+  export_format: "vhdx"
+  enabled: false

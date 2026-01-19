@@ -56,9 +56,9 @@ type ProgressCallback func(bytesTransferred, totalBytes int64)
 
 // CloudStorageConfig contains cloud storage configuration
 type CloudStorageConfig struct {
-	Provider    string        // s3, azure, gcs, sftp
-	Bucket      string        // S3 bucket, Azure container, GCS bucket
-	Region      string        // AWS region
+	Provider    string        // s3, azure, gcs, sftp, oci
+	Bucket      string        // S3 bucket, Azure container, GCS bucket, OCI bucket
+	Region      string        // AWS region, OCI region
 	Endpoint    string        // Custom endpoint (for S3-compatible storage)
 	AccessKey   string        // AWS access key, Azure account name
 	SecretKey   string        // AWS secret key, Azure account key
@@ -69,6 +69,15 @@ type CloudStorageConfig struct {
 	PrivateKey  string              // SFTP private key path
 	Prefix      string              // Path prefix in bucket/container
 	RetryConfig *retry.RetryConfig  // Retry configuration (nil = use defaults)
+
+	// OCI-specific fields
+	OCINamespace    string // OCI Object Storage namespace
+	OCITenancyOCID  string // OCI tenancy OCID
+	OCIUserOCID     string // OCI user OCID
+	OCIFingerprint  string // API key fingerprint
+	OCIPrivateKey   string // Private key content or path
+	OCIConfigPath   string // Path to OCI config file (~/.oci/config)
+	OCIProfile      string // Profile name in config file (default: DEFAULT)
 }
 
 // NewCloudStorage creates a cloud storage client from URL
@@ -120,6 +129,29 @@ func NewCloudStorage(storageURL string, log logger.Logger) (CloudStorage, error)
 			config.Port = 22
 		}
 		return NewSFTPStorage(config, log)
+
+	case "oci":
+		// Format: oci://namespace/bucket/prefix
+		pathParts := strings.SplitN(strings.TrimPrefix(u.Path, "/"), "/", 2)
+		if len(pathParts) < 1 {
+			return nil, fmt.Errorf("OCI URL must include bucket: oci://namespace/bucket/prefix")
+		}
+		config.OCINamespace = u.Host
+		config.Bucket = pathParts[0]
+		if len(pathParts) > 1 {
+			config.Prefix = pathParts[1]
+		}
+		// Get credentials from environment or config file
+		config.OCIConfigPath = os.Getenv("OCI_CONFIG_PATH")
+		if config.OCIConfigPath == "" {
+			config.OCIConfigPath = filepath.Join(os.Getenv("HOME"), ".oci", "config")
+		}
+		config.OCIProfile = os.Getenv("OCI_PROFILE")
+		if config.OCIProfile == "" {
+			config.OCIProfile = "DEFAULT"
+		}
+		config.Region = os.Getenv("OCI_REGION")
+		return NewOCIStorage(config, log)
 
 	default:
 		return nil, fmt.Errorf("unsupported storage provider: %s", u.Scheme)

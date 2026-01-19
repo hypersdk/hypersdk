@@ -47,6 +47,9 @@ type Config struct {
 
 	// Hyper-V configuration (Phase 4.4)
 	HyperV *HyperVConfig `yaml:"hyperv"`
+
+	// OCI configuration
+	OCI *OCIConfig `yaml:"oci"`
 }
 
 // AWSConfig holds AWS-specific settings
@@ -95,6 +98,20 @@ type HyperVConfig struct {
 	UseHTTPS     bool   `yaml:"use_https"`     // Use HTTPS for WinRM
 	ExportFormat string `yaml:"export_format"` // vhdx, vhd, hyperv
 	Enabled      bool   `yaml:"enabled"`
+}
+
+// OCIConfig holds Oracle Cloud Infrastructure settings
+type OCIConfig struct {
+	TenancyOCID     string `yaml:"tenancy_ocid"`      // OCI tenancy OCID
+	UserOCID        string `yaml:"user_ocid"`         // OCI user OCID
+	Fingerprint     string `yaml:"fingerprint"`       // API key fingerprint
+	PrivateKeyPath  string `yaml:"private_key_path"`  // Path to private key file
+	Region          string `yaml:"region"`            // OCI region (e.g., us-phoenix-1)
+	CompartmentOCID string `yaml:"compartment_ocid"`  // Compartment OCID for resources
+	Bucket          string `yaml:"bucket"`            // Object Storage bucket name
+	Namespace       string `yaml:"namespace"`         // Object Storage namespace
+	ExportFormat    string `yaml:"export_format"`     // qcow2, vmdk
+	Enabled         bool   `yaml:"enabled"`
 }
 
 // ConnectionPoolConfig holds connection pool settings
@@ -287,6 +304,22 @@ func FromFile(path string) (*Config, error) {
 		}
 		if cfg.HyperV.ExportFormat == "" {
 			cfg.HyperV.ExportFormat = "vhdx"
+		}
+	}
+
+	// OCI defaults
+	if cfg.OCI == nil {
+		cfg.OCI = &OCIConfig{
+			Region:       "us-phoenix-1",
+			ExportFormat: "qcow2",
+			Enabled:      false, // Disabled by default
+		}
+	} else {
+		if cfg.OCI.Region == "" {
+			cfg.OCI.Region = "us-phoenix-1"
+		}
+		if cfg.OCI.ExportFormat == "" {
+			cfg.OCI.ExportFormat = "qcow2"
 		}
 	}
 

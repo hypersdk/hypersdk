@@ -22,6 +22,7 @@ import (
 	"hypersdk/daemon/webhooks"
 	"hypersdk/logger"
 	"hypersdk/providers"
+	"hypersdk/providers/proxmox"
 	"hypersdk/providers/vsphere"
 )
 
@@ -170,9 +171,17 @@ func main() {
 	// Phase 3: Setup Provider Registry
 	pterm.Info.Println("Initializing provider registry...")
 	providerRegistry := providers.NewRegistry()
+
+	// Register all available providers
 	providerRegistry.Register(providers.ProviderVSphere, func(cfg providers.ProviderConfig) (providers.Provider, error) {
 		return vsphere.NewProvider(cfg, log)
 	})
+
+	// Register Proxmox provider (Phase 4.5 completion)
+	providerRegistry.Register(providers.ProviderProxmox, func(cfg providers.ProviderConfig) (providers.Provider, error) {
+		return proxmox.NewProvider(cfg, log)
+	})
+
 	pterm.Success.Printfln("Provider registry initialized (%d providers)", len(providerRegistry.ListProviders()))
 
 	// Create API config

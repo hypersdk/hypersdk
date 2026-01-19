@@ -67,8 +67,10 @@ type MonitorConfig struct {
 
 // NewMonitor creates a new network monitor
 func NewMonitor(cfg *MonitorConfig, log logger.Logger) *Monitor {
+	useDefaults := false
 	if cfg == nil {
 		cfg = &MonitorConfig{}
+		useDefaults = true
 	}
 
 	// Set defaults
@@ -81,11 +83,14 @@ func NewMonitor(cfg *MonitorConfig, log logger.Logger) *Monitor {
 	if len(cfg.CheckHosts) == 0 {
 		cfg.CheckHosts = []string{"8.8.8.8", "1.1.1.1", "8.8.4.4"}
 	}
-	if !cfg.NotifyOnChange {
-		cfg.NotifyOnChange = true // Default to only notify on change
-	}
-	if !cfg.EnableNetlink {
-		cfg.EnableNetlink = true // Default to enabled
+	// Only set these defaults if config was nil
+	if useDefaults {
+		if !cfg.NotifyOnChange {
+			cfg.NotifyOnChange = true // Default to only notify on change
+		}
+		if !cfg.EnableNetlink {
+			cfg.EnableNetlink = true // Default to enabled
+		}
 	}
 
 	return &Monitor{

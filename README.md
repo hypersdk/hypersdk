@@ -281,6 +281,296 @@ EOF
 ./hyperexport -provider gcp -vm my-gcp-instance
 ```
 
+#### Advanced Interactive TUI Mode
+
+HyperExport now includes an advanced Terminal User Interface (TUI) with powerful selection and filtering features:
+
+```bash
+# Launch advanced TUI mode
+./hyperexport -tui
+# or
+./hyperexport -interactive
+```
+
+**TUI Features:**
+
+- **Bulk Regex Selection** (Press `A`): Select multiple VMs using regex patterns
+  - `^web-.*` - All VMs starting with "web-"
+  - `.*-prod$` - All production VMs
+  - `db-[0-9]+` - Database VMs with numbers
+
+- **Quick Filters** (Number keys 1-8):
+  - `1` - Powered ON VMs
+  - `2` - Powered OFF VMs
+  - `3` - Linux VMs
+  - `4` - Windows VMs
+  - `5` - High CPU (8+ cores)
+  - `6` - High Memory (16GB+)
+  - `7` - Large Storage (500GB+)
+  - `8` - Clear all filters
+
+- **Export Templates** (Press `t`):
+  - Quick Export - Fast OVF without compression
+  - Production Backup - OVA with compression and verification
+  - Archive Mode - Maximum compression for long-term storage
+  - Development - Uncompressed for quick testing
+
+- **Real-Time Export Progress:**
+  - Live progress bars with current file download status
+  - Speed calculation (MB/s) and ETA estimation
+  - Visual status indicators (✅ ⏳ ⏸)
+
+- **Keyboard Shortcuts:**
+  - `↑/↓` or `j/k` - Navigate VM list
+  - `Space` - Toggle VM selection
+  - `Enter` - Confirm selection
+  - `/` - Search VMs
+  - `s` - Sort (name, size, state)
+  - `f` - Filter by power state
+  - `o` - Filter by OS
+  - `A` - Bulk regex selection
+  - `t` - Select export template
+  - `c` - Toggle compression
+  - `v` - Toggle verification
+  - `q` or `Esc` - Quit/Cancel
+  - `?` - Show help
+
+#### Export Validation
+
+HyperExport includes comprehensive pre-export and post-export validation:
+
+```bash
+# Run validation checks only (no export)
+./hyperexport -vm myvm -validate-only
+
+# Validation checks include:
+# - Disk space availability (with 10% overhead)
+# - Output directory write permissions
+# - VM power state (warns if powered on)
+# - Existing export conflicts
+# - Post-export file integrity
+# - OVF descriptor validity
+# - VMDK file presence
+# - File size verification
+# - Checksum validation (if -verify enabled)
+```
+
+**Pre-Export Validation:**
+- Disk space check (requires 10% overhead)
+- Permission validation
+- VM state verification
+- Existing export detection
+
+**Post-Export Validation:**
+- OVF file integrity
+- Referenced VMDK files existence
+- File size validation
+- Checksum verification
+
+#### Export History and Reporting
+
+Track and analyze all exports with built-in history and reporting:
+
+```bash
+# View recent export history
+./hyperexport -history
+./hyperexport -history -history-limit 20
+
+# Generate statistics report
+./hyperexport -report
+
+# Save report to file
+./hyperexport -report -report-file export-report.txt
+
+# Clear export history
+./hyperexport -clear-history
+```
+
+**History includes:**
+- Timestamp and duration
+- VM name and path
+- Export format (OVF/OVA)
+- Total size and file count
+- Success/failure status
+- Error messages (if failed)
+- Compression and verification flags
+
+**Report statistics:**
+- Total exports performed
+- Success rate
+- Total data exported
+- Average export duration
+- Exports by format (OVF vs OVA)
+- Exports by provider
+
+History is stored in `~/.hyperexport/history.json`.
+
+#### Resume Capability
+
+HyperExport supports resuming interrupted exports:
+
+```bash
+# Resume an interrupted export
+./hyperexport -vm myvm -resume
+
+# Features:
+# - Checkpoint system tracks download progress
+# - HTTP Range headers for resuming file downloads
+# - Automatic retry with exponential backoff
+# - Progress restoration from last known state
+```
+
+#### Complete Flag Reference
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `-vm` | string | | VM name/path to export |
+| `-provider` | string | vsphere | Provider type (vsphere, aws, azure, gcp) |
+| `-output` | string | ./export-<vmname> | Output directory |
+| `-format` | string | ovf | Export format: ovf or ova |
+| `-compress` | bool | false | Enable compression for OVA |
+| `-verify` | bool | false | Verify export with SHA256 checksums |
+| `-dry-run` | bool | false | Preview export without executing |
+| `-batch` | string | | File with VM list (one per line) |
+| `-filter` | string | | Filter VMs by tag (key=value) |
+| `-folder` | string | | Filter VMs by folder path |
+| `-power-off` | bool | false | Auto power off VM before export |
+| `-parallel` | int | 4 | Number of parallel downloads |
+| `-quiet` | bool | false | Minimal output for scripting |
+| `-version` | bool | false | Show version and exit |
+| `-interactive` | bool | false | Launch advanced TUI mode |
+| `-tui` | bool | false | Launch advanced TUI mode (alias) |
+| `-validate-only` | bool | false | Only run validation checks |
+| `-resume` | bool | false | Resume interrupted export |
+| `-history` | bool | false | Show export history |
+| `-history-limit` | int | 10 | Number of recent exports to show |
+| `-report` | bool | false | Generate export statistics report |
+| `-report-file` | string | | Save report to file (default: stdout) |
+| `-clear-history` | bool | false | Clear export history |
+| `-upload` | string | | Upload to cloud storage (s3://, azure://, gs://, sftp://) |
+| `-stream-upload` | bool | false | Stream export directly to cloud (no local storage) |
+| `-keep-local` | bool | true | Keep local copy after cloud upload |
+| `-encrypt` | bool | false | Encrypt export files |
+| `-encrypt-method` | string | aes256 | Encryption method: aes256 or gpg |
+| `-passphrase` | string | | Encryption passphrase |
+| `-keyfile` | string | | Encryption key file |
+| `-gpg-recipient` | string | | GPG recipient email for encryption |
+| `-profile` | string | | Use saved export profile |
+| `-save-profile` | string | | Save current settings as a profile |
+| `-list-profiles` | bool | false | List available profiles |
+| `-delete-profile` | string | | Delete a saved profile |
+| `-create-default-profiles` | bool | false | Create default profiles |
+
+#### Cloud Storage Integration
+
+Upload exports directly to cloud storage:
+
+```bash
+# Upload to AWS S3
+export AWS_ACCESS_KEY_ID="your-key"
+export AWS_SECRET_ACCESS_KEY="your-secret"
+export AWS_REGION="us-east-1"
+./hyperexport -vm myvm -upload s3://my-bucket/backups/
+
+# Upload to Azure Blob Storage
+export AZURE_STORAGE_ACCOUNT="myaccount"
+export AZURE_STORAGE_KEY="mykey"
+./hyperexport -vm myvm -upload azure://mycontainer/backups/
+
+# Upload to Google Cloud Storage
+export GOOGLE_APPLICATION_CREDENTIALS="/path/to/service-account.json"
+./hyperexport -vm myvm -upload gs://my-bucket/backups/
+
+# Upload via SFTP
+./hyperexport -vm myvm -upload sftp://user:pass@server/backups/
+
+# Upload and remove local copy
+./hyperexport -vm myvm -upload s3://bucket/path --keep-local=false
+```
+
+#### Encryption
+
+Encrypt exports for security:
+
+```bash
+# AES-256 encryption with passphrase
+./hyperexport -vm myvm -encrypt -passphrase "my-secret-password"
+
+# AES-256 with key file
+./hyperexport -vm myvm -encrypt -keyfile /path/to/key.txt
+
+# GPG encryption
+./hyperexport -vm myvm -encrypt -encrypt-method gpg -gpg-recipient admin@company.com
+
+# Encrypted + compressed OVA + cloud upload
+./hyperexport -vm myvm \
+  -format ova \
+  -compress \
+  -encrypt \
+  -passphrase "secret" \
+  -upload s3://bucket/encrypted-backups/
+```
+
+#### Export Profiles
+
+Save and reuse export configurations:
+
+```bash
+# Create default profiles
+./hyperexport -create-default-profiles
+
+# List available profiles
+./hyperexport -list-profiles
+
+# Use a profile
+./hyperexport -vm myvm -profile production-backup
+
+# Save current settings as a profile
+./hyperexport -vm myvm \
+  -format ova \
+  -compress \
+  -verify \
+  -save-profile my-custom-backup
+
+# Delete a profile
+./hyperexport -delete-profile old-profile
+
+# Built-in profiles:
+# - quick-export: Fast export without compression
+# - production-backup: OVA with compression and verification
+# - encrypted-backup: Encrypted backup for sensitive data
+# - cloud-backup: Backup and upload to cloud storage
+# - development: Quick export for development/testing
+```
+
+#### Advanced Workflows
+
+Combine features for powerful workflows:
+
+```bash
+# Complete production backup workflow
+./hyperexport -vm production-db \
+  -profile production-backup \
+  -encrypt -passphrase "${BACKUP_PASSWORD}" \
+  -upload s3://prod-backups/$(date +%Y-%m-%d)/ \
+  --keep-local=false
+
+# Encrypted cloud backup with notifications (coming soon)
+./hyperexport -vm critical-app \
+  -format ova \
+  -compress \
+  -verify \
+  -encrypt -keyfile /secure/backup.key \
+  -upload azure://backups/critical/ \
+  -notify-email admin@company.com \
+  -notify-slack https://hooks.slack.com/...
+
+# Multi-step workflow with validation
+./hyperexport -vm myvm -validate-only  # Pre-check
+./hyperexport -vm myvm -profile cloud-backup  # Export and upload
+./hyperexport -history | grep myvm  # Verify in history
+```
+
 #### Output Examples
 
 **Interactive Mode:**
