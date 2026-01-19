@@ -18,16 +18,16 @@ type mockJobExecutor struct {
 	submitError   error
 }
 
-func (m *mockJobExecutor) SubmitJob(definition models.JobDefinition) error {
+func (m *mockJobExecutor) SubmitJob(definition models.JobDefinition) (string, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	if m.submitError != nil {
-		return m.submitError
+		return "", m.submitError
 	}
 
 	m.submittedJobs = append(m.submittedJobs, definition)
-	return nil
+	return definition.ID, nil
 }
 
 func (m *mockJobExecutor) getSubmittedCount() int {
@@ -87,7 +87,7 @@ func TestAddScheduledJob(t *testing.T) {
 	scheduler.Start()
 	defer scheduler.Stop()
 
-	sj := &ScheduledJob{
+	sj := &models.ScheduledJob{
 		ID:          "test-job-1",
 		Name:        "Test Job",
 		Description: "Test scheduled job",
@@ -125,7 +125,7 @@ func TestAddScheduledJobInvalidCron(t *testing.T) {
 	executor := &mockJobExecutor{}
 	scheduler := NewScheduler(executor, log)
 
-	sj := &ScheduledJob{
+	sj := &models.ScheduledJob{
 		ID:       "test-job-invalid",
 		Name:     "Invalid Job",
 		Schedule: "invalid-cron-expression",
@@ -145,7 +145,7 @@ func TestAddScheduledJobDisabled(t *testing.T) {
 	scheduler.Start()
 	defer scheduler.Stop()
 
-	sj := &ScheduledJob{
+	sj := &models.ScheduledJob{
 		ID:       "test-job-disabled",
 		Name:     "Disabled Job",
 		Schedule: "0 0 * * *",
@@ -175,7 +175,7 @@ func TestRemoveScheduledJob(t *testing.T) {
 	scheduler.Start()
 	defer scheduler.Stop()
 
-	sj := &ScheduledJob{
+	sj := &models.ScheduledJob{
 		ID:       "test-job-remove",
 		Name:     "Remove Test",
 		Schedule: "0 0 * * *",
@@ -214,7 +214,7 @@ func TestUpdateScheduledJob(t *testing.T) {
 	scheduler.Start()
 	defer scheduler.Stop()
 
-	original := &ScheduledJob{
+	original := &models.ScheduledJob{
 		ID:          "test-job-update",
 		Name:        "Original Name",
 		Description: "Original Description",
@@ -225,7 +225,7 @@ func TestUpdateScheduledJob(t *testing.T) {
 	scheduler.AddScheduledJob(original)
 
 	// Update the job
-	updates := &ScheduledJob{
+	updates := &models.ScheduledJob{
 		Name:        "Updated Name",
 		Description: "Updated Description",
 		Schedule:    "0 12 * * *", // Change to noon
@@ -257,7 +257,7 @@ func TestUpdateNonexistentJob(t *testing.T) {
 	executor := &mockJobExecutor{}
 	scheduler := NewScheduler(executor, log)
 
-	updates := &ScheduledJob{
+	updates := &models.ScheduledJob{
 		Name: "Updated Name",
 	}
 
@@ -274,7 +274,7 @@ func TestGetScheduledJob(t *testing.T) {
 	scheduler.Start()
 	defer scheduler.Stop()
 
-	sj := &ScheduledJob{
+	sj := &models.ScheduledJob{
 		ID:       "test-job-get",
 		Name:     "Get Test",
 		Schedule: "0 0 * * *",
@@ -313,7 +313,7 @@ func TestListScheduledJobs(t *testing.T) {
 
 	// Add multiple jobs
 	for i := 1; i <= 3; i++ {
-		sj := &ScheduledJob{
+		sj := &models.ScheduledJob{
 			ID:       string(rune('a' + i - 1)),
 			Name:     "Test Job",
 			Schedule: "0 0 * * *",
@@ -335,7 +335,7 @@ func TestEnableScheduledJob(t *testing.T) {
 	scheduler.Start()
 	defer scheduler.Stop()
 
-	sj := &ScheduledJob{
+	sj := &models.ScheduledJob{
 		ID:       "test-job-enable",
 		Name:     "Enable Test",
 		Schedule: "0 0 * * *",
@@ -363,7 +363,7 @@ func TestEnableAlreadyEnabledJob(t *testing.T) {
 	scheduler.Start()
 	defer scheduler.Stop()
 
-	sj := &ScheduledJob{
+	sj := &models.ScheduledJob{
 		ID:       "test-job-already-enabled",
 		Name:     "Already Enabled",
 		Schedule: "0 0 * * *",
@@ -386,7 +386,7 @@ func TestDisableScheduledJob(t *testing.T) {
 	scheduler.Start()
 	defer scheduler.Stop()
 
-	sj := &ScheduledJob{
+	sj := &models.ScheduledJob{
 		ID:       "test-job-disable",
 		Name:     "Disable Test",
 		Schedule: "0 0 * * *",
@@ -414,7 +414,7 @@ func TestDisableAlreadyDisabledJob(t *testing.T) {
 	scheduler.Start()
 	defer scheduler.Stop()
 
-	sj := &ScheduledJob{
+	sj := &models.ScheduledJob{
 		ID:       "test-job-already-disabled",
 		Name:     "Already Disabled",
 		Schedule: "0 0 * * *",
@@ -437,7 +437,7 @@ func TestTriggerNow(t *testing.T) {
 	scheduler.Start()
 	defer scheduler.Stop()
 
-	sj := &ScheduledJob{
+	sj := &models.ScheduledJob{
 		ID:   "test-job-trigger",
 		Name: "Trigger Test",
 		JobTemplate: models.JobDefinition{
@@ -483,7 +483,7 @@ func TestGetScheduleStats(t *testing.T) {
 	defer scheduler.Stop()
 
 	// Add some jobs
-	sj1 := &ScheduledJob{
+	sj1 := &models.ScheduledJob{
 		ID:       "job1",
 		Name:     "Job 1",
 		Schedule: "0 0 * * *",
@@ -491,7 +491,7 @@ func TestGetScheduleStats(t *testing.T) {
 		RunCount: 5,
 	}
 
-	sj2 := &ScheduledJob{
+	sj2 := &models.ScheduledJob{
 		ID:       "job2",
 		Name:     "Job 2",
 		Schedule: "0 12 * * *",
@@ -499,7 +499,7 @@ func TestGetScheduleStats(t *testing.T) {
 		RunCount: 3,
 	}
 
-	sj3 := &ScheduledJob{
+	sj3 := &models.ScheduledJob{
 		ID:       "job3",
 		Name:     "Job 3",
 		Schedule: "0 0 * * *",
@@ -554,7 +554,7 @@ func TestScheduledJobExecution(t *testing.T) {
 	defer scheduler.Stop()
 
 	// Use a very frequent schedule for testing (every second)
-	sj := &ScheduledJob{
+	sj := &models.ScheduledJob{
 		ID:   "test-job-exec",
 		Name: "Execution Test",
 		JobTemplate: models.JobDefinition{
@@ -604,7 +604,7 @@ func TestConcurrentOperations(t *testing.T) {
 		wg.Add(1)
 		go func(idx int) {
 			defer wg.Done()
-			sj := &ScheduledJob{
+			sj := &models.ScheduledJob{
 				ID:       string(rune('a' + idx)),
 				Name:     "Concurrent Job",
 				Schedule: "0 0 * * *",

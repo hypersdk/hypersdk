@@ -42,11 +42,13 @@ type Client struct {
 // VMInfo represents AWS EC2 instance information
 type VMInfo struct {
 	InstanceID       string
+	ImageID          string
 	Name             string
 	State            string
 	InstanceType     string
 	Platform         string
 	AvailabilityZone string
+	Region           string
 	PrivateIP        string
 	PublicIP         string
 	VolumeIDs        []string
@@ -178,7 +180,6 @@ func (c *Client) ExportInstance(ctx context.Context, instanceID, outputPath stri
 	c.logger.Info("AMI is ready", "imageID", imageID)
 
 	// Export instance to S3 as VMDK (requires VM Import/Export role)
-	var exportResult *ExportResult
 	if c.config.S3Bucket != "" {
 		if reporter != nil {
 			reporter.Describe("Exporting instance to S3 as VMDK")
@@ -188,7 +189,6 @@ func (c *Client) ExportInstance(ctx context.Context, instanceID, outputPath stri
 		if err != nil {
 			c.logger.Error("S3 export failed, continuing with AMI only", "error", err)
 		} else {
-			exportResult = result
 			c.logger.Info("VMDK exported to S3", "path", result.LocalPath, "s3_key", result.S3Key)
 		}
 	}
@@ -245,7 +245,13 @@ func (c *Client) instanceToVMInfo(instance types.Instance) *VMInfo {
 		State:            string(instance.State.Name),
 		InstanceType:     string(instance.InstanceType),
 		AvailabilityZone: *instance.Placement.AvailabilityZone,
+		Region:           c.config.Region,
 		Tags:             make(map[string]string),
+	}
+
+	// Populate ImageID if available
+	if instance.ImageId != nil {
+		vmInfo.ImageID = *instance.ImageId
 	}
 
 	if instance.LaunchTime != nil {

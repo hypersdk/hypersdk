@@ -13,7 +13,6 @@ import (
 
 	"hypersdk/daemon/jobs"
 	"hypersdk/daemon/models"
-	"hypersdk/daemon/scheduler"
 	"hypersdk/logger"
 )
 

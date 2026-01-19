@@ -17,7 +17,6 @@ import (
 	"hypersdk/daemon/capabilities"
 	"hypersdk/daemon/jobs"
 	"hypersdk/daemon/models"
-	"hypersdk/daemon/scheduler"
 	"hypersdk/daemon/webhooks"
 	"hypersdk/logger"
 )

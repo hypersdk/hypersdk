@@ -53,8 +53,15 @@ func (p *AWSProvider) Connect(ctx context.Context, config providers.ProviderConf
 		secretKey = config.Password
 	}
 
+	// Create AWS config
+	awsConfig := &Config{
+		Region:          region,
+		AccessKeyID:     accessKey,
+		SecretAccessKey: secretKey,
+	}
+
 	// Create AWS client
-	client, err := NewClient(ctx, region, accessKey, secretKey, p.logger)
+	client, err := NewClient(awsConfig, p.logger)
 	if err != nil {
 		return fmt.Errorf("failed to connect to AWS: %w", err)
 	}

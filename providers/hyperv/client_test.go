@@ -1,7 +1,6 @@
 //go:build integration
-// SPDX-License-Identifier: LGPL-3.0-or-later
 
-//go:build integration && integration
+// SPDX-License-Identifier: LGPL-3.0-or-later
 
 package hyperv
 

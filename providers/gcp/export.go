@@ -19,68 +19,19 @@ import (
 )
 
 // ExportImageToGCS exports a GCP disk image to Google Cloud Storage as VMDK
+// Note: The GCP Compute SDK does not provide direct image export to VMDK in recent versions.
+// This functionality requires using the VM Import/Export service or gcloud CLI.
 func (c *Client) ExportImageToGCS(ctx context.Context, imageName, bucket, outputDir string, reporter progress.ProgressReporter) (*ExportResult, error) {
-	c.logger.Info("starting GCP image export to GCS", "image", imageName, "bucket", bucket)
+	c.logger.Info("GCP image export requested", "image", imageName, "bucket", bucket)
 
-	if reporter != nil {
-		reporter.Describe("Exporting image to GCS")
-	}
+	// TODO: Implement using one of these approaches:
+	// 1. Use VM Import/Export Daisy workflows (https://github.com/GoogleCloudPlatform/compute-image-tools)
+	// 2. Use gcloud compute images export command via exec
+	// 3. Create disk from image, attach to temp instance, create raw disk export
+	//
+	// The computepb.ExportImageRequest API has been removed from newer SDK versions.
 
-	// Construct GCS destination URI
-	gcsURI := fmt.Sprintf("gs://%s/%s.vmdk", bucket, imageName)
-
-	// Create export request
-	exportReq := &computepb.ExportImageRequest{
-		Project: c.config.ProjectID,
-		Image:   imageName,
-		ImageExportRequest: &computepb.ImageExportRequest{
-			DestinationUri:  &gcsURI,
-			DiskImageFormat: makeStringPtr("vmdk"),
-		},
-	}
-
-	// Start export operation
-	op, err := c.imagesClient.Export(ctx, exportReq)
-	if err != nil {
-		return nil, fmt.Errorf("start image export: %w", err)
-	}
-
-	c.logger.Info("image export started", "image", imageName, "gcs_uri", gcsURI)
-
-	// Wait for export to complete
-	if reporter != nil {
-		reporter.Describe("Waiting for GCS export to complete")
-	}
-
-	err = op.Wait(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("wait for image export: %w", err)
-	}
-
-	c.logger.Info("image exported to GCS", "gcs_uri", gcsURI)
-
-	// Download from GCS
-	if reporter != nil {
-		reporter.Describe("Downloading VMDK from GCS")
-	}
-
-	localPath := filepath.Join(outputDir, fmt.Sprintf("%s.vmdk", imageName))
-	size, err := c.downloadFromGCS(ctx, bucket, fmt.Sprintf("%s.vmdk", imageName), localPath, reporter)
-	if err != nil {
-		return nil, fmt.Errorf("download from GCS: %w", err)
-	}
-
-	c.logger.Info("VMDK downloaded successfully", "path", localPath, "size_bytes", size)
-
-	return &ExportResult{
-		ImageName: imageName,
-		Format:    "vmdk",
-		LocalPath: localPath,
-		Size:      size,
-		GCSBucket: bucket,
-		GCSObject: fmt.Sprintf("%s.vmdk", imageName),
-		GCSURI:    gcsURI,
-	}, nil
+	return nil, fmt.Errorf("direct image export not supported in current GCP SDK - use VM Import/Export tools or gcloud CLI")
 }
 
 // ExportDiskToGCS exports a persistent disk to GCS as VMDK

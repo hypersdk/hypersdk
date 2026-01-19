@@ -73,50 +73,18 @@ func (c *Client) ExportInstanceToS3(ctx context.Context, instanceID, outputDir s
 }
 
 // ExportSnapshotToS3 exports an EBS snapshot to S3 as VMDK
+// Note: AWS SDK v2 does not support direct snapshot export to VMDK.
+// This is a placeholder for future implementation using alternative methods.
 func (c *Client) ExportSnapshotToS3(ctx context.Context, snapshotID, outputDir string, reporter progress.ProgressReporter) (*ExportResult, error) {
-	c.logger.Info("starting EBS snapshot export to S3", "snapshot", snapshotID)
+	c.logger.Info("EBS snapshot export requested", "snapshot", snapshotID)
 
-	if reporter != nil {
-		reporter.Describe("Exporting EBS snapshot to S3")
-	}
+	// TODO: Implement alternative snapshot export method
+	// AWS SDK v2 removed ExportSnapshot API. Alternative approaches:
+	// 1. Create volume from snapshot, attach to temp instance, export instance
+	// 2. Use AWS Import/Export VM service with custom workflow
+	// 3. Create AMI from snapshot and export the AMI
 
-	// Create export task for snapshot
-	input := &ec2.ExportSnapshotInput{
-		SnapshotId:      aws.String(snapshotID),
-		DiskImageFormat: types.DiskImageFormatVmdk,
-		S3Bucket:        aws.String(c.config.S3Bucket),
-		S3Prefix:        aws.String("exports/snapshots/"),
-	}
-
-	result, err := c.ec2Client.ExportSnapshot(ctx, input)
-	if err != nil {
-		return nil, fmt.Errorf("create snapshot export task: %w", err)
-	}
-
-	exportTaskID := aws.ToString(result.SnapshotTaskDetail.SnapshotId)
-	c.logger.Info("snapshot export task created", "task_id", exportTaskID)
-
-	// Wait for export completion
-	s3Key, err := c.waitForSnapshotExport(ctx, exportTaskID, reporter)
-	if err != nil {
-		return nil, fmt.Errorf("wait for snapshot export: %w", err)
-	}
-
-	// Download from S3
-	localPath := filepath.Join(outputDir, fmt.Sprintf("%s.vmdk", snapshotID))
-	size, err := c.downloadFromS3(ctx, s3Key, localPath, reporter)
-	if err != nil {
-		return nil, fmt.Errorf("download snapshot from S3: %w", err)
-	}
-
-	return &ExportResult{
-		SnapshotID: snapshotID,
-		Format:     "vmdk",
-		LocalPath:  localPath,
-		Size:       size,
-		S3Bucket:   c.config.S3Bucket,
-		S3Key:      s3Key,
-	}, nil
+	return nil, fmt.Errorf("direct snapshot export not supported in AWS SDK v2 - use instance export instead")
 }
 
 // createExportTask creates an EC2 instance export task
@@ -202,76 +170,8 @@ func (c *Client) waitForExportTask(ctx context.Context, taskID string, reporter 
 	}
 }
 
-// waitForSnapshotExport polls snapshot export task status until completion
-func (c *Client) waitForSnapshotExport(ctx context.Context, snapshotID string, reporter progress.ProgressReporter) (string, error) {
-	ticker := time.NewTicker(10 * time.Second)
-	defer ticker.Stop()
-
-	timeout := time.After(2 * time.Hour)
-
-	for {
-		select {
-		case <-ctx.Done():
-			return "", ctx.Err()
-		case <-timeout:
-			return "", fmt.Errorf("snapshot export timed out after 2 hours")
-		case <-ticker.C:
-			input := &ec2.DescribeExportSnapshotTasksInput{
-				ExportTaskIds: []string{snapshotID},
-			}
-
-			result, err := c.ec2Client.DescribeExportSnapshotTasks(ctx, input)
-			if err != nil {
-				return "", fmt.Errorf("describe snapshot export task: %w", err)
-			}
-
-			if len(result.ExportSnapshotTasks) == 0 {
-				return "", fmt.Errorf("snapshot export task %s not found", snapshotID)
-			}
-
-			task := result.ExportSnapshotTasks[0]
-			detail := task.SnapshotTaskDetail
-
-			if detail == nil {
-				continue
-			}
-
-			// Update progress
-			if reporter != nil && detail.Progress != nil {
-				progress := int(aws.ToFloat64(detail.Progress))
-				reporter.Update(int64(progress))
-				if detail.StatusMessage != nil {
-					reporter.Describe(aws.ToString(detail.StatusMessage))
-				}
-			}
-
-			status := aws.ToString(detail.Status)
-
-			switch status {
-			case "completed":
-				if detail.S3Key != nil {
-					return aws.ToString(detail.S3Key), nil
-				}
-				return "", fmt.Errorf("snapshot export completed but S3 key not found")
-
-			case "error":
-				errMsg := "unknown error"
-				if detail.StatusMessage != nil {
-					errMsg = aws.ToString(detail.StatusMessage)
-				}
-				return "", fmt.Errorf("snapshot export failed: %s", errMsg)
-
-			case "active":
-				// Still in progress
-				continue
-
-			default:
-				c.logger.Warn("unknown snapshot export status", "status", status)
-				continue
-			}
-		}
-	}
-}
+// waitForSnapshotExport is removed - AWS SDK v2 does not support DescribeExportSnapshotTasks
+// This functionality would need to be reimplemented using alternative AWS APIs
 
 // downloadFromS3 downloads a file from S3 with progress tracking
 func (c *Client) downloadFromS3(ctx context.Context, s3Key, localPath string, reporter progress.ProgressReporter) (int64, error) {
