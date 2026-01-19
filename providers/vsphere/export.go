@@ -20,6 +20,7 @@ import (
 	"github.com/vmware/govmomi/ovf"
 	"github.com/vmware/govmomi/vim25/types"
 
+	"hypersdk/manifest"
 	"hypersdk/progress"
 	"hypersdk/retry"
 )
@@ -292,6 +293,30 @@ func (c *VSphereClient) ExportOVF(ctx context.Context, vmPath string, opts Expor
 				"path", ovaPath,
 				"size", fi.Size(),
 				"compressed", opts.Compress)
+		}
+	}
+
+	// Generate Artifact Manifest v1.0 if requested
+	if opts.GenerateManifest {
+		c.logger.Info("generating Artifact Manifest v1.0")
+
+		manifestPath, err := c.generateArtifactManifest(ctx, vm, result, opts)
+		if err != nil {
+			c.logger.Warn("failed to generate manifest", "error", err)
+			// Don't fail the export if manifest generation fails
+		} else {
+			result.ManifestPath = manifestPath
+			c.logger.Info("Artifact Manifest v1.0 created", "path", manifestPath)
+
+			// Verify manifest if requested
+			if opts.VerifyManifest {
+				c.logger.Info("verifying manifest")
+				if err := c.verifyManifest(manifestPath); err != nil {
+					c.logger.Warn("manifest verification failed", "error", err)
+				} else {
+					c.logger.Info("manifest verification successful")
+				}
+			}
 		}
 	}
 
@@ -588,4 +613,229 @@ func (c *VSphereClient) downloadFileResumable(
 		"size", totalWritten)
 
 	return totalWritten, nil
+}
+
+// generateArtifactManifest creates an Artifact Manifest v1.0 for the exported VM
+func (c *VSphereClient) generateArtifactManifest(
+	ctx context.Context,
+	vm *object.VirtualMachine,
+	result *ExportResult,
+	opts ExportOptions,
+) (string, error) {
+	// Get VM properties for metadata
+	var moVM types.ManagedObjectReference
+	moVM = vm.Reference()
+
+	// Get VM runtime info
+	vmProps, err := c.getVMProperties(ctx, vm)
+	if err != nil {
+		return "", fmt.Errorf("get VM properties: %w", err)
+	}
+
+	// Create manifest builder
+	builder := manifest.NewBuilder()
+
+	// Set source metadata
+	// Get datacenter name from vCenter URL
+	datacenter := "vsphere"
+	if c.config.VCenterURL != "" {
+		datacenter = c.config.VCenterURL
+	}
+
+	builder.WithSource(
+		"vsphere",           // provider
+		moVM.Value,          // VM ID (MoRef)
+		vm.Name(),           // VM name
+		datacenter,          // datacenter
+		"hypersdk-govc",     // export method
+	)
+
+	// Set VM hardware metadata
+	firmware := "bios"
+	if vmProps.Firmware != "" {
+		firmware = vmProps.Firmware
+	}
+
+	osHint := "unknown"
+	osVersion := vmProps.GuestOS
+	if strings.Contains(strings.ToLower(vmProps.GuestOS), "linux") {
+		osHint = "linux"
+	} else if strings.Contains(strings.ToLower(vmProps.GuestOS), "windows") {
+		osHint = "windows"
+	}
+
+	builder.WithVM(
+		int(vmProps.NumCPU),     // CPUs
+		int(vmProps.MemoryGB),   // memory GB
+		firmware,                // firmware
+		osHint,                  // OS hint
+		osVersion,               // OS version
+		false,                   // secure boot (unknown)
+	)
+
+	// Add disk artifacts
+	for i, diskFile := range result.Files {
+		// Only add VMDK files (skip OVF descriptor and manifest files)
+		if !strings.HasSuffix(strings.ToLower(diskFile), ".vmdk") {
+			continue
+		}
+
+		diskID := fmt.Sprintf("disk-%d", i)
+		diskType := "data"
+		if i == 0 {
+			diskType = "boot"
+		}
+
+		// Get file size
+		fileInfo, err := os.Stat(diskFile)
+		if err != nil {
+			c.logger.Warn("failed to stat disk file", "file", diskFile, "error", err)
+			continue
+		}
+
+		// Add disk with optional checksum
+		if opts.ManifestComputeChecksum {
+			c.logger.Debug("computing checksum for disk", "disk", diskFile)
+			builder.AddDiskWithChecksum(
+				diskID,
+				"vmdk",
+				diskFile,
+				fileInfo.Size(),
+				i,           // boot_order_hint
+				diskType,
+				true,        // compute checksum
+			)
+		} else {
+			builder.AddDisk(
+				diskID,
+				"vmdk",
+				diskFile,
+				fileInfo.Size(),
+				i,           // boot_order_hint
+				diskType,
+			)
+		}
+	}
+
+	// Add notes
+	builder.AddNote(fmt.Sprintf("Exported from vSphere by hypersdk v%s", "0.1.0"))
+	builder.AddNote(fmt.Sprintf("Export method: %s", opts.Format))
+	if opts.Compress {
+		builder.AddNote("Export compressed with gzip")
+	}
+
+	// Configure hypersdk metadata
+	builder.WithMetadata(
+		"0.1.0",  // hypersdk version
+		moVM.Value, // job ID (use VM ID)
+		map[string]string{
+			"provider":     "vsphere",
+			"export_format": opts.Format,
+			"vcenter_url":  c.config.VCenterURL,
+		},
+	)
+
+	// Configure hyper2kvm pipeline (enable all stages by default)
+	builder.WithPipeline(
+		true, // inspect
+		true, // fix
+		true, // convert
+		true, // validate
+	)
+
+	// Set target format for conversion
+	targetFormat := opts.ManifestTargetFormat
+	if targetFormat == "" {
+		targetFormat = "qcow2" // default
+	}
+
+	builder.WithOutput(
+		result.OutputDir, // output directory
+		targetFormat,     // target format
+		"",               // filename (auto-generated)
+	)
+
+	// Build manifest
+	m, err := builder.Build()
+	if err != nil {
+		return "", fmt.Errorf("build manifest: %w", err)
+	}
+
+	// Write manifest to file
+	manifestPath := filepath.Join(result.OutputDir, "artifact-manifest.json")
+	if err := manifest.WriteToFile(m, manifestPath); err != nil {
+		return "", fmt.Errorf("write manifest: %w", err)
+	}
+
+	return manifestPath, nil
+}
+
+// verifyManifest validates the generated manifest
+func (c *VSphereClient) verifyManifest(manifestPath string) error {
+	// Load manifest
+	m, err := manifest.ReadFromFile(manifestPath)
+	if err != nil {
+		return fmt.Errorf("read manifest: %w", err)
+	}
+
+	// Validate manifest
+	if err := manifest.Validate(m); err != nil {
+		return fmt.Errorf("validate manifest: %w", err)
+	}
+
+	// Verify checksums if present
+	if len(m.Disks) > 0 && m.Disks[0].Checksum != "" {
+		c.logger.Info("verifying disk checksums")
+		results, err := manifest.VerifyChecksums(m)
+		if err != nil {
+			return fmt.Errorf("verify checksums: %w", err)
+		}
+
+		for diskID, valid := range results {
+			if !valid {
+				return fmt.Errorf("checksum verification failed for disk: %s", diskID)
+			}
+			c.logger.Debug("checksum verified", "disk", diskID)
+		}
+	}
+
+	return nil
+}
+
+// vmProperties holds properties needed for manifest generation
+type vmProperties struct {
+	NumCPU   int32
+	MemoryGB int32
+	GuestOS  string
+	Firmware string
+}
+
+// getVMProperties retrieves VM properties needed for manifest generation
+func (c *VSphereClient) getVMProperties(ctx context.Context, vm *object.VirtualMachine) (*vmProperties, error) {
+	var moVM types.ManagedObjectReference
+	moVM = vm.Reference()
+
+	// Get VM configuration
+	var obj struct {
+		Config types.VirtualMachineConfigInfo `mo:"config"`
+	}
+
+	err := c.client.RetrieveOne(ctx, moVM, []string{"config"}, &obj)
+	if err != nil {
+		return nil, fmt.Errorf("retrieve VM config: %w", err)
+	}
+
+	props := &vmProperties{
+		NumCPU:   obj.Config.Hardware.NumCPU,
+		MemoryGB: int32(obj.Config.Hardware.MemoryMB / 1024),
+		GuestOS:  obj.Config.GuestId,
+		Firmware: "bios",
+	}
+
+	// Determine firmware type
+	if obj.Config.Firmware != "" {
+		props.Firmware = strings.ToLower(obj.Config.Firmware)
+	}
+
+	return props, nil
 }

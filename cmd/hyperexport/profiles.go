@@ -39,6 +39,12 @@ type ExportProfile struct {
 	// Validation
 	ValidateOnly bool `json:"validate_only"` // Only run validation
 
+	// Artifact Manifest v1.0
+	GenerateManifest      bool   `json:"generate_manifest"`       // Generate Artifact Manifest v1.0
+	VerifyManifest        bool   `json:"verify_manifest"`         // Verify manifest after generation
+	ManifestChecksum      bool   `json:"manifest_checksum"`       // Compute checksums in manifest
+	ManifestTargetFormat  string `json:"manifest_target_format"`  // Target format for conversion
+
 	// Retention
 	RetentionDays  int `json:"retention_days"`  // Keep exports for N days
 	RetentionCount int `json:"retention_count"` // Keep last N exports

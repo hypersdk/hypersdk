@@ -19,6 +19,12 @@ type ExportOptions struct {
 	CleanupOVF             bool  // Remove OVF files after OVA creation
 	Compress               bool  // Enable gzip compression for OVA
 	CompressionLevel       int   // Gzip compression level (0-9, default 6)
+
+	// Artifact Manifest v1.0 options
+	GenerateManifest       bool   // Generate Artifact Manifest v1.0
+	VerifyManifest         bool   // Verify manifest after generation
+	ManifestComputeChecksum bool  // Compute SHA-256 checksums for all disks
+	ManifestTargetFormat   string // Target format for hyper2kvm conversion (e.g., "qcow2")
 }
 
 func DefaultExportOptions() ExportOptions {

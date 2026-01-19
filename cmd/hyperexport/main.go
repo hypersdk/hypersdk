@@ -63,6 +63,12 @@ var (
 	listProfiles   = flag.Bool("list-profiles", false, "List available profiles")
 	deleteProfile  = flag.String("delete-profile", "", "Delete a saved profile")
 	createDefaults = flag.Bool("create-default-profiles", false, "Create default profiles")
+
+	// Artifact Manifest v1.0 options
+	generateManifest    = flag.Bool("manifest", false, "Generate Artifact Manifest v1.0 for hyper2kvm")
+	verifyManifestFlag  = flag.Bool("verify-manifest", false, "Verify manifest after generation")
+	manifestChecksum    = flag.Bool("manifest-checksum", true, "Compute SHA-256 checksums for disks in manifest")
+	manifestTargetFormat = flag.String("manifest-target", "qcow2", "Target disk format for conversion (qcow2, raw, vdi)")
 )
 
 func main() {
@@ -171,6 +177,14 @@ func main() {
 			*gpgRecipient = loadedProfile.GPGRecipient
 		}
 		*validateOnly = loadedProfile.ValidateOnly
+
+		// Apply manifest settings
+		*generateManifest = loadedProfile.GenerateManifest
+		*verifyManifestFlag = loadedProfile.VerifyManifest
+		*manifestChecksum = loadedProfile.ManifestChecksum
+		if loadedProfile.ManifestTargetFormat != "" {
+			*manifestTargetFormat = loadedProfile.ManifestTargetFormat
+		}
 	}
 
 	// Handle history operations (don't require provider connection)
@@ -583,6 +597,12 @@ func run(ctx context.Context, cfg *config.Config, log logger.Logger) error {
 	opts.Format = *format
 	opts.Compress = *compress
 
+	// Artifact Manifest v1.0 options
+	opts.GenerateManifest = *generateManifest
+	opts.VerifyManifest = *verifyManifestFlag
+	opts.ManifestComputeChecksum = *manifestChecksum
+	opts.ManifestTargetFormat = *manifestTargetFormat
+
 	if !*quiet {
 		pterm.Info.Printfln("Starting %s export to: %s", strings.ToUpper(*format), exportDir)
 	}
@@ -894,6 +914,11 @@ func showExportSummary(info *vsphere.VMInfo, result *vsphere.ExportResult) {
 		{"Total Size", formatBytes(result.TotalSize)},
 		{"Files Exported", fmt.Sprintf("%d", len(result.Files))},
 		{"Output Directory", result.OutputDir},
+	}
+
+	// Add manifest path if generated
+	if result.ManifestPath != "" {
+		data = append(data, []string{"Artifact Manifest", result.ManifestPath})
 	}
 
 	pterm.DefaultSection.Println("Export Summary")

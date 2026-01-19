@@ -21,11 +21,12 @@ type VMInfo struct {
 }
 
 type ExportResult struct {
-	OutputDir string
-	OVFPath   string
-	OVAPath   string // Path to OVA file (if Format is "ova")
-	Format    string // "ovf" or "ova"
-	Files     []string
-	TotalSize int64
-	Duration  time.Duration
+	OutputDir    string
+	OVFPath      string
+	OVAPath      string // Path to OVA file (if Format is "ova")
+	Format       string // "ovf" or "ova"
+	Files        []string
+	TotalSize    int64
+	Duration     time.Duration
+	ManifestPath string // Path to Artifact Manifest v1.0 JSON file
 }
