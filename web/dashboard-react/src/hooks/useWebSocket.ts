@@ -44,8 +44,18 @@ export function useWebSocket({
 
       ws.onmessage = (event) => {
         try {
-          const metrics: Metrics = JSON.parse(event.data);
-          setData(metrics);
+          const message = JSON.parse(event.data);
+
+          // Handle wrapped message format from server
+          if (message.type === 'metrics' && message.data && message.data.raw) {
+            setData(message.data.raw as Metrics);
+          } else if (message.type) {
+            // Other message types (status, job_update, etc.)
+            console.log('Received WebSocket message:', message.type);
+          } else {
+            // Direct metrics format (fallback)
+            setData(message as Metrics);
+          }
         } catch (err) {
           console.error('Failed to parse WebSocket message:', err);
           setError(err as Error);

@@ -150,6 +150,27 @@ func (h *WSHub) Broadcast(msgType string, data map[string]interface{}) {
 	}
 }
 
+// BroadcastRaw broadcasts raw data directly to all clients (for React dashboard metrics)
+func (h *WSHub) BroadcastRaw(data interface{}) {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+
+	for client := range h.clients {
+		select {
+		case client.send <- WSMessage{
+			Type:      "metrics",
+			Timestamp: time.Now(),
+			Data:      map[string]interface{}{"raw": data},
+		}:
+		default:
+			// Client buffer is full, skip this client
+			if h.logger != nil {
+				h.logger.Debug("Client buffer full, skipping broadcast")
+			}
+		}
+	}
+}
+
 // GetClientCount returns the number of connected clients
 func (h *WSHub) GetClientCount() int {
 	h.mu.RLock()
@@ -409,7 +430,7 @@ func (es *EnhancedServer) handleWebSocket(w http.ResponseWriter, r *http.Request
 
 // StartStatusBroadcaster starts a goroutine that broadcasts status updates
 func (es *EnhancedServer) StartStatusBroadcaster(ctx context.Context) *time.Ticker {
-	ticker := time.NewTicker(2 * time.Second)
+	ticker := time.NewTicker(1 * time.Second) // Changed to 1 second for better real-time updates
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
@@ -428,17 +449,96 @@ func (es *EnhancedServer) StartStatusBroadcaster(ctx context.Context) *time.Tick
 					continue
 				}
 
-				status := es.manager.GetStatus()
-				es.wsHub.Broadcast("status", map[string]interface{}{
-					"total_jobs":      status.TotalJobs,
-					"running_jobs":    status.RunningJobs,
-					"completed_jobs":  status.CompletedJobs,
-					"failed_jobs":     status.FailedJobs,
-				})
+				// Broadcast full dashboard metrics for React dashboard
+				es.broadcastDashboardMetrics()
 			}
 		}
 	}()
 	return ticker
+}
+
+// broadcastDashboardMetrics sends comprehensive metrics in the format expected by the React dashboard
+func (es *EnhancedServer) broadcastDashboardMetrics() {
+	status := es.manager.GetStatus()
+	allJobs := es.manager.GetAllJobs()
+
+	// Convert jobs to the format expected by the React dashboard
+	recentJobs := make([]map[string]interface{}, 0, len(allJobs))
+	for _, job := range allJobs {
+		var progressPercent int
+		if job.Progress != nil {
+			progressPercent = int(job.Progress.PercentComplete)
+		}
+
+		var startTime string
+		if job.StartedAt != nil {
+			startTime = job.StartedAt.Format(time.RFC3339)
+		} else {
+			startTime = job.Definition.CreatedAt.Format(time.RFC3339)
+		}
+
+		var durationSeconds float64
+		if job.StartedAt != nil {
+			if job.CompletedAt != nil {
+				durationSeconds = job.CompletedAt.Sub(*job.StartedAt).Seconds()
+			} else {
+				durationSeconds = time.Since(*job.StartedAt).Seconds()
+			}
+		}
+
+		jobInfo := map[string]interface{}{
+			"id":               job.Definition.ID,
+			"name":            job.Definition.Name,
+			"status":          string(job.Status),
+			"progress":        progressPercent,
+			"start_time":      startTime,
+			"duration_seconds": durationSeconds,
+			"provider":        "vsphere", // Default to vsphere for now
+			"vm_name":         job.Definition.VMPath, // Using VMPath as vm_name
+			"vm_path":         job.Definition.VMPath,
+			"output_dir":      job.Definition.OutputDir,
+			"format":          job.Definition.Format,
+			"compress":        job.Definition.Compress,
+			"created_at":      job.Definition.CreatedAt.Format(time.RFC3339),
+			"updated_at":      job.UpdatedAt.Format(time.RFC3339),
+		}
+
+		if job.CompletedAt != nil {
+			jobInfo["end_time"] = job.CompletedAt.Format(time.RFC3339)
+		}
+		if job.Error != "" {
+			jobInfo["error_msg"] = job.Error
+		}
+
+		recentJobs = append(recentJobs, jobInfo)
+	}
+
+	// Build complete metrics object matching the React dashboard's Metrics interface
+	metrics := map[string]interface{}{
+		"timestamp":          time.Now().Format(time.RFC3339),
+		"jobs_active":        status.RunningJobs,
+		"jobs_completed":     status.CompletedJobs,
+		"jobs_failed":        status.FailedJobs,
+		"jobs_pending":       status.TotalJobs - status.RunningJobs - status.CompletedJobs - status.FailedJobs,
+		"jobs_cancelled":     0, // TODO: Add cancelled count to status
+		"queue_length":       status.TotalJobs,
+		"http_requests":      0, // TODO: Add HTTP metrics
+		"http_errors":        0,
+		"avg_response_time":  0.0,
+		"memory_usage":       0,    // TODO: Add memory metrics
+		"cpu_usage":          0.0,  // TODO: Add CPU metrics
+		"goroutines":         0,    // TODO: Add goroutine count
+		"active_connections": 0,
+		"websocket_clients":  es.wsHub.GetClientCount(),
+		"provider_stats":     map[string]interface{}{},
+		"recent_jobs":        recentJobs,
+		"system_health":      "healthy",
+		"alerts":             []interface{}{},
+		"uptime_seconds":     time.Since(time.Now().Add(-time.Hour)).Seconds(), // TODO: Track actual uptime
+	}
+
+	// Send metrics directly as JSON (not wrapped in WSMessage)
+	es.wsHub.BroadcastRaw(metrics)
 }
 
 // BroadcastJobUpdate broadcasts a job update to all connected clients
