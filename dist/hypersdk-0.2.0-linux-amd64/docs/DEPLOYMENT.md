@@ -75,11 +75,10 @@ curl http://localhost:8080/health
 # List VMs
 ./bin/hyperctl list
 
-# View React dashboard (new)
+# View React dashboard
 open http://localhost:8080/web/dashboard/
-
-# View legacy dashboard
-open http://localhost:8080/web/dashboard-legacy/
+# or
+open http://localhost:8080/
 ```
 
 ---
@@ -267,9 +266,7 @@ hyperv:
 
 ## 📊 Web Dashboard
 
-### React Dashboard (New, Default)
-
-HyperSDK now includes a modern React/TypeScript dashboard with real-time updates:
+HyperSDK includes a modern React/TypeScript dashboard with real-time monitoring:
 
 **Features:**
 - **Real-time Monitoring**: WebSocket-based live metrics updates
@@ -277,25 +274,21 @@ HyperSDK now includes a modern React/TypeScript dashboard with real-time updates
 - **Job Management**: View, filter, sort, and cancel jobs
 - **Alert System**: Real-time alerts and notifications
 - **Provider Analytics**: Multi-cloud provider comparison
-- **Responsive Design**: Works on desktop and mobile
+- **Responsive Design**: Works on desktop and mobile devices
 
 **Access:**
 ```
 http://localhost:8080/web/dashboard/
 ```
 
-### Legacy Dashboard
-
-The original vanilla JavaScript dashboard is still available for backward compatibility:
-
-**Access:**
+Or simply visit:
 ```
-http://localhost:8080/web/dashboard-legacy/
+http://localhost:8080/
 ```
 
 ### Disable Web Dashboard
 
-To run in API-only mode without web dashboards:
+To run in API-only mode without the web dashboard:
 
 ```yaml
 # config.yaml

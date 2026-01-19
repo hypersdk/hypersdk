@@ -57,8 +57,8 @@ print_step "Creating build directories..."
 mkdir -p ${BUILD_DIR}
 mkdir -p ${DIST_DIR}
 
-# Build flags
-LDFLAGS="-X main.Version=${VERSION} -X main.BuildTime=${BUILD_TIME} -X main.GitCommit=${GIT_COMMIT}"
+# Build flags (strip symbols for smaller binaries)
+LDFLAGS="-s -w -X main.Version=${VERSION} -X main.BuildTime=${BUILD_TIME} -X main.GitCommit=${GIT_COMMIT}"
 GCFLAGS=""
 
 # Parse command line arguments

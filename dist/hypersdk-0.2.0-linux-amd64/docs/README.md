@@ -96,24 +96,15 @@ graph TB
 
 ### Web Dashboard Features
 
-**React Dashboard (New, Default):**
+**Modern React/TypeScript Dashboard:**
 - **Real-time Monitoring** - WebSocket-based live metrics updates
 - **Interactive Charts** - Historical data visualization with Recharts
 - **Job Management** - View, filter, sort, and cancel jobs
 - **Alert System** - Real-time alerts and notifications
 - **Provider Analytics** - Multi-cloud provider comparison
-- **Responsive Design** - Works on desktop and mobile
-
-**Legacy Dashboard (Available for compatibility):**
-- **VM Console Access** - VNC and serial console viewers
-- **Real-time Job Monitoring** - Track conversion progress
-- **VM Management** - Start, stop, reboot, pause/resume VMs
-- **Snapshot Management** - Create, revert, delete snapshots
-- **ISO Management** - Upload ISOs and attach to VMs
-- **Backup & Restore** - VM backup operations
-- **Network Management** - Configure virtual networks
-- **Volume Operations** - Manage storage volumes
-- **Batch Operations** - Perform actions on multiple VMs
+- **System Health** - CPU, memory, goroutines monitoring
+- **WebSocket Connections** - Real-time client tracking
+- **Responsive Design** - Works on desktop and mobile devices
 
 ## 🚀 Quick Start
 
@@ -243,36 +234,25 @@ jobs:
 
 ### Web Dashboard
 
-Access the dashboards in your browser:
+Access the React dashboard in your browser:
 
 ```bash
-# React dashboard (new, default)
+# React dashboard
 http://localhost:8080/web/dashboard/
 
-# Legacy dashboard (for compatibility)
-http://localhost:8080/web/dashboard-legacy/
-
-# VM console viewer (legacy dashboard)
-http://localhost:8080/web/dashboard-legacy/vm-console.html
+# or simply
+http://localhost:8080/
 ```
 
-**React Dashboard Features:**
-- Real-time metrics with WebSocket updates
-- Interactive charts (jobs, resources, providers)
-- Job table with sorting and filtering
-- Real-time alerts and notifications
-- Provider analytics and comparison
-- System health monitoring
-- Responsive mobile-friendly design
-
-**Legacy Dashboard Features:**
-- Monitor running jobs with real-time progress
-- Submit new conversion jobs
-- View VMware VM inventory
-- Access VM consoles (VNC/Serial)
-- Manage libvirt VMs
-- Take VM screenshots
-- Monitor system health
+**Dashboard Features:**
+- **Real-time metrics** with WebSocket updates
+- **Interactive charts** - Jobs, resources, and provider analytics
+- **Job management** - Table with sorting, filtering, and cancel actions
+- **Alert system** - Real-time notifications for issues
+- **Provider comparison** - Multi-cloud analytics
+- **System monitoring** - Memory, CPU, goroutines, uptime
+- **WebSocket clients** - Track active connections
+- **Responsive design** - Mobile-friendly interface
 
 ### REST API
 
