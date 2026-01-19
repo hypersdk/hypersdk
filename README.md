@@ -24,22 +24,42 @@
 
 ### Architecture
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    hyper2kvm (Python)                       │
-│              Main Migration Orchestrator                    │
-└────────────────────────┬────────────────────────────────────┘
-                         │ REST API
-                         ▼
-┌─────────────────────────────────────────────────────────────┐
-│                    hypersdk (Go)                            │
-│              Provider Layer Abstraction                     │
-└─┬─┬─┬─┬─┬─┬─┬─┬───────────────────────────────────────────┘
-  │ │ │ │ │ │ │ │ │
-  ▼ ▼ ▼ ▼ ▼ ▼ ▼ ▼ ▼
-┌───────┬────────┬────────┬────────┬──────────┬─────┬───────────┬──────────────┬────────────┐
-│vSphere│  AWS   │ Azure  │  GCP   │ Hyper-V  │ OCI │ OpenStack │ Alibaba Cloud│  Proxmox   │
-└───────┴────────┴────────┴────────┴──────────┴─────┴───────────┴──────────────┴────────────┘
+```mermaid
+graph TB
+    A[hyper2kvm Python<br/>Main Migration Orchestrator]
+    B[hypersdk Go<br/>Provider Layer Abstraction]
+    C[vSphere Provider<br/>Production Ready]
+    D[AWS Provider<br/>Production Ready]
+    E[Azure Provider<br/>Production Ready]
+    F[GCP Provider<br/>Production Ready]
+    G[Hyper-V Provider<br/>Production Ready]
+    H[OCI Provider<br/>Production Ready]
+    I[OpenStack Provider<br/>Production Ready]
+    J[Alibaba Cloud<br/>Production Ready]
+    K[Proxmox VE<br/>Production Ready]
+
+    A -->|REST API| B
+    B --> C
+    B --> D
+    B --> E
+    B --> F
+    B --> G
+    B --> H
+    B --> I
+    B --> J
+    B --> K
+
+    style A fill:#4CAF50,stroke:#2E7D32,color:#fff
+    style B fill:#2196F3,stroke:#1565C0,color:#fff
+    style C fill:#4CAF50,stroke:#2E7D32,color:#fff
+    style D fill:#4CAF50,stroke:#2E7D32,color:#fff
+    style E fill:#4CAF50,stroke:#2E7D32,color:#fff
+    style F fill:#4CAF50,stroke:#2E7D32,color:#fff
+    style G fill:#4CAF50,stroke:#2E7D32,color:#fff
+    style H fill:#4CAF50,stroke:#2E7D32,color:#fff
+    style I fill:#4CAF50,stroke:#2E7D32,color:#fff
+    style J fill:#4CAF50,stroke:#2E7D32,color:#fff
+    style K fill:#4CAF50,stroke:#2E7D32,color:#fff
 ```
 
 ## ✨ Features
