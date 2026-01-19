@@ -94,6 +94,7 @@ type model struct {
 	filterOS       string // Filter by OS type
 	showDetail     bool   // Show detailed view of current VM
 	dryRun         bool   // Preview mode without executing
+	showHelp       bool   // Show help panel
 }
 
 type vmsLoadedMsg struct {
@@ -356,6 +357,16 @@ func (m model) handleSelectionKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.filterOS = ""
 		m.applyFiltersAndSort()
 		m.message = "Filters cleared"
+		return m, nil
+
+	case "h", "?":
+		// Toggle help panel
+		m.showHelp = !m.showHelp
+		if m.showHelp {
+			m.message = "Help panel shown"
+		} else {
+			m.message = "Help panel hidden"
+		}
 		return m, nil
 
 	case "enter":
@@ -721,18 +732,12 @@ func (m model) renderSelection() string {
 	// Get visible VMs (filtered/sorted)
 	vms := m.getVisibleVMs()
 
-	// Selected count (across all VMs, not just visible)
-	selectedCount := m.countSelected()
+	// Enhanced status bar
+	b.WriteString(renderStatusBar(m))
+	b.WriteString("\n\n")
 
-	// Status bar with filter info
-	statusText := fmt.Sprintf("📊 Total VMs: %d | Visible: %d | ✅ Selected: %d", len(m.vms), len(vms), selectedCount)
-	if m.searchQuery != "" {
-		statusText += fmt.Sprintf(" | 🔍 Search: %s", m.searchQuery)
-	}
-	if m.filterPower != "" {
-		statusText += fmt.Sprintf(" | ⚡ Power: %s", m.filterPower)
-	}
-	b.WriteString(infoStyle.Render(statusText))
+	// Statistics panel
+	b.WriteString(renderStatsPanel(m))
 	b.WriteString("\n\n")
 
 	// VM list (show window of items from visible VMs)
@@ -785,23 +790,28 @@ func (m model) renderSelection() string {
 		b.WriteString("\n")
 	}
 
-	// Help
+	// Help - show full panel or brief hint
 	b.WriteString("\n")
-	b.WriteString(titleStyle.Render("🎯 Controls:"))
-	b.WriteString("\n")
-	b.WriteString(helpStyle.Render("Navigation: ↑/k: Up | ↓/j: Down | Space: Select/deselect | Enter: Continue →"))
-	b.WriteString("\n")
-	b.WriteString(helpStyle.Render("Selection:  a: Select all | n: Deselect all"))
-	b.WriteString("\n")
-	b.WriteString(helpStyle.Render("Search:     /: Search VMs | s: Cycle sort (" + m.sortMode + ") | f: Filter power | c: Clear filters"))
-	b.WriteString("\n")
-	b.WriteString(helpStyle.Render("View:       d/i: Detail view | r: Toggle dry-run"))
-	if m.dryRun {
-		b.WriteString(" ")
-		b.WriteString(infoStyle.Render("[DRY-RUN]"))
+	if m.showHelp {
+		b.WriteString(renderHelpPanel())
+		b.WriteString("\n")
+	} else {
+		b.WriteString(titleStyle.Render("🎯 Controls:"))
+		b.WriteString("\n")
+		b.WriteString(helpStyle.Render("Navigation: ↑/k: Up | ↓/j: Down | Space: Select/deselect | Enter: Continue →"))
+		b.WriteString("\n")
+		b.WriteString(helpStyle.Render("Selection:  a: Select all | n: Deselect all"))
+		b.WriteString("\n")
+		b.WriteString(helpStyle.Render("Search:     /: Search VMs | s: Cycle sort (" + m.sortMode + ") | f: Filter power | c: Clear filters"))
+		b.WriteString("\n")
+		b.WriteString(helpStyle.Render("View:       d/i: Detail view | h/?: Toggle help | r: Toggle dry-run"))
+		if m.dryRun {
+			b.WriteString(" ")
+			b.WriteString(infoStyle.Render("[DRY-RUN]"))
+		}
+		b.WriteString(" | ")
+		b.WriteString(errorStyle.Render("q: Quit"))
 	}
-	b.WriteString(" | ")
-	b.WriteString(errorStyle.Render("q: Quit"))
 
 	if m.message != "" {
 		b.WriteString("\n\n")
@@ -886,48 +896,8 @@ func (m model) renderDetail() string {
 	b.WriteString(titleStyle.Render("📊 VM Details"))
 	b.WriteString("\n\n")
 
-	// VM Name (large)
-	b.WriteString(selectedStyle.Bold(true).Render(item.vm.Name))
-	b.WriteString("\n\n")
-
-	// Basic Info
-	b.WriteString(titleStyle.Render("Basic Information"))
-	b.WriteString("\n")
-	details := fmt.Sprintf(
-		"Path:        %s\n"+
-			"Power State: %s\n"+
-			"Guest OS:    %s\n",
-		item.vm.Path,
-		item.vm.PowerState,
-		item.vm.GuestOS,
-	)
-	b.WriteString(infoStyle.Render(details))
-	b.WriteString("\n\n")
-
-	// Hardware
-	b.WriteString(titleStyle.Render("Hardware"))
-	b.WriteString("\n")
-	hardware := fmt.Sprintf(
-		"CPUs:        %d\n"+
-			"Memory:      %.1f GB (%d MB)\n"+
-			"Storage:     %s (%d bytes)\n",
-		item.vm.NumCPU,
-		float64(item.vm.MemoryMB)/1024,
-		item.vm.MemoryMB,
-		formatBytes(item.vm.Storage),
-		item.vm.Storage,
-	)
-	b.WriteString(infoStyle.Render(hardware))
-	b.WriteString("\n\n")
-
-	// Selection Status
-	b.WriteString(titleStyle.Render("Selection"))
-	b.WriteString("\n")
-	if item.selected {
-		b.WriteString(successStyle.Render("✓ Selected for migration"))
-	} else {
-		b.WriteString(unselectedStyle.Render("Not selected"))
-	}
+	// Enhanced VM card
+	b.WriteString(renderVMCard(item))
 	b.WriteString("\n\n")
 
 	// Help
@@ -1010,6 +980,13 @@ func (m model) renderConfirm() string {
 
 	if m.autoConvert {
 		b.WriteString(helpStyle.Render("Note: hyper2kvm will convert OVF+VMDK to qcow2 format"))
+		b.WriteString("\n\n")
+	}
+
+	// Export preview with disk space validation
+	preview := renderExportPreview(m)
+	if preview != "" {
+		b.WriteString(preview)
 		b.WriteString("\n\n")
 	}
 
