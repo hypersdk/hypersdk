@@ -22,6 +22,7 @@ import (
 
 	"hypersdk/config"
 	"hypersdk/logger"
+	"hypersdk/providers/common"
 	"hypersdk/providers/vsphere"
 )
 
@@ -75,6 +76,17 @@ var (
 	hyper2kvmBinary     = flag.String("hyper2kvm-binary", "", "Path to hyper2kvm binary (auto-detect if empty)")
 	conversionTimeout   = flag.Duration("conversion-timeout", 2*time.Hour, "Timeout for hyper2kvm conversion")
 	streamConversion    = flag.Bool("stream-conversion", true, "Stream hyper2kvm output to console")
+
+	// Phase 6: Orchestration & Monitoring options
+	enableOrchestration = flag.Bool("orchestrate", false, "Enable Phase 6 migration orchestration")
+	progressAPIPort     = flag.String("progress-api", "", "Enable progress API server (e.g., ':8080')")
+	metricsAPIPort      = flag.String("metrics-api", "", "Enable Prometheus metrics API (e.g., ':9090')")
+	auditLogPath        = flag.String("audit-log", "", "Enable audit logging to file (e.g., '/var/log/hypersdk/audit.log')")
+	webhookURL          = flag.String("webhook-url", "", "Send webhook notifications to URL")
+	webhookType         = flag.String("webhook-type", "generic", "Webhook type: slack, discord, or generic")
+	webhookOnStart      = flag.Bool("webhook-on-start", true, "Send webhook on migration start")
+	webhookOnComplete   = flag.Bool("webhook-on-complete", true, "Send webhook on migration complete")
+	webhookOnError      = flag.Bool("webhook-on-error", true, "Send webhook on migration error")
 )
 
 func main() {
@@ -603,6 +615,98 @@ func run(ctx context.Context, cfg *config.Config, log logger.Logger) error {
 		}
 	}
 
+	// Phase 6: Create migration orchestrator if requested
+	var orchestrator *common.MigrationOrchestrator
+	var progressServer *common.ProgressAPIServer
+	var metricsServer *common.MetricsServer
+
+	if *enableOrchestration || *progressAPIPort != "" || *metricsAPIPort != "" || *auditLogPath != "" || *webhookURL != "" {
+		if !*quiet {
+			pterm.Info.Println("Phase 6 orchestration enabled")
+		}
+
+		// Configure webhooks
+		var webhookConfigs []*common.WebhookConfig
+		if *webhookURL != "" {
+			hookType := common.WebhookGeneric
+			switch *webhookType {
+			case "slack":
+				hookType = common.WebhookSlack
+			case "discord":
+				hookType = common.WebhookDiscord
+			}
+
+			webhookConfigs = []*common.WebhookConfig{
+				{
+					Type:       hookType,
+					URL:        *webhookURL,
+					Enabled:    true,
+					OnStart:    *webhookOnStart,
+					OnComplete: *webhookOnComplete,
+					OnError:    *webhookOnError,
+				},
+			}
+		}
+
+		// Create orchestrator configuration
+		orchConfig := &common.OrchestratorConfig{
+			EnableConversion:   *autoConvert,
+			EnableProgress:     *progressAPIPort != "",
+			EnableMetrics:      *metricsAPIPort != "",
+			EnableAuditLogging: *auditLogPath != "",
+			EnableWebhooks:     *webhookURL != "",
+			AuditLogPath:       *auditLogPath,
+			WebhookConfigs:     webhookConfigs,
+		}
+
+		var err error
+		orchestrator, err = common.NewMigrationOrchestrator(orchConfig, log)
+		if err != nil {
+			return fmt.Errorf("create migration orchestrator: %w", err)
+		}
+		defer orchestrator.Close()
+
+		if !*quiet {
+			pterm.Success.Println("Migration orchestrator created")
+		}
+
+		// Start progress API server if requested
+		if *progressAPIPort != "" {
+			tracker := orchestrator.GetProgressTracker()
+			progressServer = common.NewProgressAPIServer(tracker, *progressAPIPort)
+			go func() {
+				if err := progressServer.Start(); err != nil {
+					log.Error("progress API server failed", "error", err)
+				}
+			}()
+			if !*quiet {
+				pterm.Success.Printfln("Progress API started on %s", *progressAPIPort)
+				pterm.Info.Printfln("  • Query progress: http://localhost%s/api/v1/progress", *progressAPIPort)
+			}
+		}
+
+		// Start metrics API server if requested
+		if *metricsAPIPort != "" {
+			collector := orchestrator.GetMetricsCollector()
+			metricsServer = common.NewMetricsServer(collector, *metricsAPIPort)
+			go func() {
+				if err := metricsServer.Start(); err != nil {
+					log.Error("metrics API server failed", "error", err)
+				}
+			}()
+			if !*quiet {
+				pterm.Success.Printfln("Metrics API started on %s", *metricsAPIPort)
+				pterm.Info.Printfln("  • Prometheus metrics: http://localhost%s/metrics", *metricsAPIPort)
+				pterm.Info.Printfln("  • JSON stats: http://localhost%s/stats", *metricsAPIPort)
+			}
+		}
+
+		// Show audit log location if enabled
+		if *auditLogPath != "" && !*quiet {
+			pterm.Info.Printfln("Audit logging enabled: %s", *auditLogPath)
+		}
+	}
+
 	opts := vsphere.DefaultExportOptions()
 	opts.OutputPath = exportDir
 	opts.ParallelDownloads = cfg.DownloadWorkers
@@ -635,12 +739,67 @@ func run(ctx context.Context, cfg *config.Config, log logger.Logger) error {
 	}
 	log.Info("starting export", "vm", info.Name, "output", exportDir, "format", *format, "compress", *compress)
 
+	// Phase 6: Track migration start
+	var taskID string
+	if orchestrator != nil {
+		taskID = fmt.Sprintf("export-%s-%d", sanitizeForPath(info.Name), time.Now().Unix())
+		tracker := orchestrator.GetProgressTracker()
+		if tracker != nil {
+			tracker.StartTask(taskID, info.Name, *providerType)
+			tracker.SetStatus(taskID, common.StatusExporting)
+		}
+		collector := orchestrator.GetMetricsCollector()
+		if collector != nil {
+			collector.RecordMigrationStart(*providerType)
+		}
+		auditLogger := orchestrator.GetAuditLogger()
+		if auditLogger != nil {
+			username := cfg.Username
+			if username == "" {
+				username = os.Getenv("USER")
+			}
+			auditLogger.LogMigrationStart(taskID, info.Name, *providerType, username)
+			auditLogger.LogExportStart(taskID, info.Name, *providerType)
+		}
+	}
+
+	exportStartTime := time.Now()
 	result, err := client.ExportOVF(ctx, selectedVM, opts)
+	exportDuration := time.Since(exportStartTime)
+
 	if err != nil {
+		// Phase 6: Record failure
+		if orchestrator != nil {
+			tracker := orchestrator.GetProgressTracker()
+			if tracker != nil {
+				tracker.FailTask(taskID, err)
+			}
+			collector := orchestrator.GetMetricsCollector()
+			if collector != nil {
+				collector.RecordMigrationFailure(*providerType)
+			}
+			auditLogger := orchestrator.GetAuditLogger()
+			if auditLogger != nil {
+				username := cfg.Username
+				if username == "" {
+					username = os.Getenv("USER")
+				}
+				auditLogger.LogMigrationFailed(taskID, info.Name, *providerType, username, err)
+			}
+		}
+
 		if !*quiet {
 			pterm.Error.Printfln("Export failed: %v", err)
 		}
 		return fmt.Errorf("export %s: %w", *format, err)
+	}
+
+	// Phase 6: Record export completion
+	if orchestrator != nil {
+		auditLogger := orchestrator.GetAuditLogger()
+		if auditLogger != nil {
+			auditLogger.LogExportComplete(taskID, info.Name, *providerType, exportDuration, result.TotalSize)
+		}
 	}
 
 	// Create OVA if requested
@@ -862,6 +1021,58 @@ func run(ctx context.Context, cfg *config.Config, log logger.Logger) error {
 		}
 		if err := history.RecordExport(historyEntry); err != nil {
 			log.Warn("failed to record export in history", "error", err)
+		}
+	}
+
+	// Phase 6: Record migration completion
+	if orchestrator != nil {
+		tracker := orchestrator.GetProgressTracker()
+		if tracker != nil {
+			tracker.CompleteTask(taskID)
+		}
+		collector := orchestrator.GetMetricsCollector()
+		if collector != nil {
+			conversionDuration := time.Duration(0)
+			if result.ConversionResult != nil {
+				conversionDuration = result.ConversionResult.Duration
+			}
+			collector.RecordMigrationSuccess(
+				*providerType,
+				exportDuration,
+				conversionDuration,
+				time.Duration(0), // upload duration (not tracked yet)
+				result.TotalSize,
+				result.TotalSize,
+				result.TotalSize,
+			)
+		}
+		auditLogger := orchestrator.GetAuditLogger()
+		if auditLogger != nil {
+			username := cfg.Username
+			if username == "" {
+				username = os.Getenv("USER")
+			}
+			totalDuration := time.Since(exportStartTime)
+			metadata := map[string]interface{}{
+				"format":         result.Format,
+				"files":          len(result.Files),
+				"compressed":     *compress,
+				"verified":       *verify,
+				"manifest":       result.ManifestPath != "",
+				"converted":      result.ConversionResult != nil && result.ConversionResult.Success,
+			}
+			if *uploadTo != "" {
+				metadata["uploaded_to"] = *uploadTo
+			}
+			auditLogger.LogMigrationComplete(taskID, info.Name, *providerType, username, totalDuration, metadata)
+		}
+
+		// Stop servers if running
+		if progressServer != nil {
+			progressServer.Stop(ctx)
+		}
+		if metricsServer != nil {
+			metricsServer.Stop()
 		}
 	}
 
