@@ -60,10 +60,10 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({ onSubmit }
 
   const inputStyle: React.CSSProperties = {
     width: '100%',
-    padding: '14px 16px',
-    border: '2px solid #000',
+    padding: '8px 10px',
+    border: '1px solid #d1d5db',
     borderRadius: '4px',
-    fontSize: '16px',
+    fontSize: '13px',
     backgroundColor: '#fff',
     transition: 'all 0.25s cubic-bezier(0.215, 0.61, 0.355, 1)',
     color: '#000',
@@ -71,36 +71,34 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({ onSubmit }
 
   const labelStyle: React.CSSProperties = {
     display: 'block',
-    fontSize: '14px',
-    fontWeight: '700',
+    fontSize: '11px',
+    fontWeight: '600',
     color: '#000',
-    marginBottom: '10px',
-    textTransform: 'uppercase',
-    letterSpacing: '0.5px',
+    marginBottom: '4px',
   };
 
   return (
-    <div style={{ backgroundColor: '#fff', borderRadius: '4px', padding: '40px', border: '2px solid #e0e0e0' }}>
-      <h2 style={{ margin: '0 0 32px 0', fontSize: '28px', fontWeight: '700', color: '#000', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Submit Export Job</h2>
+    <div style={{ backgroundColor: '#fff', borderRadius: '4px', padding: '16px' }}>
+      <h2 style={{ margin: '0 0 16px 0', fontSize: '16px', fontWeight: '700', color: '#000' }}>Submit export job</h2>
 
       {error && (
-        <div style={{ padding: '16px', backgroundColor: '#fee2e2', color: '#991b1b', borderRadius: '8px', marginBottom: '20px', fontWeight: '500' }}>
+        <div style={{ padding: '8px', backgroundColor: '#fee2e2', color: '#991b1b', borderRadius: '4px', marginBottom: '12px', fontWeight: '500', fontSize: '12px' }}>
           {error}
         </div>
       )}
 
       {success && (
-        <div style={{ padding: '16px', backgroundColor: '#d1fae5', color: '#065f46', borderRadius: '8px', marginBottom: '20px', fontWeight: '500' }}>
+        <div style={{ padding: '8px', backgroundColor: '#d1fae5', color: '#065f46', borderRadius: '4px', marginBottom: '12px', fontWeight: '500', fontSize: '12px' }}>
           Job submitted successfully!
         </div>
       )}
 
       <form onSubmit={handleSubmit}>
-        <div style={{ display: 'grid', gridTemplateColumns: '280px 1fr', gap: '32px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '180px 1fr', gap: '16px' }}>
           {/* Left Sidebar - Cloud Provider Selection */}
-          <div style={{ padding: '24px', backgroundColor: '#f0f2f7', borderRadius: '4px', border: '2px solid #e0e0e0', height: 'fit-content' }}>
-            <label style={{ ...labelStyle, marginBottom: '20px' }}>Cloud Providers</label>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          <div style={{ padding: '12px', backgroundColor: '#f0f2f7', borderRadius: '4px', height: 'fit-content' }}>
+            <label style={{ ...labelStyle, marginBottom: '8px' }}>Cloud providers</label>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
               {(['vsphere', 'aws', 'azure', 'gcp', 'hyperv', 'oci', 'openstack', 'alibabacloud', 'proxmox'] as CloudProvider[]).map((p) => (
                 <button
                   key={p}
@@ -116,22 +114,20 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({ onSubmit }
                   onMouseLeave={(e) => {
                     if (provider !== p) {
                       e.currentTarget.style.backgroundColor = '#fff';
-                      e.currentTarget.style.borderColor = '#222324';
+                      e.currentTarget.style.borderColor = '#d1d5db';
                       e.currentTarget.style.color = '#222324';
                     }
                   }}
                   style={{
-                    padding: '14px 20px',
+                    padding: '6px 10px',
                     borderRadius: '4px',
-                    border: provider === p ? '2px solid #f0583a' : '2px solid #222324',
+                    border: provider === p ? '1px solid #f0583a' : '1px solid #d1d5db',
                     backgroundColor: provider === p ? '#f0583a' : '#fff',
                     color: provider === p ? '#fff' : '#222324',
-                    fontSize: '14px',
-                    fontWeight: '700',
+                    fontSize: '11px',
+                    fontWeight: '600',
                     cursor: 'pointer',
                     transition: 'all 0.25s cubic-bezier(0.215, 0.61, 0.355, 1)',
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.5px',
                     textAlign: 'left',
                   }}
                 >
@@ -145,8 +141,8 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({ onSubmit }
           <div>
         {/* Provider-Specific Fields */}
         {provider === 'vsphere' && (
-          <div style={{ marginBottom: '32px', padding: '24px', backgroundColor: '#1a1a1a', borderRadius: '4px', border: '1px solid #000' }}>
-            <h3 style={{ fontSize: '20px', fontWeight: '700', marginBottom: '20px', color: '#fff', textTransform: 'uppercase', letterSpacing: '0.5px' }}>vSphere Configuration</h3>
+          <div style={{ marginBottom: '12px', padding: '12px', backgroundColor: '#1a1a1a', borderRadius: '4px' }}>
+            <h3 style={{ fontSize: '14px', fontWeight: '600', marginBottom: '8px', color: '#fff' }}>vSphere configuration</h3>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
               <div>
                 <label style={labelStyle}>vCenter Server *</label>
@@ -177,8 +173,8 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({ onSubmit }
         )}
 
         {provider === 'aws' && (
-          <div style={{ marginBottom: '32px', padding: '24px', backgroundColor: '#1a1a1a', borderRadius: '4px', border: '1px solid #000' }}>
-            <h3 style={{ fontSize: '20px', fontWeight: '700', marginBottom: '20px', color: '#fff', textTransform: 'uppercase', letterSpacing: '0.5px' }}>AWS Configuration</h3>
+          <div style={{ marginBottom: '12px', padding: '12px', backgroundColor: '#1a1a1a', borderRadius: '4px' }}>
+            <h3 style={{ fontSize: '14px', fontWeight: '600', marginBottom: '8px', color: '#fff' }}>AWS configuration</h3>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
               <div>
                 <label style={labelStyle}>Access Key ID *</label>
@@ -205,8 +201,8 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({ onSubmit }
         )}
 
         {provider === 'azure' && (
-          <div style={{ marginBottom: '32px', padding: '24px', backgroundColor: '#1a1a1a', borderRadius: '4px', border: '1px solid #000' }}>
-            <h3 style={{ fontSize: '20px', fontWeight: '700', marginBottom: '20px', color: '#fff', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Azure Configuration</h3>
+          <div style={{ marginBottom: '12px', padding: '12px', backgroundColor: '#1a1a1a', borderRadius: '4px' }}>
+            <h3 style={{ fontSize: '14px', fontWeight: '600', marginBottom: '8px', color: '#fff' }}>Azure configuration</h3>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
               <div>
                 <label style={labelStyle}>Subscription ID *</label>
@@ -245,8 +241,8 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({ onSubmit }
         )}
 
         {provider === 'gcp' && (
-          <div style={{ marginBottom: '32px', padding: '24px', backgroundColor: '#1a1a1a', borderRadius: '4px', border: '1px solid #000' }}>
-            <h3 style={{ fontSize: '20px', fontWeight: '700', marginBottom: '20px', color: '#fff', textTransform: 'uppercase', letterSpacing: '0.5px' }}>GCP Configuration</h3>
+          <div style={{ marginBottom: '12px', padding: '12px', backgroundColor: '#1a1a1a', borderRadius: '4px' }}>
+            <h3 style={{ fontSize: '14px', fontWeight: '600', marginBottom: '8px', color: '#fff' }}>GCP configuration</h3>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
               <div>
                 <label style={labelStyle}>Project ID *</label>
@@ -273,8 +269,8 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({ onSubmit }
         )}
 
         {provider === 'hyperv' && (
-          <div style={{ marginBottom: '32px', padding: '24px', backgroundColor: '#1a1a1a', borderRadius: '4px', border: '1px solid #000' }}>
-            <h3 style={{ fontSize: '20px', fontWeight: '700', marginBottom: '20px', color: '#fff', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Hyper-V Configuration</h3>
+          <div style={{ marginBottom: '12px', padding: '12px', backgroundColor: '#1a1a1a', borderRadius: '4px' }}>
+            <h3 style={{ fontSize: '14px', fontWeight: '600', marginBottom: '8px', color: '#fff' }}>Hyper-V configuration</h3>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
               <div>
                 <label style={labelStyle}>Host *</label>
@@ -301,8 +297,8 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({ onSubmit }
         )}
 
         {provider === 'oci' && (
-          <div style={{ marginBottom: '32px', padding: '24px', backgroundColor: '#1a1a1a', borderRadius: '4px', border: '1px solid #000' }}>
-            <h3 style={{ fontSize: '20px', fontWeight: '700', marginBottom: '20px', color: '#fff', textTransform: 'uppercase', letterSpacing: '0.5px' }}>OCI Configuration</h3>
+          <div style={{ marginBottom: '12px', padding: '12px', backgroundColor: '#1a1a1a', borderRadius: '4px' }}>
+            <h3 style={{ fontSize: '14px', fontWeight: '600', marginBottom: '8px', color: '#fff' }}>OCI configuration</h3>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
               <div>
                 <label style={labelStyle}>Tenancy OCID *</label>
@@ -341,8 +337,8 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({ onSubmit }
         )}
 
         {provider === 'openstack' && (
-          <div style={{ marginBottom: '32px', padding: '24px', backgroundColor: '#1a1a1a', borderRadius: '4px', border: '1px solid #000' }}>
-            <h3 style={{ fontSize: '20px', fontWeight: '700', marginBottom: '20px', color: '#fff', textTransform: 'uppercase', letterSpacing: '0.5px' }}>OpenStack Configuration</h3>
+          <div style={{ marginBottom: '12px', padding: '12px', backgroundColor: '#1a1a1a', borderRadius: '4px' }}>
+            <h3 style={{ fontSize: '14px', fontWeight: '600', marginBottom: '8px', color: '#fff' }}>OpenStack configuration</h3>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
               <div>
                 <label style={labelStyle}>Auth URL *</label>
@@ -381,8 +377,8 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({ onSubmit }
         )}
 
         {provider === 'alibabacloud' && (
-          <div style={{ marginBottom: '32px', padding: '24px', backgroundColor: '#1a1a1a', borderRadius: '4px', border: '1px solid #000' }}>
-            <h3 style={{ fontSize: '20px', fontWeight: '700', marginBottom: '20px', color: '#fff', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Alibaba Cloud Configuration</h3>
+          <div style={{ marginBottom: '12px', padding: '12px', backgroundColor: '#1a1a1a', borderRadius: '4px' }}>
+            <h3 style={{ fontSize: '14px', fontWeight: '600', marginBottom: '8px', color: '#fff' }}>Alibaba Cloud configuration</h3>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
               <div>
                 <label style={labelStyle}>Access Key ID *</label>
@@ -409,8 +405,8 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({ onSubmit }
         )}
 
         {provider === 'proxmox' && (
-          <div style={{ marginBottom: '32px', padding: '24px', backgroundColor: '#1a1a1a', borderRadius: '4px', border: '1px solid #000' }}>
-            <h3 style={{ fontSize: '20px', fontWeight: '700', marginBottom: '20px', color: '#fff', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Proxmox VE Configuration</h3>
+          <div style={{ marginBottom: '12px', padding: '12px', backgroundColor: '#1a1a1a', borderRadius: '4px' }}>
+            <h3 style={{ fontSize: '14px', fontWeight: '600', marginBottom: '8px', color: '#fff' }}>Proxmox VE configuration</h3>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
               <div>
                 <label style={labelStyle}>Host *</label>
@@ -453,8 +449,8 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({ onSubmit }
         )}
 
         {/* Common Fields */}
-        <div style={{ marginBottom: '32px', padding: '24px', backgroundColor: '#1a1a1a', borderRadius: '4px', border: '1px solid #000' }}>
-          <h3 style={{ fontSize: '20px', fontWeight: '700', marginBottom: '20px', color: '#fff', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Export Options</h3>
+        <div style={{ marginBottom: '12px', padding: '12px', backgroundColor: '#1a1a1a', borderRadius: '4px' }}>
+          <h3 style={{ fontSize: '14px', fontWeight: '600', marginBottom: '8px', color: '#fff' }}>Export options</h3>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
             <div>
               <label style={labelStyle}>Job Name *</label>
@@ -512,14 +508,12 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({ onSubmit }
               backgroundColor: isSubmitting ? '#666' : '#f0583a',
               color: '#fff',
               fontSize: '16px',
-              fontWeight: '700',
+              fontWeight: '600',
               cursor: isSubmitting ? 'not-allowed' : 'pointer',
               transition: 'all 0.25s cubic-bezier(0.215, 0.61, 0.355, 1)',
-              textTransform: 'uppercase',
-              letterSpacing: '1px',
             }}
           >
-            {isSubmitting ? 'Submitting...' : 'Submit Job'}
+            {isSubmitting ? 'Submitting...' : 'Submit job'}
           </button>
         </div>
           </div>

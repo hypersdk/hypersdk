@@ -28,8 +28,6 @@ export const Header: React.FC<HeaderProps> = ({ onLogout }) => {
             fontSize: '24px',
             fontWeight: '700',
             color: '#000',
-            textTransform: 'uppercase',
-            letterSpacing: '1px',
           }}>
             HyperSDK
           </h1>
@@ -43,8 +41,6 @@ export const Header: React.FC<HeaderProps> = ({ onLogout }) => {
                 fontSize: '14px',
                 fontWeight: '600',
                 textDecoration: 'none',
-                textTransform: 'uppercase',
-                letterSpacing: '0.5px',
                 transition: 'color 0.25s cubic-bezier(0.215, 0.61, 0.355, 1)',
               }}
               onMouseEnter={(e) => e.currentTarget.style.color = '#f0583a'}
@@ -59,8 +55,6 @@ export const Header: React.FC<HeaderProps> = ({ onLogout }) => {
                 fontSize: '14px',
                 fontWeight: '600',
                 textDecoration: 'none',
-                textTransform: 'uppercase',
-                letterSpacing: '0.5px',
                 transition: 'color 0.25s cubic-bezier(0.215, 0.61, 0.355, 1)',
               }}
               onMouseEnter={(e) => e.currentTarget.style.color = '#f0583a'}
@@ -75,8 +69,6 @@ export const Header: React.FC<HeaderProps> = ({ onLogout }) => {
                 fontSize: '14px',
                 fontWeight: '600',
                 textDecoration: 'none',
-                textTransform: 'uppercase',
-                letterSpacing: '0.5px',
                 transition: 'color 0.25s cubic-bezier(0.215, 0.61, 0.355, 1)',
               }}
               onMouseEnter={(e) => e.currentTarget.style.color = '#f0583a'}
@@ -91,8 +83,6 @@ export const Header: React.FC<HeaderProps> = ({ onLogout }) => {
                 fontSize: '14px',
                 fontWeight: '600',
                 textDecoration: 'none',
-                textTransform: 'uppercase',
-                letterSpacing: '0.5px',
                 transition: 'color 0.25s cubic-bezier(0.215, 0.61, 0.355, 1)',
               }}
               onMouseEnter={(e) => e.currentTarget.style.color = '#f0583a'}
@@ -119,12 +109,10 @@ export const Header: React.FC<HeaderProps> = ({ onLogout }) => {
                 padding: '8px 16px',
                 backgroundColor: 'transparent',
                 color: '#222324',
-                border: '2px solid #222324',
+                border: '1px solid #d1d5db',
                 borderRadius: '4px',
                 fontSize: '12px',
-                fontWeight: '700',
-                textTransform: 'uppercase',
-                letterSpacing: '0.5px',
+                fontWeight: '600',
                 cursor: 'pointer',
                 transition: 'all 0.25s cubic-bezier(0.215, 0.61, 0.355, 1)',
               }}
@@ -133,7 +121,7 @@ export const Header: React.FC<HeaderProps> = ({ onLogout }) => {
                 e.currentTarget.style.color = '#f0583a';
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.borderColor = '#222324';
+                e.currentTarget.style.borderColor = '#d1d5db';
                 e.currentTarget.style.color = '#222324';
               }}
             >
