@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"hypersdk/logger"
+	"hypersdk/retry"
 )
 
 // CloudStorage defines the interface for cloud storage providers
@@ -63,11 +64,11 @@ type CloudStorageConfig struct {
 	SecretKey   string        // AWS secret key, Azure account key
 	Host        string        // SFTP host
 	Port        int           // SFTP port
-	Username    string        // SFTP username
-	Password    string        // SFTP password
-	PrivateKey  string        // SFTP private key path
-	Prefix      string        // Path prefix in bucket/container
-	RetryConfig *RetryConfig  // Retry configuration (nil = use defaults)
+	Username    string              // SFTP username
+	Password    string              // SFTP password
+	PrivateKey  string              // SFTP private key path
+	Prefix      string              // Path prefix in bucket/container
+	RetryConfig *retry.RetryConfig  // Retry configuration (nil = use defaults)
 }
 
 // NewCloudStorage creates a cloud storage client from URL

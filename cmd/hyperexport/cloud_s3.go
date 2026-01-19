@@ -19,6 +19,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 
 	"hypersdk/logger"
+	"hypersdk/retry"
 )
 
 // S3Storage implements CloudStorage for AWS S3
@@ -28,7 +29,7 @@ type S3Storage struct {
 	bucket   string
 	prefix   string
 	log      logger.Logger
-	retryer  *Retryer
+	retryer  *retry.Retryer
 }
 
 // NewS3Storage creates a new S3 storage client
@@ -71,7 +72,7 @@ func NewS3Storage(cfg *CloudStorageConfig, log logger.Logger) (*S3Storage, error
 	})
 
 	// Initialize retryer with config or defaults
-	retryer := NewRetryer(cfg.RetryConfig, log)
+	retryer := retry.NewRetryer(cfg.RetryConfig, log)
 
 	return &S3Storage{
 		client:   s3Client,
@@ -90,13 +91,13 @@ func (s *S3Storage) Upload(ctx context.Context, localPath, remotePath string, pr
 	return s.retryer.Do(ctx, func(ctx context.Context, attempt int) error {
 		file, err := os.Open(localPath)
 		if err != nil {
-			return IsNonRetryable(fmt.Errorf("open file: %w", err))
+			return retry.IsNonRetryable(fmt.Errorf("open file: %w", err))
 		}
 		defer file.Close()
 
 		fileInfo, err := file.Stat()
 		if err != nil {
-			return IsNonRetryable(fmt.Errorf("stat file: %w", err))
+			return retry.IsNonRetryable(fmt.Errorf("stat file: %w", err))
 		}
 
 		if attempt == 1 {
@@ -172,7 +173,7 @@ func (s *S3Storage) Download(ctx context.Context, remotePath, localPath string, 
 			// Not found errors are not retryable
 			var notFound *types.NoSuchKey
 			if errors.As(err, &notFound) {
-				return IsNonRetryable(fmt.Errorf("object not found: %w", err))
+				return retry.IsNonRetryable(fmt.Errorf("object not found: %w", err))
 			}
 			return fmt.Errorf("get object from S3: %w", err)
 		}
@@ -181,7 +182,7 @@ func (s *S3Storage) Download(ctx context.Context, remotePath, localPath string, 
 		// Create local file
 		file, err := os.Create(localPath)
 		if err != nil {
-			return IsNonRetryable(fmt.Errorf("create file: %w", err))
+			return retry.IsNonRetryable(fmt.Errorf("create file: %w", err))
 		}
 		defer file.Close()
 
@@ -206,7 +207,7 @@ func (s *S3Storage) Download(ctx context.Context, remotePath, localPath string, 
 					}
 				}
 				if ew != nil {
-					return IsNonRetryable(fmt.Errorf("write file: %w", ew))
+					return retry.IsNonRetryable(fmt.Errorf("write file: %w", ew))
 				}
 			}
 			if er != nil {

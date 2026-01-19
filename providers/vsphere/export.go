@@ -21,6 +21,7 @@ import (
 	"github.com/vmware/govmomi/vim25/types"
 
 	"hypersdk/progress"
+	"hypersdk/retry"
 )
 
 const (
@@ -83,11 +84,28 @@ func (c *VSphereClient) ExportOVF(ctx context.Context, vmPath string, opts Expor
 		return nil, fmt.Errorf("prepare output directory: %w", err)
 	}
 
-	// Get VM
-	vm, err := c.finder.VirtualMachine(ctx, vmPath)
+	// Get VM with retry
+	var vm *object.VirtualMachine
+	vmResult, err := c.retryer.DoWithResult(ctx, func(ctx context.Context, attempt int) (interface{}, error) {
+		if attempt > 1 {
+			c.logger.Info("retrying VM lookup", "vm", vmPath, "attempt", attempt)
+		}
+
+		foundVM, err := c.finder.VirtualMachine(ctx, vmPath)
+		if err != nil {
+			// VM not found is not retryable
+			if strings.Contains(err.Error(), "not found") {
+				return nil, retry.IsNonRetryable(err)
+			}
+			return nil, fmt.Errorf("find VM: %w", err)
+		}
+		return foundVM, nil
+	}, fmt.Sprintf("find VM %s", vmPath))
+
 	if err != nil {
-		return nil, fmt.Errorf("find VM: %w", err)
+		return nil, err
 	}
+	vm = vmResult.(*object.VirtualMachine)
 
 	// Remove CD/DVD devices if requested
 	if opts.RemoveCDROM {
@@ -102,11 +120,24 @@ func (c *VSphereClient) ExportOVF(ctx context.Context, vmPath string, opts Expor
 		return nil, fmt.Errorf("create OVF descriptor: %w", err)
 	}
 
-	// Start export lease with proper cleanup
-	lease, err := vm.Export(ctx)
+	// Start export lease with retry and proper cleanup
+	var lease *nfc.Lease
+	leaseResult, err := c.retryer.DoWithResult(ctx, func(ctx context.Context, attempt int) (interface{}, error) {
+		if attempt > 1 {
+			c.logger.Info("retrying export lease creation", "vm", vmPath, "attempt", attempt)
+		}
+
+		exportLease, err := vm.Export(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("start export lease: %w", err)
+		}
+		return exportLease, nil
+	}, fmt.Sprintf("create export lease for %s", vmPath))
+
 	if err != nil {
-		return nil, fmt.Errorf("start export lease: %w", err)
+		return nil, err
 	}
+	lease = leaseResult.(*nfc.Lease)
 
 	// Defer lease cleanup
 	defer func() {
@@ -117,14 +148,27 @@ func (c *VSphereClient) ExportOVF(ctx context.Context, vmPath string, opts Expor
 		}
 	}()
 
-	// Wait for lease to be ready with timeout
+	// Wait for lease to be ready with retry and timeout
 	leaseCtx, leaseCancel := context.WithTimeout(ctx, leaseWaitTimeout)
 	defer leaseCancel()
 
-	info, err := lease.Wait(leaseCtx, nil)
+	var info *nfc.LeaseInfo
+	infoResult, err := c.retryer.DoWithResult(leaseCtx, func(ctx context.Context, attempt int) (interface{}, error) {
+		if attempt > 1 {
+			c.logger.Info("retrying lease wait", "vm", vmPath, "attempt", attempt)
+		}
+
+		leaseInfo, err := lease.Wait(ctx, nil)
+		if err != nil {
+			return nil, fmt.Errorf("wait for lease ready: %w", err)
+		}
+		return leaseInfo, nil
+	}, fmt.Sprintf("wait for lease ready %s", vmPath))
+
 	if err != nil {
-		return nil, fmt.Errorf("wait for lease ready: %w", err)
+		return nil, err
 	}
+	info = infoResult.(*nfc.LeaseInfo)
 
 	// Calculate total size
 	totalSize := int64(0)
@@ -176,9 +220,20 @@ func (c *VSphereClient) ExportOVF(ctx context.Context, vmPath string, opts Expor
 		bar.Finish()
 	}
 
-	// Complete lease
-	if err := lease.Complete(ctx); err != nil {
-		return nil, fmt.Errorf("complete lease: %w", err)
+	// Complete lease with retry
+	err = c.retryer.Do(ctx, func(ctx context.Context, attempt int) error {
+		if attempt > 1 {
+			c.logger.Info("retrying lease completion", "vm", vmPath, "attempt", attempt)
+		}
+
+		if err := lease.Complete(ctx); err != nil {
+			return fmt.Errorf("complete lease: %w", err)
+		}
+		return nil
+	}, fmt.Sprintf("complete lease for %s", vmPath))
+
+	if err != nil {
+		return nil, err
 	}
 
 	duration := time.Since(startTime)
@@ -387,16 +442,13 @@ func (c *VSphereClient) downloadFileWithRetry(
 	maxRetries int,
 	progressBar progress.ProgressReporter,
 ) (int64, error) {
-	var lastErr error
+	fileName := filepath.Base(filePath)
 
-	for attempt := 0; attempt <= maxRetries; attempt++ {
-		if attempt > 0 {
-			c.logger.Debug("retrying download",
-				"file", filepath.Base(filePath),
-				"attempt", attempt,
-				"delay", c.config.RetryDelay*time.Duration(attempt))
-
-			time.Sleep(c.config.RetryDelay * time.Duration(attempt))
+	result, err := c.retryer.DoWithResult(ctx, func(ctx context.Context, attempt int) (interface{}, error) {
+		if attempt > 1 {
+			c.logger.Info("retrying file download",
+				"file", fileName,
+				"attempt", attempt)
 
 			if progressBar != nil {
 				progressBar.SetTotal(0) // Reset progress bar for retry
@@ -404,21 +456,28 @@ func (c *VSphereClient) downloadFileWithRetry(
 		}
 
 		bytes, err := c.downloadFileResumable(ctx, urlStr, filePath, progressBar)
-		if err == nil {
-			if progressBar != nil {
-				progressBar.Finish()
+		if err != nil {
+			// Check for non-retryable errors (file not found, permission denied, etc.)
+			if strings.Contains(err.Error(), "404") ||
+			   strings.Contains(err.Error(), "403") ||
+			   strings.Contains(err.Error(), "not found") {
+				return nil, retry.IsNonRetryable(err)
 			}
-			return bytes, nil
+			return nil, fmt.Errorf("download file %s: %w", fileName, err)
 		}
 
-		lastErr = err
-		c.logger.Warn("download attempt failed",
-			"file", filepath.Base(filePath),
-			"attempt", attempt,
-			"error", err)
+		if progressBar != nil {
+			progressBar.Finish()
+		}
+
+		return bytes, nil
+	}, fmt.Sprintf("download %s", fileName))
+
+	if err != nil {
+		return 0, err
 	}
 
-	return 0, fmt.Errorf("failed after %d attempts: %w", maxRetries, lastErr)
+	return result.(int64), nil
 }
 
 func (c *VSphereClient) downloadFileResumable(

@@ -17,13 +17,15 @@ import (
 
 	"hypersdk/config"
 	"hypersdk/logger"
+	"hypersdk/retry"
 )
 
 type VSphereClient struct {
-	client *govmomi.Client
-	finder *find.Finder
-	config *config.Config
-	logger logger.Logger
+	client  *govmomi.Client
+	finder  *find.Finder
+	config  *config.Config
+	logger  logger.Logger
+	retryer *retry.Retryer
 }
 
 func NewVSphereClient(ctx context.Context, cfg *config.Config, log logger.Logger) (*VSphereClient, error) {
@@ -61,8 +63,25 @@ func NewVSphereClient(ctx context.Context, cfg *config.Config, log logger.Logger
 		SessionManager: session.NewManager(vimClient),
 	}
 
-	// Login
-	if err := client.Login(ctx, u.User); err != nil {
+	// Create temporary retryer for login (before full client is created)
+	loginRetryConfig := &retry.RetryConfig{
+		MaxAttempts:  cfg.RetryAttempts,
+		InitialDelay: cfg.RetryDelay,
+		MaxDelay:     cfg.RetryDelay * 8,
+		Multiplier:   2.0,
+		Jitter:       true,
+	}
+	loginRetryer := retry.NewRetryer(loginRetryConfig, log)
+
+	// Login with retry
+	err = loginRetryer.Do(ctx, func(ctx context.Context, attempt int) error {
+		if attempt > 1 {
+			log.Info("retrying vCenter login", "attempt", attempt, "url", cfg.VCenterURL)
+		}
+		return client.Login(ctx, u.User)
+	}, "vCenter login")
+
+	if err != nil {
 		return nil, fmt.Errorf("login to vCenter: %w", err)
 	}
 
@@ -87,11 +106,22 @@ func NewVSphereClient(ctx context.Context, cfg *config.Config, log logger.Logger
 		"url", cfg.VCenterURL,
 		"datacenter", dc.Name())
 
+	// Initialize retryer with vSphere-specific configuration
+	retryConfig := &retry.RetryConfig{
+		MaxAttempts:  cfg.RetryAttempts,
+		InitialDelay: cfg.RetryDelay,
+		MaxDelay:     cfg.RetryDelay * 16, // Cap at 16x initial delay
+		Multiplier:   2.0,
+		Jitter:       true,
+	}
+	retryer := retry.NewRetryer(retryConfig, log)
+
 	return &VSphereClient{
-		client: client,
-		finder: finder,
-		config: cfg,
-		logger: log,
+		client:  client,
+		finder:  finder,
+		config:  cfg,
+		logger:  log,
+		retryer: retryer,
 	}, nil
 }
 
