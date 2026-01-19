@@ -1,0 +1,28 @@
+# OpenStack Configuration Example
+
+openstack:
+  # Keystone Authentication
+  auth_url: "https://openstack.example.com:5000/v3"
+  username: "admin"
+  password: "your-secure-password"
+  tenant_name: "admin"              # Project name
+  tenant_id: ""                     # Optional: Use ID instead of name
+  domain_name: "Default"            # Domain for v3 auth
+  
+  # Region
+  region: "RegionOne"
+
+  # Swift Object Storage
+  container: "vm-backups"           # Swift container for backups
+
+  # Export Settings
+  export_format: "qcow2"            # qcow2, vmdk, or raw
+  identity_version: "v3"            # v2.0 or v3
+
+  enabled: true
+
+# Alternative: Use OpenStack RC file
+# Source your openrc file: source openstack-admin-openrc.sh
+# Then these environment variables will be used:
+#   OS_AUTH_URL, OS_USERNAME, OS_PASSWORD, OS_TENANT_NAME,
+#   OS_DOMAIN_NAME, OS_REGION_NAME

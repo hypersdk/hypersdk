@@ -34,7 +34,10 @@ For recording your own demos, see [demos/RECORDING-GUIDE.md](demos/RECORDING-GUI
 - ✅ **Azure** (Microsoft Azure VMs) - Production Ready
 - ✅ **GCP** (Google Compute Engine) - Production Ready
 - ✅ **Hyper-V** (Microsoft Hyper-V) - Production Ready
-- 📝 **Proxmox** - Not Implemented
+- ✅ **OCI** (Oracle Cloud Infrastructure) - Production Ready
+- ✅ **OpenStack** (Nova/Swift) - Production Ready
+- ✅ **Alibaba Cloud** (Aliyun ECS/OSS) - Production Ready
+- ✅ **Proxmox VE** (Proxmox Virtual Environment) - Production Ready
 
 ### Architecture
 
@@ -47,6 +50,10 @@ graph TB
     E[Azure Provider<br/>Production Ready]
     F[GCP Provider<br/>Production Ready]
     G[Hyper-V Provider<br/>Production Ready]
+    H[OCI Provider<br/>Production Ready]
+    I[OpenStack Provider<br/>Production Ready]
+    J[Alibaba Cloud<br/>Production Ready]
+    K[Proxmox VE<br/>Production Ready]
 
     A -->|REST API| B
     B --> C
@@ -54,6 +61,10 @@ graph TB
     B --> E
     B --> F
     B --> G
+    B --> H
+    B --> I
+    B --> J
+    B --> K
 
     style A fill:#4CAF50,stroke:#2E7D32,color:#fff
     style B fill:#2196F3,stroke:#1565C0,color:#fff
@@ -62,13 +73,17 @@ graph TB
     style E fill:#4CAF50,stroke:#2E7D32,color:#fff
     style F fill:#4CAF50,stroke:#2E7D32,color:#fff
     style G fill:#4CAF50,stroke:#2E7D32,color:#fff
+    style H fill:#4CAF50,stroke:#2E7D32,color:#fff
+    style I fill:#4CAF50,stroke:#2E7D32,color:#fff
+    style J fill:#4CAF50,stroke:#2E7D32,color:#fff
+    style K fill:#4CAF50,stroke:#2E7D32,color:#fff
 ```
 
 ## ✨ Features
 
 ### Core Capabilities
 
-- **Multi-Cloud Support** - AWS, Azure, GCP, vSphere, Hyper-V providers
+- **Multi-Cloud Support** - 9 cloud providers: vSphere, AWS, Azure, GCP, Hyper-V, OCI, OpenStack, Alibaba Cloud, Proxmox VE
 - **Direct SDK Integration** - Native Go SDK clients (no external binaries)
 - **Beautiful Terminal UI** - Modern pterm-based interface with animations
 - **REST JSON API** - 51+ endpoints for complete automation

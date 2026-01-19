@@ -1,0 +1,48 @@
+# Proxmox VE Configuration Example
+
+proxmox:
+  # Connection Settings
+  host: "proxmox.example.com"       # Proxmox VE host or cluster IP
+  port: 8006                        # API port (default: 8006)
+
+  # Authentication (Option 1: Password)
+  username: "root@pam"              # Format: user@realm
+  password: "your-password"
+  
+  # Authentication (Option 2: API Token - Recommended)
+  # Create token in Proxmox UI: Datacenter → Permissions → API Tokens
+  # token_id: "root@pam!hypersdk"
+  # token_secret: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+
+  # Default Settings
+  node: "pve1"                      # Default Proxmox node
+  storage: "local"                  # Storage for backups
+
+  # Backup Options
+  backup_mode: "snapshot"           # snapshot, suspend, or stop
+  compress: "zstd"                  # zstd, gzip, lzo, or empty for no compression
+
+  # Security
+  verify_ssl: false                 # Set to true with valid SSL certificate
+
+  # Export Settings
+  export_format: "vzdump"           # vzdump format (VMA)
+
+  enabled: true
+
+# Supported Realms:
+# - pam: Linux PAM authentication
+# - pve: Proxmox VE authentication server
+# - ad: Active Directory
+# - ldap: LDAP
+
+# Backup Modes:
+# - snapshot: Uses LVM/ZFS snapshots, VM stays online (requires snapshot storage)
+# - suspend: Suspends VM during backup (brief interruption)
+# - stop: Stops VM before backup (most reliable, longest downtime)
+
+# Compression:
+# - zstd: Best balance (recommended)
+# - gzip: Standard compression
+# - lzo: Fastest, less compression
+# - (empty): No compression

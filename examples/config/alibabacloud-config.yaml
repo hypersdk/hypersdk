@@ -1,0 +1,27 @@
+# Alibaba Cloud (Aliyun) Configuration Example
+
+alibaba_cloud:
+  # RAM User AccessKey
+  access_key_id: "LTAI4G..."
+  access_key_secret: "your-access-key-secret"
+
+  # Region
+  region_id: "cn-hangzhou"          # cn-beijing, cn-shanghai, ap-southeast-1, etc.
+
+  # OSS (Object Storage Service)
+  bucket: "vm-backups"              # OSS bucket name
+  
+  # Optional: Custom OSS endpoint
+  # If not specified, auto-detected from region: oss-{region}.aliyuncs.com
+  # oss_endpoint: "https://oss-cn-hangzhou.aliyuncs.com"
+
+  # Export Settings
+  export_format: "qcow2"            # qcow2 or raw
+
+  enabled: true
+
+# Available Regions:
+# China Mainland: cn-hangzhou, cn-shanghai, cn-beijing, cn-shenzhen
+# Asia Pacific: ap-southeast-1 (Singapore), ap-northeast-1 (Tokyo)
+# Europe: eu-central-1 (Frankfurt)
+# Americas: us-west-1 (Silicon Valley), us-east-1 (Virginia)

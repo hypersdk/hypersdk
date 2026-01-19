@@ -1,0 +1,25 @@
+# Oracle Cloud Infrastructure (OCI) Configuration Example
+
+oci:
+  # OCI Authentication
+  tenancy_ocid: "ocid1.tenancy.oc1..aaaa..."
+  user_ocid: "ocid1.user.oc1..aaaa..."
+  fingerprint: "aa:bb:cc:dd:ee:ff:00:11:22:33:44:55:66:77:88:99"
+  private_key_path: "/home/user/.oci/oci_api_key.pem"
+
+  # Region and Compartment
+  region: "us-phoenix-1"           # us-ashburn-1, eu-frankfurt-1, etc.
+  compartment_ocid: "ocid1.compartment.oc1..aaaa..."
+
+  # Object Storage
+  bucket: "vm-backups"
+  namespace: "your-namespace"       # Found in OCI console
+
+  # Export Settings
+  export_format: "qcow2"            # qcow2 or vmdk
+
+  # Optional: Use OCI Config File
+  config_path: "~/.oci/config"      # Path to OCI CLI config
+  profile: "DEFAULT"                # Profile name in config file
+
+  enabled: true
