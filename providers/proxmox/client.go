@@ -13,7 +13,9 @@ import (
 	"strings"
 	"time"
 
+	"hypersdk/config"
 	"hypersdk/logger"
+	"hypersdk/retry"
 )
 
 // Client represents a Proxmox VE API client
@@ -24,28 +26,9 @@ type Client struct {
 	csrf       string
 	username   string
 	realm      string
+	config     *config.ProxmoxConfig
 	logger     logger.Logger
-}
-
-// Config holds Proxmox connection configuration
-type Config struct {
-	Host     string
-	Port     int
-	Username string
-	Password string
-	Realm    string // Default: "pam"
-	Insecure bool   // Skip TLS verification
-	Timeout  time.Duration
-}
-
-// DefaultConfig returns default configuration
-func DefaultConfig() *Config {
-	return &Config{
-		Port:     8006,
-		Realm:    "pam",
-		Insecure: false,
-		Timeout:  30 * time.Second,
-	}
+	retryer    *retry.Retryer
 }
 
 // AuthResponse represents authentication response
@@ -70,34 +53,45 @@ type ErrorResponse struct {
 }
 
 // NewClient creates a new Proxmox VE client
-func NewClient(cfg *Config, log logger.Logger) (*Client, error) {
+func NewClient(cfg *config.ProxmoxConfig, log logger.Logger) (*Client, error) {
 	if cfg == nil {
-		cfg = DefaultConfig()
+		return nil, fmt.Errorf("Proxmox config is required")
 	}
 
 	// Build base URL
-	scheme := "https"
-	if cfg.Insecure {
-		scheme = "http"
-	}
-
 	port := cfg.Port
 	if port == 0 {
 		port = 8006
 	}
 
-	baseURL := fmt.Sprintf("%s://%s:%d/api2/json", scheme, cfg.Host, port)
+	baseURL := fmt.Sprintf("https://%s:%d/api2/json", cfg.Host, port)
 
 	// Create HTTP client with custom TLS config
 	tr := &http.Transport{
 		TLSClientConfig: &tls.Config{
-			InsecureSkipVerify: cfg.Insecure,
+			InsecureSkipVerify: !cfg.VerifySSL,
 		},
 	}
 
-	timeout := cfg.Timeout
-	if timeout == 0 {
-		timeout = 30 * time.Second
+	timeout := 30 * time.Second
+
+	// Initialize retryer with defaults
+	retryConfig := &retry.RetryConfig{
+		MaxAttempts:  5,
+		InitialDelay: 2 * time.Second,
+		MaxDelay:     30 * time.Second,
+		Multiplier:   2.0,
+		Jitter:       true,
+	}
+	retryer := retry.NewRetryer(retryConfig, log)
+
+	// Parse username and realm from username (format: user@realm)
+	username := cfg.Username
+	realm := "pam" // default
+	if strings.Contains(username, "@") {
+		parts := strings.SplitN(username, "@", 2)
+		username = parts[0]
+		realm = parts[1]
 	}
 
 	client := &Client{
@@ -106,19 +100,26 @@ func NewClient(cfg *Config, log logger.Logger) (*Client, error) {
 			Transport: tr,
 			Timeout:   timeout,
 		},
-		username: cfg.Username,
-		realm:    cfg.Realm,
+		username: username,
+		realm:    realm,
+		config:   cfg,
 		logger:   log,
+		retryer:  retryer,
 	}
 
 	// Authenticate
-	if err := client.authenticate(cfg.Username, cfg.Password, cfg.Realm); err != nil {
+	if err := client.authenticate(cfg.Username, cfg.Password, realm); err != nil {
 		return nil, fmt.Errorf("authentication failed: %w", err)
 	}
 
 	log.Info("connected to Proxmox VE", "host", cfg.Host, "user", cfg.Username)
 
 	return client, nil
+}
+
+// SetNetworkMonitor sets the network monitor for retry operations
+func (c *Client) SetNetworkMonitor(monitor retry.NetworkMonitor) {
+	c.retryer.SetNetworkMonitor(monitor)
 }
 
 // authenticate performs authentication and stores ticket/CSRF token

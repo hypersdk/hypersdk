@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"hypersdk/config"
 	"hypersdk/logger"
 	"hypersdk/providers"
 )
@@ -22,19 +23,16 @@ type Provider struct {
 // NewProvider creates a new Proxmox provider instance
 func NewProvider(cfg providers.ProviderConfig, log logger.Logger) (providers.Provider, error) {
 	// Convert generic config to Proxmox-specific config
-	proxmoxCfg := &Config{
-		Host:     cfg.Host,
-		Port:     cfg.Port,
-		Username: cfg.Username,
-		Password: cfg.Password,
-		Realm:    cfg.Region, // Reuse Region field for Proxmox realm (pam, pve, etc.)
-		Insecure: cfg.Insecure,
+	proxmoxCfg := &config.ProxmoxConfig{
+		Host:       cfg.Host,
+		Port:       cfg.Port,
+		Username:   cfg.Username,
+		Password:   cfg.Password,
+		Node:       cfg.Region, // Reuse Region field for default node
+		VerifySSL:  !cfg.Insecure,
 	}
 
 	// Set defaults
-	if proxmoxCfg.Realm == "" {
-		proxmoxCfg.Realm = "pam"
-	}
 	if proxmoxCfg.Port == 0 {
 		proxmoxCfg.Port = 8006
 	}
