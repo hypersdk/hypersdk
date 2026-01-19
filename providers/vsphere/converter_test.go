@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"hypersdk/logger"
+	"hypersdk/providers/common"
 )
 
 func TestDetectHyper2KVMBinary(t *testing.T) {
@@ -140,7 +141,7 @@ func TestNewHyper2KVMConverter_AutoDetect(t *testing.T) {
 }
 
 func TestConvertOptions(t *testing.T) {
-	opts := ConvertOptions{
+	opts := common.ConvertOptions{
 		StreamOutput: true,
 		Verbose:      true,
 		DryRun:       false,
@@ -162,7 +163,7 @@ func TestConvertOptions(t *testing.T) {
 }
 
 func TestConversionResult(t *testing.T) {
-	result := &ConversionResult{
+	result := &common.ConversionResult{
 		Success:        true,
 		ConvertedFiles: []string{"/work/disk-0.qcow2", "/work/disk-1.qcow2"},
 		ReportPath:     "/work/report.json",
@@ -324,7 +325,7 @@ sleep 10
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
 
-	opts := ConvertOptions{
+	opts := common.ConvertOptions{
 		StreamOutput: false,
 		Verbose:      false,
 		DryRun:       false,

@@ -22,6 +22,7 @@ import (
 
 	"hypersdk/manifest"
 	"hypersdk/progress"
+	"hypersdk/providers/common"
 	"hypersdk/retry"
 )
 
@@ -331,7 +332,7 @@ func (c *VSphereClient) ExportOVF(ctx context.Context, vmPath string, opts Expor
 					convCtx, convCancel := context.WithTimeout(ctx, opts.ConversionTimeout)
 					defer convCancel()
 
-					convertOpts := ConvertOptions{
+					convertOpts := common.ConvertOptions{
 						StreamOutput: opts.StreamConversionOutput,
 						Verbose:      c.config.LogLevel == "debug",
 						DryRun:       false,
@@ -341,7 +342,7 @@ func (c *VSphereClient) ExportOVF(ctx context.Context, vmPath string, opts Expor
 					if err != nil {
 						c.logger.Error("hyper2kvm conversion failed", "error", err)
 						// Store the error in result
-						result.ConversionResult = &ConversionResult{
+						result.ConversionResult = &common.ConversionResult{
 							Success: false,
 							Error:   err.Error(),
 						}

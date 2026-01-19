@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"hypersdk/logger"
+	"hypersdk/providers/common"
 )
 
 // Hyper2KVMConverter handles automatic conversion of exported VMs using hyper2kvm
@@ -48,7 +49,7 @@ func NewHyper2KVMConverter(binaryPath string, log logger.Logger) (*Hyper2KVMConv
 }
 
 // Convert runs hyper2kvm conversion on the manifest
-func (c *Hyper2KVMConverter) Convert(ctx context.Context, manifestPath string, opts ConvertOptions) (*ConversionResult, error) {
+func (c *Hyper2KVMConverter) Convert(ctx context.Context, manifestPath string, opts common.ConvertOptions) (*common.ConversionResult, error) {
 	startTime := time.Now()
 
 	c.logger.Info("starting hyper2kvm conversion", "manifest", manifestPath)
@@ -137,7 +138,7 @@ func (c *Hyper2KVMConverter) Convert(ctx context.Context, manifestPath string, o
 
 	// Check for errors
 	if cmdErr != nil {
-		return &ConversionResult{
+		return &common.ConversionResult{
 			Success:  false,
 			Duration: duration,
 			Error:    cmdErr.Error(),
@@ -149,7 +150,7 @@ func (c *Hyper2KVMConverter) Convert(ctx context.Context, manifestPath string, o
 	if err != nil {
 		c.logger.Warn("failed to parse conversion results", "error", err)
 		// Don't fail if we can't parse results - conversion may have succeeded
-		result = &ConversionResult{
+		result = &common.ConversionResult{
 			Success:  true,
 			Duration: duration,
 		}
@@ -165,12 +166,6 @@ func (c *Hyper2KVMConverter) Convert(ctx context.Context, manifestPath string, o
 	return result, nil
 }
 
-// ConvertOptions holds options for hyper2kvm conversion
-type ConvertOptions struct {
-	StreamOutput bool
-	Verbose      bool
-	DryRun       bool
-}
 
 // detectHyper2KVMBinary attempts to find hyper2kvm binary in PATH
 func detectHyper2KVMBinary() (string, error) {
@@ -222,7 +217,7 @@ func streamOutput(pipe io.ReadCloser, output chan<- string) {
 }
 
 // parseConversionResults reads the conversion report and extracts results
-func (c *Hyper2KVMConverter) parseConversionResults(outputDir string) (*ConversionResult, error) {
+func (c *Hyper2KVMConverter) parseConversionResults(outputDir string) (*common.ConversionResult, error) {
 	reportPath := filepath.Join(outputDir, "report.json")
 
 	// Check if report exists
@@ -261,13 +256,18 @@ func (c *Hyper2KVMConverter) parseConversionResults(outputDir string) (*Conversi
 		convertedFiles = append(convertedFiles, disk.Path)
 	}
 
-	result := &ConversionResult{
+	result := &common.ConversionResult{
 		Success:        report.Success,
 		ConvertedFiles: convertedFiles,
 		ReportPath:     reportPath,
 	}
 
 	return result, nil
+}
+
+// Validate checks if the converter is properly configured
+func (c *Hyper2KVMConverter) Validate() error {
+	return validateBinary(c.binaryPath)
 }
 
 // GetVersion returns the hyper2kvm version

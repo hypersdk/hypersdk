@@ -2,7 +2,11 @@
 
 package vsphere
 
-import "time"
+import (
+	"time"
+
+	"hypersdk/providers/common"
+)
 
 const (
 	defaultDirPerm     = 0755
@@ -31,14 +35,5 @@ type ExportResult struct {
 	ManifestPath string // Path to Artifact Manifest v1.0 JSON file
 
 	// Conversion result (Phase 2)
-	ConversionResult *ConversionResult
-}
-
-// ConversionResult holds the result of hyper2kvm conversion
-type ConversionResult struct {
-	Success        bool
-	ConvertedFiles []string // Paths to converted qcow2/raw files
-	ReportPath     string   // Path to conversion report JSON
-	Duration       time.Duration
-	Error          string // Error message if conversion failed
+	ConversionResult *common.ConversionResult
 }
