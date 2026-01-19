@@ -85,6 +85,11 @@ type CloudStorageConfig struct {
 	SwiftPassword   string // OpenStack password
 	SwiftTenantName string // Tenant/Project name
 	SwiftDomainName string // Domain name (default: Default)
+
+	// Alibaba Cloud OSS specific fields
+	AlibabaAccessKeyID     string // Alibaba Cloud AccessKey ID
+	AlibabaAccessKeySecret string // Alibaba Cloud AccessKey Secret
+	AlibabaRegionID        string // Alibaba Cloud region ID
 }
 
 // NewCloudStorage creates a cloud storage client from URL
@@ -175,6 +180,19 @@ func NewCloudStorage(storageURL string, log logger.Logger) (CloudStorage, error)
 			config.SwiftDomainName = "Default"
 		}
 		return NewOpenStackSwiftStorage(config, log)
+
+	case "oss":
+		// Format: oss://bucket/prefix
+		config.Bucket = u.Host // bucket name
+		config.Prefix = strings.TrimPrefix(u.Path, "/")
+		// Get credentials from environment
+		config.AlibabaAccessKeyID = os.Getenv("ALIBABA_CLOUD_ACCESS_KEY_ID")
+		config.AlibabaAccessKeySecret = os.Getenv("ALIBABA_CLOUD_ACCESS_KEY_SECRET")
+		config.AlibabaRegionID = os.Getenv("ALIBABA_CLOUD_REGION_ID")
+		if config.AlibabaRegionID == "" {
+			config.AlibabaRegionID = "cn-hangzhou"
+		}
+		return NewAlibabaCloudOSSStorage(config, log)
 
 	default:
 		return nil, fmt.Errorf("unsupported storage provider: %s", u.Scheme)
