@@ -4,6 +4,8 @@ import {
   formatDuration,
   formatPercentage,
   formatNumber,
+  formatTimestamp,
+  formatRelativeTime,
   getStatusColor,
   getStatusIcon,
   getSeverityColor,
@@ -130,5 +132,51 @@ describe('getSeverityColor', () => {
 
   it('returns default color for unknown severity', () => {
     expect(getSeverityColor('unknown')).toBe('#6b7280')
+  })
+})
+
+describe('formatTimestamp', () => {
+  it('formats ISO timestamp to locale string', () => {
+    const timestamp = '2026-01-21T10:00:00Z'
+    const result = formatTimestamp(timestamp)
+
+    // Result will vary by locale, just check it's a non-empty string
+    expect(result).toBeDefined()
+    expect(typeof result).toBe('string')
+    expect(result.length).toBeGreaterThan(0)
+  })
+})
+
+describe('formatRelativeTime', () => {
+  it('formats time less than 60 seconds ago', () => {
+    const now = new Date()
+    const timestamp = new Date(now.getTime() - 30000).toISOString() // 30 seconds ago
+    const result = formatRelativeTime(timestamp)
+
+    expect(result).toMatch(/\d+s ago/)
+  })
+
+  it('formats time in minutes', () => {
+    const now = new Date()
+    const timestamp = new Date(now.getTime() - 120000).toISOString() // 2 minutes ago
+    const result = formatRelativeTime(timestamp)
+
+    expect(result).toBe('2m ago')
+  })
+
+  it('formats time in hours', () => {
+    const now = new Date()
+    const timestamp = new Date(now.getTime() - 7200000).toISOString() // 2 hours ago
+    const result = formatRelativeTime(timestamp)
+
+    expect(result).toBe('2h ago')
+  })
+
+  it('formats time in days', () => {
+    const now = new Date()
+    const timestamp = new Date(now.getTime() - 172800000).toISOString() // 2 days ago
+    const result = formatRelativeTime(timestamp)
+
+    expect(result).toBe('2d ago')
   })
 })
