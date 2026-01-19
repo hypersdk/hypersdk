@@ -331,7 +331,74 @@ batch-summary: total=5 success=5 failed=0
 ./hypervisord --addr localhost:8080 --log-level debug
 ```
 
-### Control CLI
+### HyperCTL - Interactive Migration Commander
+
+**Interactive TUI Mode** - Modern terminal user interface with advanced features:
+
+```bash
+# Launch interactive TUI
+./hyperctl
+
+# Or run against daemon
+./hyperctl --daemon-url http://localhost:8080
+```
+
+#### 🎯 TUI Features
+
+**Advanced Selection & Filtering:**
+- **Bulk Regex Selection** (Press `A`): Select multiple VMs using regex patterns
+  - `^web-.*` - All VMs starting with "web-"
+  - `.*-prod$` - All production VMs
+  - `(db|database)` - VMs containing "db" or "database"
+  - Live preview showing matching VMs
+
+- **Quick Filters** (Number keys 1-8):
+  - `1` - Powered ON VMs
+  - `2` - Powered OFF VMs
+  - `3` - Linux VMs
+  - `4` - Windows VMs
+  - `5` - High CPU (8+ cores)
+  - `6` - High Memory (16GB+)
+  - `7` - Large Storage (500GB+)
+  - `0` - Clear all filters
+
+- **Export Templates** (Press `t`):
+  - Quick Export - Fast OVF without compression
+  - Production Backup - OVA with compression and verification
+  - Development - Speed-optimized OVF
+  - Archive - Compressed OVA for storage
+
+**Real-Time Export Progress:**
+- Live progress bars with current file download status
+- Speed calculation (MB/s) and ETA estimation
+- Elapsed time tracking
+- Current file name display
+- Overall VM export progress (X/Y completed)
+- Visual status indicators (✅ ⏳ ⏸)
+
+**Search & Sort:**
+- `/` - Search by name, path, or OS
+- `s` - Cycle sort modes (name, CPU, memory, storage, power)
+- `f` - Toggle power state filter
+- `c` - Clear all filters
+
+**VM Operations:**
+- `Space` - Toggle VM selection
+- `a` - Select all visible VMs
+- `n` - Deselect all
+- `d`/`i` - View detailed VM information
+- `r` - Toggle dry-run mode (preview without executing)
+- `h`/`?` - Toggle comprehensive help panel
+
+**Additional Features:**
+- Enhanced status bar showing connection mode and active filters
+- Real-time statistics dashboard (total CPUs, memory, storage)
+- Disk space validation before export
+- Export preview with size calculations
+- Compact multi-column VM display
+- Keyboard shortcut help with categorized commands
+
+#### CLI Mode (Non-Interactive)
 
 ```bash
 # Submit single VM export
