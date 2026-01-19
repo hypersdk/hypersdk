@@ -89,10 +89,31 @@ graph TB
 
 | Component | Purpose | Use Case |
 |-----------|---------|----------|
-| `hyperexport` | Interactive CLI | Manual exports with beautiful UI |
+| `hyperexport` | Standalone Export Tool | Interactive & scriptable VM exports with CLI flags |
 | `hypervisord` | Background daemon | Automation, REST API, batch processing |
 | `hyperctl` | Migration Commander | Interactive TUI migration, daemon control, job management |
 | **Web Dashboard** | Browser UI | VM monitoring, console access, job management |
+
+### HyperExport Features
+
+**Standalone VM Export Tool** with both interactive and non-interactive modes:
+
+**Interactive Mode:**
+- Beautiful pterm-based UI with animations
+- VM discovery and selection
+- Real-time progress tracking
+- Power management prompts
+
+**Command-Line Flags (Non-Interactive):**
+- **Batch Export**: Export multiple VMs from a file
+- **OVA Format**: Package exports as OVA (TAR archive)
+- **Compression**: Gzip compression for OVA files (30-50% size reduction)
+- **Verification**: SHA256 checksum validation
+- **Dry-Run**: Preview exports without executing
+- **Folder Filtering**: Filter VMs by folder path
+- **Auto Power-Off**: Automatic VM shutdown before export
+- **Quiet Mode**: Minimal output for scripting
+- **Multi-Provider**: Ready for AWS, Azure, GCP, Hyper-V
 
 ### Web Dashboard Features
 
@@ -167,16 +188,137 @@ DownloadWorkers: 4
 
 ## 📖 Usage Examples
 
-### Interactive CLI
+### HyperExport - Standalone Export Tool
+
+#### Interactive Mode
 
 ```bash
-# Launch interactive mode
+# Launch interactive mode with beautiful UI
 ./hyperexport
 
-# Beautiful UI will guide you through:
-# 1. VM discovery
-# 2. Interactive selection
-# 3. Real-time progress tracking
+# Guided workflow:
+# 1. Connect to vSphere
+# 2. Discover and list VMs
+# 3. Interactive selection with search
+# 4. VM info display
+# 5. Optional graceful shutdown
+# 6. Real-time progress tracking
+# 7. Export summary
+```
+
+#### Non-Interactive Mode (CLI Flags)
+
+```bash
+# View all available options
+./hyperexport -h
+
+# Simple export with VM name
+./hyperexport -vm "/datacenter/vm/web-server-01"
+
+# Export as compressed OVA
+./hyperexport -vm myvm -format ova -compress
+
+# Batch export from file
+cat > vms.txt <<EOF
+/datacenter/vm/web-01
+/datacenter/vm/web-02
+/datacenter/vm/db-01
+EOF
+./hyperexport -batch vms.txt -format ova -compress
+
+# Export with verification (SHA256 checksums)
+./hyperexport -vm myvm -verify
+
+# Dry-run preview (no actual export)
+./hyperexport -vm myvm -dry-run
+
+# Scripted export with quiet mode
+./hyperexport -vm myvm \
+  -output /backup/myvm \
+  -format ova \
+  -compress \
+  -power-off \
+  -verify \
+  -quiet
+
+# Filter VMs by folder
+./hyperexport -folder /Production/WebServers
+
+# Custom parallel downloads
+./hyperexport -vm myvm -parallel 8
+
+# Show version
+./hyperexport -version
+```
+
+#### Advanced Examples
+
+```bash
+# Production batch export with all features
+./hyperexport \
+  -batch production-vms.txt \
+  -output /backup/$(date +%Y%m%d) \
+  -format ova \
+  -compress \
+  -verify \
+  -power-off \
+  -parallel 6 \
+  -quiet
+
+# Quick test with dry-run
+./hyperexport -folder /Test -dry-run
+
+# Emergency backup (auto power-off)
+./hyperexport -vm critical-vm \
+  -format ova \
+  -compress \
+  -power-off \
+  -verify
+
+# Multi-provider support (coming soon)
+./hyperexport -provider aws -vm i-1234567890abcdef
+./hyperexport -provider azure -vm my-azure-vm
+./hyperexport -provider gcp -vm my-gcp-instance
+```
+
+#### Output Examples
+
+**Interactive Mode:**
+```
+╔═══════════════════════════════════════╗
+║          HYPEREXPORT v0.2.0          ║
+╚═══════════════════════════════════════╝
+
+✓ Connected to vSphere successfully!
+✓ Found 15 virtual machines
+
+Select a VM to export:
+> web-server-01
+  web-server-02
+  db-server-01
+  ...
+
+┌─────────────────┬──────────────────┐
+│ Property        │ Value            │
+├─────────────────┼──────────────────┤
+│ Name            │ web-server-01    │
+│ Power State     │ ● poweredOn      │
+│ Guest OS        │ Ubuntu Linux 64  │
+│ Memory          │ 8192 MB          │
+│ CPUs            │ 4                │
+│ Storage         │ 100.0 GiB        │
+└─────────────────┴──────────────────┘
+
+✓ Export Completed Successfully!
+```
+
+**Quiet Mode:**
+```bash
+$ ./hyperexport -vm myvm -quiet
+success: myvm exported to ./export-myvm (25.3 GiB)
+
+$ ./hyperexport -batch vms.txt -quiet
+batch-summary: total=5 success=5 failed=0
 ```
 
 ### Daemon Mode

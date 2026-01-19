@@ -81,7 +81,7 @@ type model struct {
 	outputDir      string
 	autoConvert    bool
 	autoImport     bool
-	phase          string // "select", "confirm", "run-mode", "export", "convert", "done", "detail", "filter", "sort"
+	phase          string // "select", "confirm", "run-mode", "export", "convert", "done", "detail", "filter", "sort", "regex", "template", "quick-filter"
 	currentExport  int
 	message        string
 	err            error
@@ -95,6 +95,39 @@ type model struct {
 	showDetail     bool   // Show detailed view of current VM
 	dryRun         bool   // Preview mode without executing
 	showHelp       bool   // Show help panel
+
+	// Export progress tracking
+	exportProgress     exportProgress
+	currentVMName      string
+	currentFileName    string
+
+	// Regex/pattern selection
+	regexPattern       string
+
+	// Export template
+	selectedTemplate   *exportTemplate
+
+	// Quick filter
+	quickFilter        string
+}
+
+type exportProgress struct {
+	currentBytes    int64
+	totalBytes      int64
+	currentFileIdx  int
+	totalFiles      int
+	speed           float64 // MB/s
+	startTime       time.Time
+	lastUpdateTime  time.Time
+	lastBytes       int64
+}
+
+type exportTemplate struct {
+	name        string
+	description string
+	format      string // "ovf" or "ova"
+	compress    bool
+	verify      bool
 }
 
 type vmsLoadedMsg struct {
@@ -228,6 +261,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.handleConfirmKeys(msg)
 		case "run-mode":
 			return m.handleRunModeKeys(msg)
+		case "regex":
+			return m.handleRegexKeys(msg)
+		case "template":
+			return m.handleTemplateKeys(msg)
+		case "quick-filter":
+			return m.handleQuickFilterKeys(msg)
 		}
 
 	case exportDoneMsg:
@@ -369,6 +408,24 @@ func (m model) handleSelectionKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
+	case "A":
+		// Bulk selection by regex pattern
+		m.phase = "regex"
+		m.regexPattern = ""
+		m.message = "Enter regex pattern for bulk selection"
+		return m, nil
+
+	case "t", "T":
+		// Select export template
+		m.phase = "template"
+		m.cursor = 0
+		m.message = "Select export template"
+		return m, nil
+
+	case "1", "2", "3", "4", "5", "6", "7", "8", "0":
+		// Quick filters
+		return m.applyQuickFilter(msg.String()), nil
+
 	case "enter":
 		// Go to confirmation
 		selectedCount := m.countSelected()
@@ -506,6 +563,170 @@ func (m model) handleDetailKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 
 	return m, nil
+}
+
+func (m model) handleRegexKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "ctrl+c", "q":
+		return m, tea.Quit
+
+	case "escape", "ctrl+[":
+		// Exit regex mode
+		m.phase = "select"
+		m.regexPattern = ""
+		m.message = "Regex selection cancelled"
+		return m, nil
+
+	case "enter":
+		// Apply regex selection
+		if m.regexPattern == "" {
+			m.message = "Pattern cannot be empty"
+			return m, nil
+		}
+
+		matches := 0
+		for i := range m.vms {
+			if matchVMPattern(m.vms[i].vm.Name, m.regexPattern) {
+				m.vms[i].selected = true
+				matches++
+			}
+		}
+
+		m.phase = "select"
+		m.message = fmt.Sprintf("✓ Selected %d VMs matching pattern: %s", matches, m.regexPattern)
+		m.regexPattern = ""
+		return m, nil
+
+	case "backspace", "delete":
+		// Delete last character
+		if len(m.regexPattern) > 0 {
+			m.regexPattern = m.regexPattern[:len(m.regexPattern)-1]
+		}
+
+	default:
+		// Add character to pattern
+		if len(msg.String()) == 1 {
+			m.regexPattern += msg.String()
+		}
+	}
+
+	return m, nil
+}
+
+func (m model) handleTemplateKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "ctrl+c", "q":
+		return m, tea.Quit
+
+	case "escape", "b":
+		// Exit template selection
+		m.phase = "select"
+		m.message = "Template selection cancelled"
+		return m, nil
+
+	case "up", "k":
+		if m.cursor > 0 {
+			m.cursor--
+		}
+
+	case "down", "j":
+		if m.cursor < len(exportTemplates)-1 {
+			m.cursor++
+		}
+
+	case "enter", "1", "2", "3", "4":
+		// Select template
+		templateIdx := m.cursor
+		if msg.String() >= "1" && msg.String() <= "4" {
+			templateIdx = int(msg.String()[0] - '1')
+		}
+
+		if templateIdx >= 0 && templateIdx < len(exportTemplates) {
+			m.selectedTemplate = &exportTemplates[templateIdx]
+			m.phase = "select"
+			m.message = fmt.Sprintf("✓ Template selected: %s", exportTemplates[templateIdx].name)
+		}
+		return m, nil
+	}
+
+	return m, nil
+}
+
+func (m model) handleQuickFilterKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "ctrl+c", "q":
+		return m, tea.Quit
+
+	case "escape", "b":
+		// Exit quick filter mode
+		m.phase = "select"
+		m.message = "Quick filter cancelled"
+		return m, nil
+
+	case "1", "2", "3", "4", "5", "6", "7", "8", "0":
+		m = m.applyQuickFilter(msg.String())
+		m.phase = "select"
+		return m, nil
+	}
+
+	return m, nil
+}
+
+func (m model) applyQuickFilter(key string) model {
+	// Clear current filters first
+	m.searchQuery = ""
+	m.filterPower = ""
+	m.filterOS = ""
+	m.quickFilter = key
+
+	switch key {
+	case "1":
+		// Powered ON VMs
+		m.filterPower = "on"
+		m.message = "Filter: Powered ON VMs"
+
+	case "2":
+		// Powered OFF VMs
+		m.filterPower = "off"
+		m.message = "Filter: Powered OFF VMs"
+
+	case "3":
+		// Linux VMs
+		m.filterOS = "linux"
+		m.message = "Filter: Linux VMs"
+
+	case "4":
+		// Windows VMs
+		m.filterOS = "windows"
+		m.message = "Filter: Windows VMs"
+
+	case "5":
+		// High CPU (8+ cores)
+		m.quickFilter = "highcpu"
+		m.message = "Filter: High CPU VMs (8+ cores)"
+
+	case "6":
+		// High Memory (16GB+)
+		m.quickFilter = "highmem"
+		m.message = "Filter: High Memory VMs (16GB+)"
+
+	case "7":
+		// Large Storage (500GB+)
+		m.quickFilter = "largestorage"
+		m.message = "Filter: Large Storage VMs (500GB+)"
+
+	case "8":
+		// Reserved for future use
+		m.message = "Filter: All VMs"
+
+	case "0":
+		// Clear all filters
+		m.quickFilter = ""
+		m.message = "All filters cleared"
+	}
+
+	m.applyFiltersAndSort()
+	return m
 }
 
 func (m model) exportNext() tea.Cmd {
@@ -706,6 +927,12 @@ func (m model) View() string {
 		return m.renderConvert()
 	case "done":
 		return m.renderDone()
+	case "regex":
+		return renderRegexSelection(m)
+	case "template":
+		return renderExportTemplates(m.cursor)
+	case "quick-filter":
+		return renderQuickFilterMenu(m)
 	}
 
 	// Show loading message based on connection mode
@@ -800,11 +1027,11 @@ func (m model) renderSelection() string {
 		b.WriteString("\n")
 		b.WriteString(helpStyle.Render("Navigation: ↑/k: Up | ↓/j: Down | Space: Select/deselect | Enter: Continue →"))
 		b.WriteString("\n")
-		b.WriteString(helpStyle.Render("Selection:  a: Select all | n: Deselect all"))
+		b.WriteString(helpStyle.Render("Selection:  a: Select all | n: Deselect all | A: Regex pattern | 1-8: Quick filters"))
 		b.WriteString("\n")
 		b.WriteString(helpStyle.Render("Search:     /: Search VMs | s: Cycle sort (" + m.sortMode + ") | f: Filter power | c: Clear filters"))
 		b.WriteString("\n")
-		b.WriteString(helpStyle.Render("View:       d/i: Detail view | h/?: Toggle help | r: Toggle dry-run"))
+		b.WriteString(helpStyle.Render("View:       d/i: Detail view | h/?: Toggle help | t: Templates | r: Toggle dry-run"))
 		if m.dryRun {
 			b.WriteString(" ")
 			b.WriteString(infoStyle.Render("[DRY-RUN]"))
@@ -1066,24 +1293,8 @@ func (m model) renderRunMode() string {
 }
 
 func (m model) renderExport() string {
-	var b strings.Builder
-
-	selectedCount := m.countSelected()
-
-	b.WriteString(titleStyle.Render("📦 Exporting VMs"))
-	b.WriteString("\n\n")
-	b.WriteString(infoStyle.Render(fmt.Sprintf("Progress: %d / %d", m.currentExport+1, selectedCount)))
-	b.WriteString("\n\n")
-
-	// Show selected VMs
-	for _, item := range m.vms {
-		if item.selected {
-			b.WriteString(successStyle.Render("✓ " + item.vm.Name))
-			b.WriteString("\n")
-		}
-	}
-
-	return b.String()
+	// Use enhanced real-time export progress display
+	return renderRealTimeExportProgress(m)
 }
 
 func (m model) renderConvert() string {
@@ -1341,6 +1552,24 @@ func (m *model) applyFiltersAndSort() {
 		if m.filterOS != "" {
 			if !strings.Contains(strings.ToLower(item.vm.GuestOS), strings.ToLower(m.filterOS)) {
 				continue
+			}
+		}
+
+		// Apply quick filters
+		if m.quickFilter != "" {
+			switch m.quickFilter {
+			case "highcpu":
+				if item.vm.NumCPU < 8 {
+					continue
+				}
+			case "highmem":
+				if item.vm.MemoryMB < 16*1024 {
+					continue
+				}
+			case "largestorage":
+				if item.vm.Storage < 500*1024*1024*1024 {
+					continue
+				}
 			}
 		}
 

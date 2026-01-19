@@ -7,6 +7,7 @@ import (
 	"os"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/charmbracelet/lipgloss"
 )
@@ -83,6 +84,38 @@ var (
 	keyDescStyle = lipgloss.NewStyle().
 			Foreground(mutedColor)
 )
+
+// Predefined export templates
+var exportTemplates = []exportTemplate{
+	{
+		name:        "Quick Export",
+		description: "Fast export without compression (OVF format)",
+		format:      "ovf",
+		compress:    false,
+		verify:      false,
+	},
+	{
+		name:        "Production Backup",
+		description: "OVA with compression and verification",
+		format:      "ova",
+		compress:    true,
+		verify:      true,
+	},
+	{
+		name:        "Development",
+		description: "OVF format for fast development cycles",
+		format:      "ovf",
+		compress:    false,
+		verify:      false,
+	},
+	{
+		name:        "Archive",
+		description: "Compressed OVA for long-term storage",
+		format:      "ova",
+		compress:    true,
+		verify:      true,
+	},
+}
 
 // renderStatusBar creates an enhanced status bar
 func renderStatusBar(m model) string {
@@ -559,6 +592,351 @@ func renderVMCard(item vmItem) string {
 	} else {
 		b.WriteString(unselectedStyle.Render("  Not selected"))
 	}
+
+	return panelStyle.Render(b.String())
+}
+
+// renderExportTemplates shows available export templates
+func renderExportTemplates(cursor int) string {
+	var b strings.Builder
+
+	b.WriteString(titleStyle.Render("📋 Export Templates"))
+	b.WriteString("\n\n")
+	b.WriteString(infoStyle.Render("Choose an export configuration:"))
+	b.WriteString("\n\n")
+
+	for i, tmpl := range exportTemplates {
+		cursorIcon := "  "
+		if i == cursor {
+			cursorIcon = "▶ "
+		}
+
+		style := unselectedStyle
+		if i == cursor {
+			style = selectedStyle
+		}
+
+		// Template header
+		header := fmt.Sprintf("%s[%d] %s", cursorIcon, i+1, tmpl.name)
+		b.WriteString(style.Bold(true).Render(header))
+		b.WriteString("\n")
+
+		// Description
+		b.WriteString(infoStyle.Render(fmt.Sprintf("    %s", tmpl.description)))
+		b.WriteString("\n")
+
+		// Settings
+		settings := fmt.Sprintf("    Format: %s | Compress: %s | Verify: %s",
+			tmpl.format,
+			boolToYesNo(tmpl.compress),
+			boolToYesNo(tmpl.verify))
+		b.WriteString(helpStyle.Render(settings))
+		b.WriteString("\n\n")
+	}
+
+	b.WriteString("\n")
+	b.WriteString(helpStyle.Render("↑/↓: Navigate | Enter: Select | Esc: Back | q: Quit"))
+
+	return panelStyle.Render(b.String())
+}
+
+// renderQuickFilterMenu shows quick filter options
+func renderQuickFilterMenu(m model) string {
+	var b strings.Builder
+
+	b.WriteString(titleStyle.Render("🚀 Quick Filters"))
+	b.WriteString("\n\n")
+
+	// Count VMs for each filter
+	poweredOn := 0
+	poweredOff := 0
+	linux := 0
+	windows := 0
+	highCPU := 0
+	highMemory := 0
+	largeStorage := 0
+
+	for _, item := range m.vms {
+		if item.vm.PowerState == "poweredOn" {
+			poweredOn++
+		} else {
+			poweredOff++
+		}
+
+		osLower := strings.ToLower(item.vm.GuestOS)
+		if strings.Contains(osLower, "linux") || strings.Contains(osLower, "ubuntu") ||
+			strings.Contains(osLower, "centos") || strings.Contains(osLower, "debian") ||
+			strings.Contains(osLower, "rhel") || strings.Contains(osLower, "fedora") {
+			linux++
+		}
+		if strings.Contains(osLower, "windows") {
+			windows++
+		}
+
+		if item.vm.NumCPU >= 8 {
+			highCPU++
+		}
+		if item.vm.MemoryMB >= 16*1024 {
+			highMemory++
+		}
+		if item.vm.Storage >= 500*1024*1024*1024 {
+			largeStorage++
+		}
+	}
+
+	filters := []struct {
+		key   string
+		desc  string
+		count int
+	}{
+		{"1", "Powered ON VMs", poweredOn},
+		{"2", "Powered OFF VMs", poweredOff},
+		{"3", "Linux VMs", linux},
+		{"4", "Windows VMs", windows},
+		{"5", "High CPU (8+ cores)", highCPU},
+		{"6", "High Memory (16GB+)", highMemory},
+		{"7", "Large Storage (500GB+)", largeStorage},
+		{"0", "Clear all filters", len(m.vms)},
+	}
+
+	for _, f := range filters {
+		line := fmt.Sprintf("  %s  %s (%d VMs)",
+			keyStyle.Render(f.key),
+			keyDescStyle.Render(f.desc),
+			f.count)
+		b.WriteString(line)
+		b.WriteString("\n")
+	}
+
+	b.WriteString("\n")
+	b.WriteString(helpStyle.Render("Press number to apply filter | Esc: Back to selection"))
+
+	return panelStyle.Render(b.String())
+}
+
+// renderRegexSelection shows regex pattern input
+func renderRegexSelection(m model) string {
+	var b strings.Builder
+
+	b.WriteString(titleStyle.Render("🎯 Bulk Selection by Pattern"))
+	b.WriteString("\n\n")
+
+	b.WriteString(infoStyle.Render("Enter a regex pattern to match VM names:"))
+	b.WriteString("\n\n")
+
+	// Pattern input
+	pattern := m.regexPattern
+	b.WriteString(selectedStyle.Render(fmt.Sprintf("Pattern: %s█", pattern)))
+	b.WriteString("\n\n")
+
+	// Preview matches if pattern is not empty
+	if pattern != "" {
+		matches := 0
+		matchedVMs := []string{}
+
+		for _, item := range m.vms {
+			if matchVMPattern(item.vm.Name, pattern) {
+				matches++
+				if len(matchedVMs) < 5 {
+					matchedVMs = append(matchedVMs, item.vm.Name)
+				}
+			}
+		}
+
+		if matches > 0 {
+			b.WriteString(successStyle.Render(fmt.Sprintf("✓ Matches %d VMs:", matches)))
+			b.WriteString("\n")
+			for _, name := range matchedVMs {
+				b.WriteString(infoStyle.Render(fmt.Sprintf("  • %s", name)))
+				b.WriteString("\n")
+			}
+			if matches > 5 {
+				b.WriteString(helpStyle.Render(fmt.Sprintf("  ... and %d more", matches-5)))
+				b.WriteString("\n")
+			}
+		} else {
+			b.WriteString(warningStyle.Render("⚠ No VMs match this pattern"))
+			b.WriteString("\n")
+		}
+		b.WriteString("\n")
+	}
+
+	// Examples
+	b.WriteString(titleStyle.Render("Examples:"))
+	b.WriteString("\n")
+	examples := []string{
+		"^web-.*       - All VMs starting with 'web-'",
+		".*-prod$      - All production VMs",
+		"(db|database) - VMs containing 'db' or 'database'",
+		"test-[0-9]+   - VMs like 'test-1', 'test-2', etc.",
+	}
+	for _, ex := range examples {
+		b.WriteString(helpStyle.Render("  " + ex))
+		b.WriteString("\n")
+	}
+
+	b.WriteString("\n")
+	b.WriteString(helpStyle.Render("Enter: Select matching VMs | Esc: Cancel | Backspace: Delete char"))
+
+	return panelStyle.Render(b.String())
+}
+
+// matchVMPattern checks if VM name matches pattern (simple regex)
+func matchVMPattern(vmName, pattern string) bool {
+	// Simple pattern matching - can be enhanced with full regex
+	vmLower := strings.ToLower(vmName)
+	patternLower := strings.ToLower(pattern)
+
+	// Starts with ^
+	if strings.HasPrefix(patternLower, "^") {
+		patternLower = strings.TrimPrefix(patternLower, "^")
+		return strings.HasPrefix(vmLower, patternLower)
+	}
+
+	// Ends with $
+	if strings.HasSuffix(patternLower, "$") {
+		patternLower = strings.TrimSuffix(patternLower, "$")
+		return strings.HasSuffix(vmLower, patternLower)
+	}
+
+	// Contains
+	return strings.Contains(vmLower, patternLower)
+}
+
+// renderRealTimeExportProgress shows detailed export progress
+func renderRealTimeExportProgress(m model) string {
+	var b strings.Builder
+
+	selectedVMs := []vmItem{}
+	for _, item := range m.vms {
+		if item.selected {
+			selectedVMs = append(selectedVMs, item)
+		}
+	}
+
+	if len(selectedVMs) == 0 {
+		return ""
+	}
+
+	// Title
+	b.WriteString(titleStyle.Render("📦 Exporting VMs"))
+	b.WriteString("\n\n")
+
+	// Current VM info
+	if m.currentExport < len(selectedVMs) {
+		currentVM := selectedVMs[m.currentExport]
+		b.WriteString(selectedStyle.Bold(true).Render(fmt.Sprintf("Current: %s", currentVM.vm.Name)))
+		b.WriteString("\n\n")
+
+		// Progress bar for current file
+		if m.exportProgress.totalBytes > 0 {
+			percentage := float64(m.exportProgress.currentBytes) / float64(m.exportProgress.totalBytes) * 100
+			
+			// Progress bar
+			barWidth := 40
+			filled := int(float64(barWidth) * percentage / 100)
+			bar := strings.Repeat("█", filled) + strings.Repeat("░", barWidth-filled)
+			
+			b.WriteString(progressBarStyle.Render(bar))
+			b.WriteString(" ")
+			b.WriteString(progressLabelStyle.Render(fmt.Sprintf("%.1f%%", percentage)))
+			b.WriteString("\n\n")
+
+			// Details
+			details := fmt.Sprintf("%s / %s",
+				formatBytes(m.exportProgress.currentBytes),
+				formatBytes(m.exportProgress.totalBytes))
+			b.WriteString(infoStyle.Render(details))
+			b.WriteString("\n")
+
+			// Speed and ETA
+			if m.exportProgress.speed > 0 {
+				speedStr := fmt.Sprintf("Speed: %.1f MB/s", m.exportProgress.speed)
+				b.WriteString(statsStyle.Render(speedStr))
+				b.WriteString(" | ")
+
+				remainingBytes := m.exportProgress.totalBytes - m.exportProgress.currentBytes
+				etaSeconds := int64(float64(remainingBytes) / (m.exportProgress.speed * 1024 * 1024))
+				etaStr := fmt.Sprintf("ETA: %s", formatDuration(int(etaSeconds)))
+				b.WriteString(statsStyle.Render(etaStr))
+				b.WriteString("\n")
+			}
+
+			// Elapsed time
+			elapsed := int64(time.Since(m.exportProgress.startTime).Seconds())
+			elapsedStr := fmt.Sprintf("Elapsed: %s", formatDuration(int(elapsed)))
+			b.WriteString(helpStyle.Render(elapsedStr))
+			b.WriteString("\n\n")
+		}
+
+		// Current file
+		if m.currentFileName != "" {
+			b.WriteString(infoStyle.Render(fmt.Sprintf("File: %s", m.currentFileName)))
+			b.WriteString("\n\n")
+		}
+	}
+
+	// Overall progress
+	b.WriteString(titleStyle.Render("Overall Progress"))
+	b.WriteString("\n")
+	overallProgress := fmt.Sprintf("%d / %d VMs completed", m.currentExport, len(selectedVMs))
+	b.WriteString(progressLabelStyle.Render(overallProgress))
+	b.WriteString("\n\n")
+
+	// VM list with status
+	b.WriteString(titleStyle.Render("VM Status"))
+	b.WriteString("\n")
+	
+	maxDisplay := 8
+	start := 0
+	if m.currentExport > maxDisplay/2 {
+		start = m.currentExport - maxDisplay/2
+	}
+	end := start + maxDisplay
+	if end > len(selectedVMs) {
+		end = len(selectedVMs)
+		start = end - maxDisplay
+		if start < 0 {
+			start = 0
+		}
+	}
+
+	for i := start; i < end; i++ {
+		item := selectedVMs[i]
+		status := ""
+		icon := ""
+		style := unselectedStyle
+
+		if i < m.currentExport {
+			status = "Completed"
+			icon = "✅"
+			style = successStyle
+		} else if i == m.currentExport {
+			status = "Exporting..."
+			icon = "⏳"
+			style = selectedStyle
+		} else {
+			status = "Pending"
+			icon = "⏸ "
+			style = helpStyle
+		}
+
+		vmLine := fmt.Sprintf("%s %s - %s",
+			icon,
+			truncate(item.vm.Name, 35),
+			status)
+
+		b.WriteString(style.Render(vmLine))
+		b.WriteString("\n")
+	}
+
+	if end < len(selectedVMs) {
+		b.WriteString(helpStyle.Render(fmt.Sprintf("... and %d more", len(selectedVMs)-end)))
+		b.WriteString("\n")
+	}
+
+	b.WriteString("\n")
+	b.WriteString(helpStyle.Render("Export in progress... Press q to cancel"))
 
 	return panelStyle.Render(b.String())
 }
