@@ -13,6 +13,7 @@ Welcome to the HyperSDK documentation. This guide helps you navigate all availab
 1. **[Interactive Mode User Guide](user-guides/01-interactive-mode.md)** - Complete guide to the interactive TUI for VM migration
 2. **[VM Export Guide](user-guides/02-vm-export-guide.md)** - Step-by-step VM export procedures
 3. **[Integration Guide](user-guides/03-integration.md)** - Integrating HyperSDK into your workflow
+4. **[Manifest Integration with hyper2kvm](user-guides/04-manifest-integration.md)** - Artifact Manifest examples and integration patterns
 
 ### Feature Documentation
 1. **[Interactive Migration Features](features/01-interactive-migration.md)** - Detailed interactive migration features
@@ -53,7 +54,8 @@ hypersdk/
 │   ├── user-guides/           # Step-by-step guides
 │   │   ├── 01-interactive-mode.md
 │   │   ├── 02-vm-export-guide.md
-│   │   └── 03-integration.md
+│   │   ├── 03-integration.md
+│   │   └── 04-manifest-integration.md
 │   ├── features/              # Feature documentation
 │   │   ├── 01-interactive-migration.md
 │   │   ├── 02-hyperctl-features.md

@@ -97,11 +97,69 @@ var (
 	daemonSchedule = flag.String("daemon-schedule", "", "Create scheduled export (format: 'name:cron', e.g., 'daily-backup:0 2 * * *')")
 	daemonStatus   = flag.Bool("daemon-status", false, "Show daemon status information")
 	watchProgress  = flag.Bool("watch", false, "Watch job progress in real-time (with --use-daemon)")
+
+	// Snapshot management options
+	createSnapshot     = flag.Bool("snapshot", false, "Create snapshot before export")
+	deleteSnapshot     = flag.Bool("delete-snapshot", true, "Delete snapshot after export")
+	snapshotName       = flag.String("snapshot-name", "", "Custom snapshot name (auto-generated if empty)")
+	snapshotMemory     = flag.Bool("snapshot-memory", false, "Include memory in snapshot")
+	snapshotQuiesce    = flag.Bool("snapshot-quiesce", true, "Quiesce filesystem before snapshot")
+	keepSnapshots      = flag.Int("keep-snapshots", 0, "Number of snapshots to keep (0 = unlimited)")
+	consolidateSnaps   = flag.Bool("consolidate-snapshots", false, "Consolidate all snapshots after export")
+
+	// Bandwidth limiting options
+	limitBandwidth    = flag.Int64("bandwidth-limit", 0, "Bandwidth limit in MB/s (0 = unlimited)")
+	bandwidthBurst    = flag.Int64("bandwidth-burst", 0, "Bandwidth burst allowance in MB (0 = auto)")
+	adaptiveBandwidth = flag.Bool("adaptive-bandwidth", false, "Enable adaptive bandwidth limiting")
+
+	// Incremental export options
+	incrementalExport = flag.Bool("incremental", false, "Enable incremental export (only changed disks)")
+	forceFullExport   = flag.Bool("force-full", false, "Force full export even if incremental is available")
+	showIncrementalInfo = flag.Bool("incremental-info", false, "Show incremental export analysis without exporting")
+
+	// Email notification options
+	emailNotify       = flag.Bool("email-notify", false, "Send email notifications")
+	emailSMTPHost     = flag.String("email-smtp-host", "", "SMTP server host")
+	emailSMTPPort     = flag.Int("email-smtp-port", 587, "SMTP server port")
+	emailFrom         = flag.String("email-from", "", "From email address")
+	emailTo           = flag.String("email-to", "", "To email addresses (comma-separated)")
+	emailUsername     = flag.String("email-username", "", "SMTP username")
+	emailPassword     = flag.String("email-password", "", "SMTP password")
+	emailOnStart      = flag.Bool("email-on-start", false, "Send email when export starts")
+	emailOnComplete   = flag.Bool("email-on-complete", true, "Send email when export completes")
+	emailOnFailure    = flag.Bool("email-on-failure", true, "Send email when export fails")
+
+	// Export cleanup options
+	cleanupOldExports = flag.Bool("cleanup", false, "Cleanup old exports")
+	cleanupMaxAge     = flag.Duration("cleanup-max-age", 30*24*time.Hour, "Delete exports older than this")
+	cleanupMaxCount   = flag.Int("cleanup-max-count", 0, "Keep only N most recent exports (0 = unlimited)")
+	cleanupMaxSize    = flag.Int64("cleanup-max-size", 0, "Delete oldest when total size exceeds (bytes, 0 = unlimited)")
+	cleanupDryRun     = flag.Bool("cleanup-dry-run", false, "Preview cleanup without deleting")
+	cleanupSchedule   = flag.Duration("cleanup-schedule", 0, "Run cleanup every N hours (0 = disabled)")
+
+	// Shell completion
+	completionShell = flag.String("completion", "", "Generate shell completion script (bash, zsh, fish)")
 )
 
 func main() {
 	// Parse flags
 	flag.Parse()
+
+	// Generate shell completion if requested
+	if *completionShell != "" {
+		switch *completionShell {
+		case "bash":
+			generateBashCompletion()
+		case "zsh":
+			generateZshCompletion()
+		case "fish":
+			generateFishCompletion()
+		default:
+			fmt.Fprintf(os.Stderr, "Unknown shell: %s (supported: bash, zsh, fish)\n", *completionShell)
+			os.Exit(1)
+		}
+		os.Exit(0)
+	}
 
 	// Show version if requested
 	if *showVersion {

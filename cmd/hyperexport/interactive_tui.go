@@ -62,7 +62,7 @@ type tuiModel struct {
 	vms              []tuiVMItem
 	filteredVMs      []tuiVMItem
 	cursor           int
-	phase            string // "select", "confirm", "template", "regex", "cloud", "export", "cloudupload", "done"
+	phase            string // "select", "confirm", "template", "regex", "cloud", "features", "export", "cloudupload", "done"
 	searchQuery      string
 	sortMode         string // "name", "cpu", "memory", "storage", "power"
 	filterPower      string // "", "on", "off"
@@ -84,11 +84,50 @@ type tuiModel struct {
 	cloudConfig       *cloudConfig
 	enableCloudUpload bool
 
+	// Advanced Features Configuration
+	featureConfig featureConfiguration
+
 	// Configuration
 	client    *vsphere.VSphereClient
 	outputDir string
 	log       logger.Logger
 	ctx       context.Context
+}
+
+// featureConfiguration holds advanced export features
+type featureConfiguration struct {
+	// Snapshot settings
+	enableSnapshot     bool
+	snapshotMemory     bool
+	snapshotQuiesce    bool
+	deleteSnapshot     bool
+	keepSnapshots      int
+	consolidateSnaps   bool
+
+	// Bandwidth settings
+	enableBandwidthLimit bool
+	bandwidthLimitMBps   int64
+	adaptiveBandwidth    bool
+
+	// Incremental export settings
+	enableIncremental bool
+	showIncrementalInfo bool
+
+	// Email notifications
+	enableEmail       bool
+	emailSMTPHost     string
+	emailSMTPPort     int
+	emailFrom         string
+	emailTo           string
+	emailOnStart      bool
+	emailOnComplete   bool
+	emailOnFailure    bool
+
+	// Cleanup settings
+	enableCleanup   bool
+	cleanupMaxAge   int // days
+	cleanupMaxCount int
+	cleanupDryRun   bool
 }
 
 type tuiVMItem struct {
@@ -233,6 +272,8 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.handleRegexKeys(msg)
 		case "template":
 			return m.handleTemplateKeys(msg)
+		case "features":
+			return m.handleFeaturesKeys(msg)
 		case "cloud":
 			// Cloud phase is handled by cloudSelectionModel
 			return m, nil
@@ -369,6 +410,12 @@ func (m tuiModel) handleSelectionKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.phase = "cloud"
 		cloudModel := newCloudSelectionModel(&m)
 		return cloudModel, nil
+
+	case "f", "F":
+		// Advanced features configuration
+		m.phase = "features"
+		m.cursor = 0
+		return m, nil
 	}
 
 	return m, nil
@@ -390,6 +437,11 @@ func (m tuiModel) handleConfirmKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.phase = "cloud"
 		cloudModel := newCloudSelectionModel(&m)
 		return cloudModel, nil
+	case "f", "F":
+		// Configure advanced features from confirm screen
+		m.phase = "features"
+		m.cursor = 0
+		return m, nil
 	}
 	return m, nil
 }
@@ -460,6 +512,85 @@ func (m tuiModel) handleTemplateKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+func (m tuiModel) handleFeaturesKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	maxItems := 14 // Total number of feature options
+
+	switch msg.String() {
+	case "ctrl+c", "q":
+		return m, tea.Quit
+	case "escape":
+		m.phase = "select"
+		return m, nil
+	case "up", "k":
+		if m.cursor > 0 {
+			m.cursor--
+		}
+	case "down", "j":
+		if m.cursor < maxItems-1 {
+			m.cursor++
+		}
+	case " ", "enter":
+		// Toggle the feature at cursor position
+		switch m.cursor {
+		case 0:
+			m.featureConfig.enableSnapshot = !m.featureConfig.enableSnapshot
+		case 1:
+			m.featureConfig.snapshotMemory = !m.featureConfig.snapshotMemory
+		case 2:
+			m.featureConfig.snapshotQuiesce = !m.featureConfig.snapshotQuiesce
+		case 3:
+			m.featureConfig.deleteSnapshot = !m.featureConfig.deleteSnapshot
+		case 4:
+			m.featureConfig.consolidateSnaps = !m.featureConfig.consolidateSnaps
+		case 5:
+			m.featureConfig.enableBandwidthLimit = !m.featureConfig.enableBandwidthLimit
+		case 6:
+			m.featureConfig.adaptiveBandwidth = !m.featureConfig.adaptiveBandwidth
+		case 7:
+			m.featureConfig.enableIncremental = !m.featureConfig.enableIncremental
+		case 8:
+			m.featureConfig.showIncrementalInfo = !m.featureConfig.showIncrementalInfo
+		case 9:
+			m.featureConfig.enableEmail = !m.featureConfig.enableEmail
+		case 10:
+			m.featureConfig.emailOnStart = !m.featureConfig.emailOnStart
+		case 11:
+			m.featureConfig.emailOnComplete = !m.featureConfig.emailOnComplete
+		case 12:
+			m.featureConfig.enableCleanup = !m.featureConfig.enableCleanup
+		case 13:
+			m.featureConfig.cleanupDryRun = !m.featureConfig.cleanupDryRun
+		}
+	case "s", "S":
+		// Save and return to previous phase
+		m.phase = "select"
+		count := m.countEnabledFeatures()
+		m.message = fmt.Sprintf("✓ %d advanced features configured", count)
+		return m, nil
+	}
+	return m, nil
+}
+
+func (m tuiModel) countEnabledFeatures() int {
+	count := 0
+	if m.featureConfig.enableSnapshot {
+		count++
+	}
+	if m.featureConfig.enableBandwidthLimit {
+		count++
+	}
+	if m.featureConfig.enableIncremental {
+		count++
+	}
+	if m.featureConfig.enableEmail {
+		count++
+	}
+	if m.featureConfig.enableCleanup {
+		count++
+	}
+	return count
+}
+
 func (m tuiModel) View() string {
 	switch m.phase {
 	case "select":
@@ -470,6 +601,8 @@ func (m tuiModel) View() string {
 		return m.renderRegex()
 	case "template":
 		return m.renderTemplate()
+	case "features":
+		return m.renderFeatures()
 	case "export":
 		return m.renderExport()
 	case "cloudupload":
@@ -509,6 +642,16 @@ func (m tuiModel) renderSelection() string {
 		statusText += fmt.Sprintf(" | 🚀 %s", m.quickFilter)
 	}
 	b.WriteString(infoStyleTUI.Render(statusText))
+	b.WriteString("\n")
+
+	// Add helpful hint for multi-selection
+	if selectedCount == 0 {
+		b.WriteString(helpStyleTUI.Render("💡 Tip: Use Space to toggle checkboxes [ ] / [x] and select multiple VMs. Press 'a' to select all."))
+	} else if selectedCount == 1 {
+		b.WriteString(successStyleTUI.Render("✓ You can select more VMs by pressing Space on each one"))
+	} else {
+		b.WriteString(successStyleTUI.Render(fmt.Sprintf("✓ %d VMs ready for export. Press Enter to continue or select more.", selectedCount)))
+	}
 	b.WriteString("\n\n")
 
 	// VM list
@@ -529,9 +672,12 @@ func (m tuiModel) renderSelection() string {
 			cursor = "▶ "
 		}
 
+		// Classic square bracket checkbox like Claude
 		checkbox := "[ ]"
+		checkboxStyle := unselectedStyleTUI
 		if item.selected {
-			checkbox = "[✓]"
+			checkbox = "[x]"
+			checkboxStyle = successStyleTUI
 		}
 
 		powerIcon := "🔴"
@@ -551,14 +697,14 @@ func (m tuiModel) renderSelection() string {
 			style = selectedStyleTUI
 		}
 
-		line := cursor + checkbox + " " + vmInfo
+		// Render with prominent checkbox
 		if m.cursor == i {
-			line = style.Bold(true).Underline(true).Render(line)
+			line := cursor + checkboxStyle.Bold(true).Render(checkbox) + " " + style.Bold(true).Underline(true).Render(vmInfo)
+			b.WriteString(line)
 		} else {
-			line = style.Render(line)
+			line := cursor + checkboxStyle.Render(checkbox) + " " + style.Render(vmInfo)
+			b.WriteString(line)
 		}
-
-		b.WriteString(line)
 		b.WriteString("\n")
 	}
 
@@ -569,11 +715,11 @@ func (m tuiModel) renderSelection() string {
 	} else {
 		b.WriteString(titleStyleTUI.Render("🎯 Controls:"))
 		b.WriteString("\n")
-		b.WriteString(helpStyleTUI.Render("Navigation: ↑/k: Up | ↓/j: Down | Space: Select | Enter: Continue"))
+		b.WriteString(helpStyleTUI.Render("Navigation: ↑/k: Up | ↓/j: Down | Space: Toggle [x] | Enter: Continue"))
 		b.WriteString("\n")
-		b.WriteString(helpStyleTUI.Render("Selection:  a: All | n: None | A: Regex | 1-7: Quick filters"))
+		b.WriteString(helpStyleTUI.Render("Multi-Select: a: All | n: None | A: Regex | 1-7: Quick filters"))
 		b.WriteString("\n")
-		b.WriteString(helpStyleTUI.Render("Actions:    u: Cloud Upload | t: Templates | s: Sort | c: Clear"))
+		b.WriteString(helpStyleTUI.Render("Actions:    u: Cloud Upload | t: Templates | f: Features | s: Sort | c: Clear"))
 		b.WriteString("\n")
 		b.WriteString(helpStyleTUI.Render("Other:      h/?: Help | q: Quit"))
 	}
@@ -645,6 +791,34 @@ func (m tuiModel) renderConfirm() string {
 		b.WriteString("\n\n")
 	}
 
+	// Advanced features info
+	enabledCount := m.countEnabledFeatures()
+	if enabledCount > 0 {
+		b.WriteString(titleStyleTUI.Render("⚡ Advanced Features"))
+		b.WriteString("\n")
+		features := []string{}
+		if m.featureConfig.enableSnapshot {
+			features = append(features, "Snapshots")
+		}
+		if m.featureConfig.enableBandwidthLimit {
+			features = append(features, "Bandwidth Limiting")
+		}
+		if m.featureConfig.enableIncremental {
+			features = append(features, "Incremental Export")
+		}
+		if m.featureConfig.enableEmail {
+			features = append(features, "Email Notifications")
+		}
+		if m.featureConfig.enableCleanup {
+			features = append(features, "Cleanup")
+		}
+		b.WriteString(successStyleTUI.Render(fmt.Sprintf("✓ Enabled: %s", strings.Join(features, ", "))))
+		b.WriteString("\n\n")
+	} else {
+		b.WriteString(infoStyleTUI.Render("⚡ Advanced features: Not configured (press 'f' to configure)"))
+		b.WriteString("\n\n")
+	}
+
 	// Disk space check
 	diskSpace := getDiskSpace(m.outputDir)
 	if diskSpace > totalStorage {
@@ -654,7 +828,7 @@ func (m tuiModel) renderConfirm() string {
 	}
 
 	b.WriteString("\n\n")
-	b.WriteString(helpStyleTUI.Render("y/Y/Enter: Start export | u: Cloud upload | n/Esc: Go back | q: Quit"))
+	b.WriteString(helpStyleTUI.Render("y/Y/Enter: Start export | u: Cloud upload | f: Features | n/Esc: Go back | q: Quit"))
 
 	return b.String()
 }
@@ -724,6 +898,85 @@ func (m tuiModel) renderTemplate() string {
 	return b.String()
 }
 
+func (m tuiModel) renderFeatures() string {
+	var b strings.Builder
+
+	b.WriteString(titleStyleTUI.Render("⚡ Advanced Features Configuration"))
+	b.WriteString("\n\n")
+
+	// Feature options
+	features := []struct {
+		name        string
+		description string
+		enabled     bool
+	}{
+		// Snapshot features
+		{"Snapshot Management", "Create VM snapshots before export", m.featureConfig.enableSnapshot},
+		{"  Include Memory", "Include VM memory in snapshot", m.featureConfig.snapshotMemory},
+		{"  Quiesce Filesystem", "Quiesce filesystem for consistency", m.featureConfig.snapshotQuiesce},
+		{"  Delete After Export", "Remove snapshot after export completes", m.featureConfig.deleteSnapshot},
+		{"  Consolidate Snapshots", "Merge all snapshots into base disks", m.featureConfig.consolidateSnaps},
+
+		// Bandwidth limiting
+		{"Bandwidth Limiting", "Control network bandwidth usage", m.featureConfig.enableBandwidthLimit},
+		{"  Adaptive Bandwidth", "Automatically adjust based on network", m.featureConfig.adaptiveBandwidth},
+
+		// Incremental export
+		{"Incremental Export", "Export only changed disks", m.featureConfig.enableIncremental},
+		{"  Show Analysis Only", "Preview savings without exporting", m.featureConfig.showIncrementalInfo},
+
+		// Email notifications
+		{"Email Notifications", "Send email alerts for export events", m.featureConfig.enableEmail},
+		{"  Email on Start", "Notify when export starts", m.featureConfig.emailOnStart},
+		{"  Email on Complete", "Notify when export completes", m.featureConfig.emailOnComplete},
+
+		// Cleanup
+		{"Export Cleanup", "Automatically clean up old exports", m.featureConfig.enableCleanup},
+		{"  Dry Run Mode", "Preview cleanup without deleting", m.featureConfig.cleanupDryRun},
+	}
+
+	for i, feature := range features {
+		cursor := "  "
+		if i == m.cursor {
+			cursor = "▶ "
+		}
+
+		checkbox := "[ ]"
+		if feature.enabled {
+			checkbox = "[✓]"
+		}
+
+		style := unselectedStyleTUI
+		if i == m.cursor {
+			style = selectedStyleTUI
+		}
+
+		line := fmt.Sprintf("%s%s %s", cursor, checkbox, feature.name)
+		b.WriteString(style.Render(line))
+		b.WriteString("\n")
+
+		if i == m.cursor {
+			b.WriteString(infoStyleTUI.Render(fmt.Sprintf("    %s", feature.description)))
+			b.WriteString("\n")
+		}
+	}
+
+	b.WriteString("\n")
+
+	// Summary
+	enabledCount := m.countEnabledFeatures()
+	if enabledCount > 0 {
+		b.WriteString(successStyleTUI.Render(fmt.Sprintf("✓ %d features enabled", enabledCount)))
+	} else {
+		b.WriteString(infoStyleTUI.Render("No advanced features enabled"))
+	}
+
+	b.WriteString("\n\n")
+	b.WriteString(helpStyleTUI.Render("↑/↓: Navigate | Space/Enter: Toggle | s: Save & Back | Esc: Cancel"))
+
+	return b.String()
+}
+
 func (m tuiModel) renderExport() string {
 	var b strings.Builder
 
@@ -779,14 +1032,14 @@ func (m tuiModel) renderHelp() string {
 Navigation:
   ↑/k       Move up
   ↓/j       Move down
-  Space     Select/deselect
-  Enter     Continue
+  Space     Toggle checkbox [ ] / [x] - Multi-select VMs
+  Enter     Continue to confirmation
 
-Selection:
-  a         Select all (visible)
-  n         Deselect all
-  A         Regex pattern
-  1-7       Quick filters
+Multi-Selection:
+  a         Select all visible VMs [x]
+  n         Clear all selections [ ]
+  A         Bulk select by regex pattern
+  1-7       Quick filters (select VMs matching criteria)
 
 Filters:
   1         Powered ON
@@ -800,6 +1053,7 @@ Filters:
 Actions:
   u         Cloud upload (S3/Azure/GCS/SFTP)
   t         Export templates
+  f         Advanced features
   s         Cycle sort
   c         Clear filters
 
