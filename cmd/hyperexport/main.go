@@ -50,6 +50,7 @@ var (
 	interactive    = flag.Bool("interactive", false, "Launch advanced interactive TUI mode")
 	tui            = flag.Bool("tui", false, "Launch advanced interactive TUI mode (alias for -interactive)")
 	validateOnly   = flag.Bool("validate-only", false, "Only run pre-export validation checks")
+	vmInfo         = flag.Bool("vm-info", false, "Display VM information (power state, CPU, memory, storage)")
 	resume         = flag.Bool("resume", false, "Resume interrupted export from checkpoint")
 	showHistory    = flag.Bool("history", false, "Show export history")
 	historyLimit   = flag.Int("history-limit", 10, "Number of recent exports to show in history")
@@ -145,9 +146,47 @@ var (
 	completionShell = flag.String("completion", "", "Generate shell completion script (bash, zsh, fish)")
 )
 
+// Vision-optimized color styles (based on human eye sensitivity: green > yellow > red).
+// Sweet spot dark orange #D35400 - #C75B12: high contrast, no glare, no vibration.
+var (
+	// Primary accent color - dark orange (#D35400).
+	colorOrange = pterm.NewRGB(211, 84, 0)  // Primary actions, highlights
+	styleOrange = pterm.NewStyle(pterm.FgLightRed)  // Closest pterm color to dark orange
+
+	// Secondary colors optimized for readability.
+	colorTeal    = pterm.NewRGB(93, 173, 226)  // Info, directories
+	styleTeal    = pterm.NewStyle(pterm.FgLightCyan)
+	colorGreen   = pterm.NewRGB(163, 190, 140) // Success (eye-sensitive)
+	styleGreen   = pterm.NewStyle(pterm.FgLightGreen)
+	colorYellow  = pterm.NewRGB(243, 156, 18)  // Warnings (readable yellow)
+	styleYellow  = pterm.NewStyle(pterm.FgYellow)
+	colorRed     = pterm.NewRGB(231, 76, 60)   // Errors (bright for visibility)
+	styleRed     = pterm.NewStyle(pterm.FgLightRed)
+
+	// Text and background.
+	colorOffWhite = pterm.NewRGB(245, 245, 220) // Normal text (cream)
+	colorMuted    = pterm.NewRGB(107, 114, 128) // Muted elements
+)
+
+// newOrangeSpinner creates a modern orange-themed spinner with vision-optimized colors.
+func newOrangeSpinner(message string) *pterm.SpinnerPrinter {
+	s, _ := pterm.DefaultSpinner.
+		WithStyle(styleOrange).
+		WithSequence("⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏").
+		Start(colorOrange.Sprintf("🔄 %s", message))
+	return s
+}
+
 func main() {
 	// Parse flags
 	flag.Parse()
+
+	// Set global pterm theme to orange (vision-optimized colors)
+	pterm.ThemeDefault.PrimaryStyle = *styleOrange
+	pterm.ThemeDefault.SecondaryStyle = *styleTeal
+	pterm.ThemeDefault.SuccessMessageStyle = *styleGreen
+	pterm.ThemeDefault.WarningMessageStyle = *styleYellow
+	pterm.ThemeDefault.ErrorMessageStyle = *styleRed
 
 	// Generate shell completion if requested
 	if *completionShell != "" {
@@ -535,21 +574,24 @@ func showIntro() {
 	// Clear screen
 	pterm.DefaultCenter.Println()
 
-	// Orange/amber color scheme (Claude-inspired)
-	orange := pterm.NewStyle(pterm.FgLightRed)
-	amber := pterm.NewStyle(pterm.FgYellow)
+	// Vision-optimized dark orange color scheme (sweet spot #D35400).
+	// High contrast on black, no glare, no vibration.
 
-	// Show big text logo
-	bigText, _ := pterm.DefaultBigText.WithLetters(
-		pterm.NewLettersFromStringWithStyle("HYPER", orange),
-		pterm.NewLettersFromStringWithStyle("EXPORT", amber),
-	).Srender()
-
-	pterm.DefaultCenter.Println(bigText)
+	// Show large styled title in deep orange (#D35400) with proper capitalization
+	pterm.Println()
+	pterm.Println()
+	pterm.DefaultCenter.WithCenterEachLineSeparately().Println(
+		pterm.DefaultHeader.WithFullWidth(false).
+			WithBackgroundStyle(styleOrange).
+			WithTextStyle(pterm.NewStyle(pterm.FgBlack)).
+			WithMargin(4).
+			Sprint("   HyperExport   "),
+	)
+	pterm.Println()
 
 	// Show subtitle
-	subtitle := pterm.DefaultCenter.Sprint(pterm.LightYellow("Interactive VM export tool"))
-	version := pterm.DefaultCenter.Sprint(pterm.LightRed("Version 1.0.0"))
+	subtitle := pterm.DefaultCenter.Sprint(colorYellow.Sprint("Interactive VM export tool"))
+	version := pterm.DefaultCenter.Sprint(colorOrange.Sprint("Version 1.0.0"))
 
 	pterm.Println(subtitle)
 	pterm.Println(version)
@@ -572,10 +614,10 @@ func run(ctx context.Context, cfg *config.Config, log logger.Logger) error {
 		return runBatchExport(ctx, cfg, log)
 	}
 
-	// Connection spinner
+	// Connection spinner with orange theme
 	var spinner *pterm.SpinnerPrinter
 	if !*quiet && !*interactive && !*tui {
-		spinner, _ = pterm.DefaultSpinner.Start("Connecting to " + *providerType + "...")
+		spinner = newOrangeSpinner("Connecting to " + *providerType + "...")
 	}
 
 	log.Info("connecting to provider", "type", *providerType)
@@ -602,11 +644,19 @@ func run(ctx context.Context, cfg *config.Config, log logger.Logger) error {
 		return runInteractiveTUI(ctx, client, cfg, log)
 	}
 
+	// Display VM information if requested
+	if *vmInfo {
+		if *vmName == "" {
+			return fmt.Errorf("VM name required for --vm-info (use -vm flag)")
+		}
+		return showVMInfoCmd(ctx, client, *vmName, *quiet, log)
+	}
+
 	// Show connection info panel (skip in quiet mode)
 	if !*quiet {
 		pterm.DefaultBox.WithTitle("Connection Info").
 			WithTitleTopLeft().
-			WithBoxStyle(pterm.NewStyle(pterm.FgCyan)).
+			WithBoxStyle(styleOrange).
 			Printfln("vCenter: %s\nUser: %s",
 				cfg.VCenterURL,
 				cfg.Username)
@@ -619,16 +669,16 @@ func run(ctx context.Context, cfg *config.Config, log logger.Logger) error {
 		selectedVM = *vmName
 		log.Info("using VM from command line", "vm", selectedVM)
 	} else {
-		// Discover VMs with spinner
+		// Discover VMs with modern orange-themed progress indicator
 		if !*quiet {
-			spinner, _ = pterm.DefaultSpinner.Start("Discovering virtual machines...")
+			spinner = newOrangeSpinner("Discovering virtual machines...")
 		}
 
 		log.Info("discovering VMs")
 		vms, err := client.FindAllVMs(ctx)
 		if err != nil {
 			if spinner != nil {
-				spinner.Fail("Failed to discover VMs")
+				spinner.Fail(colorRed.Sprintf("✗ Failed to discover VMs"))
 			}
 			return fmt.Errorf("find VMs: %w", err)
 		}
@@ -643,7 +693,7 @@ func run(ctx context.Context, cfg *config.Config, log logger.Logger) error {
 		}
 
 		if spinner != nil {
-			spinner.Success(fmt.Sprintf("Found %d virtual machine(s)", len(vms)))
+			spinner.Success(colorGreen.Sprintf("✓ Found %d virtual machine(s)", len(vms)))
 		}
 		log.Info("found VMs", "count", len(vms))
 
@@ -764,7 +814,7 @@ func run(ctx context.Context, cfg *config.Config, log logger.Logger) error {
 
 	// Pre-export validation
 	if !*quiet {
-		spinner, _ = pterm.DefaultSpinner.Start("Running pre-export validation...")
+		spinner = newOrangeSpinner("Running pre-export validation...")
 	}
 
 	preValidator := NewPreExportValidator(log)
@@ -1297,11 +1347,16 @@ func selectVMInteractive(vms []string, log logger.Logger) (string, error) {
 		return vms[0], nil
 	}
 
-	// Show header with branding
-	pterm.DefaultBigText.WithLetters(
-		pterm.NewLettersFromStringWithStyle("HYPER", pterm.NewStyle(pterm.FgCyan)),
-		pterm.NewLettersFromStringWithStyle("EXPORT", pterm.NewStyle(pterm.FgLightBlue))).
-		Render()
+	// Show header with branding in deep orange (proper capitalization)
+	pterm.Println()
+	pterm.DefaultCenter.WithCenterEachLineSeparately().Println(
+		pterm.DefaultHeader.WithFullWidth(false).
+			WithBackgroundStyle(styleOrange).
+			WithTextStyle(pterm.NewStyle(pterm.FgBlack)).
+			WithMargin(2).
+			Sprint("  HyperExport  "),
+	)
+	pterm.Println()
 
 	pterm.Println()
 
@@ -1309,7 +1364,7 @@ func selectVMInteractive(vms []string, log logger.Logger) (string, error) {
 	pterm.DefaultBox.
 		WithTitle("VM Selection").
 		WithTitleTopCenter().
-		WithBoxStyle(pterm.NewStyle(pterm.FgCyan)).
+		WithBoxStyle(styleOrange).
 		Printfln("Found %d virtual machines\n\n"+
 			"💡 Use ↑/↓ arrows to navigate\n"+
 			"💡 Press / to search and filter\n"+
@@ -1343,16 +1398,19 @@ func selectVMInteractive(vms []string, log logger.Logger) (string, error) {
 		}
 	}
 
-	// Show selection prompt
+	// Show selection prompt with orange theme
 	pterm.DefaultHeader.WithFullWidth().
-		WithBackgroundStyle(pterm.NewStyle(pterm.BgDarkGray)).
-		WithTextStyle(pterm.NewStyle(pterm.FgLightWhite)).
+		WithBackgroundStyle(styleOrange).
+		WithTextStyle(pterm.NewStyle(pterm.FgBlack)).
 		Println("Select VM to Export")
 
-	// Interactive select with search
+	// Interactive select with orange theme and search
+	// Customize pterm's DefaultInteractiveSelect to use orange theme
+	pterm.DefaultInteractiveSelect.TextStyle = styleOrange
+
 	selectedName, err := pterm.DefaultInteractiveSelect.
+		WithDefaultText(colorOrange.Sprint("Select a VM to export [type to search]")).
 		WithOptions(sorted).
-		WithDefaultText("Select a VM to export [type to search]").
 		WithFilter(true).
 		WithMaxHeight(15).
 		Show()
@@ -1382,9 +1440,9 @@ func selectVMInteractive(vms []string, log logger.Logger) (string, error) {
 func displayVMInfo(info *vsphere.VMInfo) {
 	pterm.Println()
 
-	// Show VM details in a beautiful panel
+	// Show VM details in a beautiful panel (using vision-optimized orange).
 	pterm.DefaultHeader.WithFullWidth().
-		WithBackgroundStyle(pterm.NewStyle(pterm.BgCyan)).
+		WithBackgroundStyle(pterm.NewStyle(pterm.BgLightRed)).
 		WithTextStyle(pterm.NewStyle(pterm.FgBlack)).
 		Println("📋 Virtual Machine Details")
 
@@ -1396,9 +1454,9 @@ func displayVMInfo(info *vsphere.VMInfo) {
 		{"🖥️  VM Name", pterm.Bold.Sprint(info.Name)},
 		{"⚡ Power State", getPowerStateIcon(info.PowerState) + " " + pterm.Bold.Sprint(info.PowerState)},
 		{"💿 Guest OS", info.GuestOS},
-		{"🧠 Memory", pterm.Cyan(fmt.Sprintf("%d MB (%.1f GB)", info.MemoryMB, float64(info.MemoryMB)/1024))},
-		{"⚙️  vCPUs", pterm.Cyan(fmt.Sprintf("%d", info.NumCPU))},
-		{"💾 Storage", pterm.Cyan(formatBytes(info.Storage))},
+		{"🧠 Memory", colorOrange.Sprint(fmt.Sprintf("%d MB (%.1f GB)", info.MemoryMB, float64(info.MemoryMB)/1024))},
+		{"⚙️  vCPUs", colorOrange.Sprint(fmt.Sprintf("%d", info.NumCPU))},
+		{"💾 Storage", colorOrange.Sprint(formatBytes(info.Storage))},
 		{"📁 Path", pterm.FgGray.Sprint(info.Path)},
 	}
 
@@ -1418,10 +1476,14 @@ func showExportSummary(info *vsphere.VMInfo, result *vsphere.ExportResult) {
 	pterm.Println()
 	pterm.Println()
 
-	// Show celebration header
-	pterm.DefaultBigText.WithLetters(
-		pterm.NewLettersFromStringWithStyle("SUCCESS", pterm.NewStyle(pterm.FgGreen))).
-		Render()
+	// Show celebration header with proper capitalization
+	pterm.DefaultCenter.WithCenterEachLineSeparately().Println(
+		pterm.DefaultHeader.WithFullWidth(false).
+			WithBackgroundStyle(styleGreen).
+			WithTextStyle(pterm.NewStyle(pterm.FgBlack)).
+			WithMargin(4).
+			Sprint("   ✓ Export Successful   "),
+	)
 
 	pterm.Println()
 
@@ -1432,10 +1494,10 @@ func showExportSummary(info *vsphere.VMInfo, result *vsphere.ExportResult) {
 	data := pterm.TableData{
 		{"Metric", "Value"},
 		{"🖥️  VM Name", pterm.Bold.Sprint(info.Name)},
-		{"⏱️  Duration", pterm.Cyan(result.Duration.Round(time.Second).String())},
-		{"💾 Total Size", pterm.Cyan(formatBytes(result.TotalSize))},
-		{"⚡ Avg Speed", pterm.Cyan(fmt.Sprintf("%.1f MB/s", speedMBps))},
-		{"📦 Files Exported", pterm.Cyan(fmt.Sprintf("%d", len(result.Files)))},
+		{"⏱️  Duration", colorOrange.Sprint(result.Duration.Round(time.Second).String())},
+		{"💾 Total Size", colorOrange.Sprint(formatBytes(result.TotalSize))},
+		{"⚡ Avg Speed", colorOrange.Sprint(fmt.Sprintf("%.1f MB/s", speedMBps))},
+		{"📦 Files Exported", colorOrange.Sprint(fmt.Sprintf("%d", len(result.Files)))},
 		{"📁 Output Directory", pterm.FgGray.Sprint(result.OutputDir)},
 	}
 
@@ -1453,8 +1515,8 @@ func showExportSummary(info *vsphere.VMInfo, result *vsphere.ExportResult) {
 		data = append(data, []string{"🔄 Conversion Status", convStatus})
 
 		if result.ConversionResult.Success {
-			data = append(data, []string{"📦 Converted Files", pterm.Cyan(fmt.Sprintf("%d", len(result.ConversionResult.ConvertedFiles)))})
-			data = append(data, []string{"⏱️  Conversion Time", pterm.Cyan(result.ConversionResult.Duration.Round(time.Second).String())})
+			data = append(data, []string{"📦 Converted Files", colorOrange.Sprint(fmt.Sprintf("%d", len(result.ConversionResult.ConvertedFiles)))})
+			data = append(data, []string{"⏱️  Conversion Time", colorOrange.Sprint(result.ConversionResult.Duration.Round(time.Second).String())})
 			if result.ConversionResult.ReportPath != "" {
 				data = append(data, []string{"📊 Conversion Report", pterm.Green(result.ConversionResult.ReportPath)})
 			}
@@ -1776,8 +1838,8 @@ func runInteractiveTUI(ctx context.Context, client *vsphere.VSphereClient, cfg *
 	)
 
 	h := help.New()
-	h.Styles.ShortKey = lipgloss.NewStyle().Foreground(lipgloss.Color("#00ffff"))
-	h.Styles.ShortDesc = lipgloss.NewStyle().Foreground(lipgloss.Color("#666666"))
+	h.Styles.ShortKey = lipgloss.NewStyle().Foreground(lipgloss.Color("#D35400"))
+	h.Styles.ShortDesc = lipgloss.NewStyle().Foreground(lipgloss.Color("#6B7280"))
 
 	keys := tuiKeyMap{
 		Up: key.NewBinding(
@@ -1846,6 +1908,53 @@ func runInteractiveTUI(ctx context.Context, client *vsphere.VSphereClient, cfg *
 	p := tea.NewProgram(m, tea.WithAltScreen())
 	if _, err := p.Run(); err != nil {
 		return fmt.Errorf("TUI error: %w", err)
+	}
+
+	return nil
+}
+
+// showVMInfoCmd retrieves and displays VM information for the command-line --vm-info flag
+func showVMInfoCmd(ctx context.Context, client *vsphere.VSphereClient, vmName string, quiet bool, log logger.Logger) error {
+	var spinner *pterm.SpinnerPrinter
+	if !quiet {
+		spinner = newOrangeSpinner(fmt.Sprintf("Retrieving information for VM: %s", vmName))
+	}
+
+	// Find VM by name to get its path
+	vmPath, err := client.FindVMByName(ctx, vmName)
+	if err != nil {
+		if spinner != nil {
+			spinner.Fail("Failed to find VM")
+		}
+		return fmt.Errorf("find VM %s: %w", vmName, err)
+	}
+
+	// Get VM information
+	vmInfo, err := client.GetVMInfo(ctx, vmPath)
+	if err != nil {
+		if spinner != nil {
+			spinner.Fail("Failed to retrieve VM information")
+		}
+		return fmt.Errorf("get VM info: %w", err)
+	}
+
+	if spinner != nil {
+		spinner.Success("VM information retrieved")
+	}
+
+	// Display VM information
+	if quiet {
+		// Simple key=value format for scripting
+		fmt.Printf("name=%s\n", vmInfo.Name)
+		fmt.Printf("path=%s\n", vmInfo.Path)
+		fmt.Printf("power_state=%s\n", vmInfo.PowerState)
+		fmt.Printf("guest_os=%s\n", vmInfo.GuestOS)
+		fmt.Printf("cpu=%d\n", vmInfo.NumCPU)
+		fmt.Printf("memory_mb=%d\n", vmInfo.MemoryMB)
+		fmt.Printf("storage_bytes=%d\n", vmInfo.Storage)
+	} else {
+		// Use existing displayVMInfo function for pretty output
+		displayVMInfo(vmInfo)
 	}
 
 	return nil

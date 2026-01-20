@@ -4,11 +4,81 @@ This document describes the new features added to HyperExport.
 
 ## Table of Contents
 
-1. [Snapshot Management](#snapshot-management)
-2. [Bandwidth Limiting](#bandwidth-limiting)
-3. [Incremental Exports](#incremental-exports)
-4. [Email Notifications](#email-notifications)
-5. [Export Cleanup](#export-cleanup)
+1. [VM Information Display](#vm-information-display)
+2. [Snapshot Management](#snapshot-management)
+3. [Bandwidth Limiting](#bandwidth-limiting)
+4. [Incremental Exports](#incremental-exports)
+5. [Email Notifications](#email-notifications)
+6. [Export Cleanup](#export-cleanup)
+
+---
+
+## VM Information Display
+
+Display detailed VM information without performing an export. Useful for inspecting VM specifications before export.
+
+### Features
+
+- **Power state**: See if VM is powered on, off, or suspended
+- **CPU details**: View number of vCPUs allocated
+- **Memory info**: Display memory allocation in MB and GB
+- **Storage size**: See total storage used by VM
+- **Guest OS**: Identify the guest operating system
+- **VM path**: Full vCenter inventory path
+
+### Usage Examples
+
+```bash
+# Display VM information (pretty output)
+hyperexport --vm-info --vm "MyVM"
+
+# Display VM information (scripting-friendly key=value format)
+hyperexport --vm-info --vm "MyVM" --quiet
+
+# Check if VM is powered off before export
+hyperexport --vm-info --vm "MyVM" | grep "poweredOff"
+```
+
+### Command-Line Flags
+
+- `--vm-info`: Display VM information and exit
+- `--vm NAME`: Specify the VM name to inspect
+- `--quiet`: Use simple key=value output format for scripting
+
+### Example Output
+
+**Pretty Output:**
+```
+┌─ VM Information ───────────────────────────────────┐
+│ Property      │ Value                              │
+├───────────────┼────────────────────────────────────┤
+│ 🖥️  VM Name   │ MyVM                               │
+│ ⚡ Power State│ ● poweredOff                       │
+│ 💿 Guest OS   │ Ubuntu Linux (64-bit)              │
+│ 🧠 Memory     │ 8192 MB (8.0 GB)                   │
+│ ⚙️  vCPUs     │ 4                                  │
+│ 💾 Storage    │ 128.5 GB                           │
+│ 📁 Path       │ /Datacenter/vm/production/MyVM     │
+└────────────────────────────────────────────────────┘
+```
+
+**Quiet Output:**
+```
+name=MyVM
+path=/Datacenter/vm/production/MyVM
+power_state=poweredOff
+guest_os=Ubuntu Linux (64-bit)
+cpu=4
+memory_mb=8192
+storage_bytes=138047488000
+```
+
+### Benefits
+
+- **Quick inspection**: Check VM specs without performing an export
+- **Pre-export validation**: Verify VM state before export
+- **Scripting support**: Parse VM info in automation scripts
+- **Power state check**: Ensure VM is in the correct state for export
 
 ---
 

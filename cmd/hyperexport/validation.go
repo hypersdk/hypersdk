@@ -89,17 +89,34 @@ func (v *PreExportValidator) ValidateExport(ctx context.Context, vm vsphere.VMIn
 	// Check 5: Network connectivity (for vSphere)
 	// This would be implementation-specific
 
-	v.log.Info("pre-export validation completed",
-		"vm", vm.Name,
-		"passed", report.AllPassed,
-		"warnings", report.HasWarnings,
-		"checks", len(report.Checks))
+	if v.log != nil {
+		v.log.Info("pre-export validation completed",
+			"vm", vm.Name,
+			"passed", report.AllPassed,
+			"warnings", report.HasWarnings,
+			"checks", len(report.Checks))
+	}
 
 	return report
 }
 
 // validateDiskSpace checks if there's enough disk space
 func (v *PreExportValidator) validateDiskSpace(path string, requiredBytes int64) ValidationResult {
+	// Create the directory if it doesn't exist
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		if err := os.MkdirAll(path, 0755); err != nil {
+			return ValidationResult{
+				Name:    "Disk Space Check",
+				Passed:  false,
+				Message: fmt.Sprintf("Failed to create output directory: %v", err),
+				Warning: false,
+			}
+		}
+		if v.log != nil {
+			v.log.Info("created output directory", "path", path)
+		}
+	}
+
 	var stat syscall.Statfs_t
 	err := syscall.Statfs(path, &stat)
 
@@ -278,10 +295,12 @@ func (v *PostExportValidator) ValidateExportedFiles(exportDir string) *Validatio
 		report.AllPassed = false
 	}
 
-	v.log.Info("post-export validation completed",
-		"dir", exportDir,
-		"passed", report.AllPassed,
-		"warnings", report.HasWarnings)
+	if v.log != nil {
+		v.log.Info("post-export validation completed",
+			"dir", exportDir,
+			"passed", report.AllPassed,
+			"warnings", report.HasWarnings)
+	}
 
 	return report
 }
@@ -472,7 +491,9 @@ func ComputeExportChecksums(exportDir string, log logger.Logger) (map[string]str
 			continue
 		}
 
-		log.Info("computing checksum", "file", filepath.Base(filePath))
+		if log != nil {
+			log.Info("computing checksum", "file", filepath.Base(filePath))
+		}
 
 		checksum, err := CalculateFileChecksum(filePath)
 		if err != nil {

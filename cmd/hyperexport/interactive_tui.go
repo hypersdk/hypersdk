@@ -13,6 +13,8 @@ import (
 	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/progress"
+	"github.com/charmbracelet/bubbles/spinner"
+	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"hypersdk/logger"
@@ -93,6 +95,8 @@ type tuiModel struct {
 	// Modern UI components
 	progressBar progress.Model
 	helpModel   help.Model
+	spinner     spinner.Model
+	searchInput textinput.Model
 	keys        tuiKeyMap
 
 	// Configuration
@@ -181,31 +185,52 @@ func (k tuiKeyMap) FullHelp() [][]key.Binding {
 	}
 }
 
-// Color palette and styles (same as hyperctl)
+// Vision-optimized color palette (based on human eye sensitivity: green > yellow > red).
 var (
-	primaryColor   = lipgloss.Color("#00ffff")
-	secondaryColor = lipgloss.Color("#ff00ff")
-	successColor   = lipgloss.Color("#00ff00")
-	warningColor   = lipgloss.Color("#ffaa00")
-	errorColor     = lipgloss.Color("#ff0000")
-	mutedColor     = lipgloss.Color("#666666")
-	highlightColor = lipgloss.Color("#ffff00")
+	// Core palette - dark orange in the sweet spot (#D35400 - #C75B12).
+	// Avoids eye strain (too bright #FFA500) and muddy unreadable (too brown #8B4513).
+	deepOrange    = lipgloss.Color("#D35400") // Primary accent (optimal contrast, no glare)
+	tealInfo      = lipgloss.Color("#5DADE2") // Directories/info
+	successGreen  = lipgloss.Color("#A3BE8C") // Success messages (eye-sensitive green)
+	warmRed       = lipgloss.Color("#E74C3C") // Errors (bright for visibility)
+	amberYellow   = lipgloss.Color("#F39C12") // Highlights/warnings (readable yellow)
+	offWhite      = lipgloss.Color("#F5F5DC") // Normal text (cream)
+	darkCharcoal  = lipgloss.Color("#0B0C10") // Background (very dark)
+	lightCharcoal = lipgloss.Color("#1C1E22") // Subtle backgrounds
+	mutedGray     = lipgloss.Color("#6B7280") // Muted elements
 
+	// Semantic color mappings.
+	primaryColor   = deepOrange    // Orange as signal
+	secondaryColor = tealInfo      // Teal for information
+	successColor   = successGreen  // Green for success
+	warningColor   = amberYellow   // Amber for warnings
+	errorColor     = warmRed       // Red for errors
+	mutedColor     = mutedGray     // Gray for muted text
+	highlightColor = deepOrange    // Orange highlights
+	textColor      = offWhite      // Default text
+	darkBg         = darkCharcoal  // Primary background
+	lightBg        = lightCharcoal // Secondary background
+
+	// Enhanced title with warm orange accent.
 	titleStyleTUI = lipgloss.NewStyle().
 			Bold(true).
-			Foreground(primaryColor).
-			Background(lipgloss.Color("#0066cc")).
-			Padding(0, 1)
+			Foreground(deepOrange).
+			Background(darkBg).
+			Padding(0, 2).
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(tealInfo)
 
+	// Warm selection style.
 	selectedStyleTUI = lipgloss.NewStyle().
 				Bold(true).
-				Foreground(successColor)
+				Foreground(deepOrange).
+				Background(lightBg)
 
 	unselectedStyleTUI = lipgloss.NewStyle().
 				Foreground(mutedColor)
 
 	infoStyleTUI = lipgloss.NewStyle().
-			Foreground(warningColor).
+			Foreground(tealInfo).
 			Italic(true)
 
 	helpStyleTUI = lipgloss.NewStyle().
@@ -650,10 +675,39 @@ func (m tuiModel) View() string {
 	return "Loading VMs..."
 }
 
+// Cool ASCII art banner
+func renderCoolBanner() string {
+	banner := `
+╦ ╦╦ ╦╔═╗╔═╗╦═╗  ╔═╗═╗ ╦╔═╗╔═╗╦═╗╔╦╗
+╠═╣╚╦╝╠═╝║╣ ╠╦╝  ║╣ ╔╩╦╝╠═╝║ ║╠╦╝ ║
+╩ ╩ ╩ ╩  ╚═╝╩╚═  ╚═╝╩ ╚═╩  ╚═╝╩╚═ ╩ `
+
+	// Gradient styling for the banner
+	gradientBanner := lipgloss.NewStyle().
+		Foreground(tealInfo).
+		Bold(true).
+		Render(banner)
+
+	subtitle := lipgloss.NewStyle().
+		Foreground(amberYellow).
+		Italic(true).
+		Render("        ⚡ Multi-Cloud VM Export Platform ⚡")
+
+	// Create a bordered box around the banner
+	box := lipgloss.NewStyle().
+		Border(lipgloss.DoubleBorder()).
+		BorderForeground(tealInfo).
+		Padding(1, 2).
+		Align(lipgloss.Center)
+
+	return box.Render(gradientBanner + "\n" + subtitle)
+}
+
 func (m tuiModel) renderSelection() string {
 	var b strings.Builder
 
-	b.WriteString(titleStyleTUI.Render("hyperexport - interactive vm export"))
+	// Cool banner instead of simple title
+	b.WriteString(renderCoolBanner())
 	b.WriteString("\n\n")
 
 	if len(m.vms) == 0 {
@@ -661,32 +715,71 @@ func (m tuiModel) renderSelection() string {
 		return b.String()
 	}
 
-	// Status bar
+	// Cool status bar with gradient background
 	selectedCount := m.countSelected()
 	totalCount := len(m.vms)
 	visibleCount := len(m.getVisibleVMs())
 
-	statusText := fmt.Sprintf("📊 Total: %d | Visible: %d | ✅ Selected: %d", totalCount, visibleCount, selectedCount)
+	// Create modern status bar
+	statusBar := lipgloss.NewStyle().
+		Foreground(tealInfo).
+		Background(darkBg).
+		Bold(true).
+		Padding(0, 2).
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(deepOrange).
+		Width(80)
+
+	statusParts := []string{
+		lipgloss.NewStyle().Foreground(tealInfo).Render(fmt.Sprintf("📊 %d Total", totalCount)),
+		lipgloss.NewStyle().Foreground(tealInfo).Render(fmt.Sprintf("👁  %d Visible", visibleCount)),
+		lipgloss.NewStyle().Foreground(successGreen).Render(fmt.Sprintf("✓ %d Selected", selectedCount)),
+	}
+
 	if m.searchQuery != "" {
-		statusText += fmt.Sprintf(" | 🔍 %s", m.searchQuery)
+		statusParts = append(statusParts, lipgloss.NewStyle().Foreground(deepOrange).Render(fmt.Sprintf("🔍 %s", m.searchQuery)))
 	}
 	if m.filterPower != "" {
-		statusText += fmt.Sprintf(" | ⚡ %s", m.filterPower)
+		statusParts = append(statusParts, lipgloss.NewStyle().Foreground(amberYellow).Render(fmt.Sprintf("⚡ %s", m.filterPower)))
 	}
-	if m.quickFilter != "" {
-		statusText += fmt.Sprintf(" | 🚀 %s", m.quickFilter)
-	}
-	b.WriteString(infoStyleTUI.Render(statusText))
-	b.WriteString("\n")
 
-	// Add helpful hint for multi-selection
+	b.WriteString(statusBar.Render(strings.Join(statusParts, " │ ")))
+	b.WriteString("\n\n")
+
+	// Animated hint message with glowing effect
+	var hintMsg string
+	var hintStyle lipgloss.Style
+
 	if selectedCount == 0 {
-		b.WriteString(helpStyleTUI.Render("💡 Tip: Use Space to toggle checkboxes [ ] / [x] and select multiple VMs. Press 'a' to select all."))
+		hintMsg = "💡 Press SPACE to select VMs │ A to select all │ ENTER to continue"
+		hintStyle = lipgloss.NewStyle().
+			Foreground(deepOrange).
+			Background(lightCharcoal).
+			Italic(true).
+			Padding(0, 2).
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(deepOrange)
 	} else if selectedCount == 1 {
-		b.WriteString(successStyleTUI.Render("✓ You can select more VMs by pressing Space on each one"))
+		hintMsg = fmt.Sprintf("✓ 1 VM selected │ Select more with SPACE │ %d VMs available", visibleCount-1)
+		hintStyle = lipgloss.NewStyle().
+			Foreground(successGreen).
+			Background(darkBg).
+			Bold(true).
+			Padding(0, 2).
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(successGreen)
 	} else {
-		b.WriteString(successStyleTUI.Render(fmt.Sprintf("✓ %d VMs ready for export. Press Enter to continue or select more.", selectedCount)))
+		hintMsg = fmt.Sprintf("🚀 %d VMs ready for export │ Press ENTER to continue", selectedCount)
+		hintStyle = lipgloss.NewStyle().
+			Foreground(successGreen).
+			Background(darkBg).
+			Bold(true).
+			Padding(0, 2).
+			Border(lipgloss.DoubleBorder()).
+			BorderForeground(tealInfo)
 	}
+
+	b.WriteString(hintStyle.Render(hintMsg))
 	b.WriteString("\n\n")
 
 	// VM list
@@ -700,48 +793,90 @@ func (m tuiModel) renderSelection() string {
 		end = len(vms)
 	}
 
+	// Create a bordered container for VM list
+	vmListBox := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(deepOrange).
+		Padding(1, 2)
+
+	var vmListContent strings.Builder
+
 	for i := start; i < end; i++ {
 		item := vms[i]
-		cursor := "  "
+
+		// Cool cursor with neon effect
+		cursor := "   "
+		cursorStyle := lipgloss.NewStyle()
 		if m.cursor == i {
-			cursor = "▶ "
+			cursor = " ▶ "
+			cursorStyle = lipgloss.NewStyle().Foreground(tealInfo).Bold(true)
 		}
 
-		// Classic square bracket checkbox like Claude
-		checkbox := "[ ]"
-		checkboxStyle := unselectedStyleTUI
+		// Animated checkbox with glow effect
+		checkbox := "☐ "
+		checkboxStyle := lipgloss.NewStyle().Foreground(mutedGray)
 		if item.selected {
-			checkbox = "[x]"
-			checkboxStyle = successStyleTUI
+			checkbox = "☑ "
+			checkboxStyle = lipgloss.NewStyle().
+				Foreground(successGreen).
+				Bold(true)
 		}
 
-		powerIcon := "🔴"
+		// Power state with cool icons
+		var powerIcon string
+		var powerColor lipgloss.Color
 		if item.vm.PowerState == "poweredOn" {
-			powerIcon = "🟢"
-		}
-
-		vmInfo := fmt.Sprintf("%-35s %s %2dC %4.0fG %8s",
-			truncateString(item.vm.Name, 35),
-			powerIcon,
-			item.vm.NumCPU,
-			float64(item.vm.MemoryMB)/1024,
-			formatBytesCompact(item.vm.Storage))
-
-		style := unselectedStyleTUI
-		if item.selected {
-			style = selectedStyleTUI
-		}
-
-		// Render with prominent checkbox
-		if m.cursor == i {
-			line := cursor + checkboxStyle.Bold(true).Render(checkbox) + " " + style.Bold(true).Underline(true).Render(vmInfo)
-			b.WriteString(line)
+			powerIcon = "⚡"
+			powerColor = successGreen
 		} else {
-			line := cursor + checkboxStyle.Render(checkbox) + " " + style.Render(vmInfo)
-			b.WriteString(line)
+			powerIcon = "○"
+			powerColor = mutedGray
 		}
-		b.WriteString("\n")
+		powerStyle := lipgloss.NewStyle().Foreground(powerColor)
+
+		// VM name with dynamic styling
+		vmNameStyle := lipgloss.NewStyle().Foreground(tealInfo)
+		if item.selected {
+			vmNameStyle = lipgloss.NewStyle().
+				Foreground(successGreen).
+				Bold(true)
+		}
+		if m.cursor == i {
+			vmNameStyle = vmNameStyle.Background(lightBg)
+		}
+
+		// Resource info with color coding
+		cpuInfo := lipgloss.NewStyle().Foreground(tealInfo).Render(fmt.Sprintf("%2dC", item.vm.NumCPU))
+		memInfo := lipgloss.NewStyle().Foreground(amberYellow).Render(fmt.Sprintf("%4.0fG", float64(item.vm.MemoryMB)/1024))
+		storageInfo := lipgloss.NewStyle().Foreground(deepOrange).Render(formatBytesCompact(item.vm.Storage))
+
+		// Construct the line with all components
+		line := fmt.Sprintf("%s%s%s %-35s %s %s %s %s",
+			cursorStyle.Render(cursor),
+			checkboxStyle.Render(checkbox),
+			powerStyle.Render(powerIcon),
+			vmNameStyle.Render(truncateString(item.vm.Name, 35)),
+			cpuInfo,
+			memInfo,
+			storageInfo,
+			"",
+		)
+
+		// Add selection highlight
+		if m.cursor == i {
+			lineStyle := lipgloss.NewStyle().
+				Background(lightBg).
+				Foreground(tealInfo).
+				Width(78)
+			vmListContent.WriteString(lineStyle.Render(line))
+		} else {
+			vmListContent.WriteString(line)
+		}
+		vmListContent.WriteString("\n")
 	}
+
+	b.WriteString(vmListBox.Render(vmListContent.String()))
+	b.WriteString("\n")
 
 	// Modern help section
 	b.WriteString("\n")
@@ -1036,7 +1171,7 @@ func (m tuiModel) renderExport() string {
 	header := lipgloss.NewStyle().
 		Bold(true).
 		Foreground(primaryColor).
-		Background(lipgloss.Color("#0066cc")).
+		Background(lightCharcoal).
 		Width(80).
 		Align(lipgloss.Center).
 		Render("🚀 Exporting Virtual Machines")
