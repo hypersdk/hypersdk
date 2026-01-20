@@ -10,6 +10,9 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/charmbracelet/bubbles/help"
+	"github.com/charmbracelet/bubbles/key"
+	"github.com/charmbracelet/bubbles/progress"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"hypersdk/logger"
@@ -87,6 +90,11 @@ type tuiModel struct {
 	// Advanced Features Configuration
 	featureConfig featureConfiguration
 
+	// Modern UI components
+	progressBar progress.Model
+	helpModel   help.Model
+	keys        tuiKeyMap
+
 	// Configuration
 	client    *vsphere.VSphereClient
 	outputDir string
@@ -144,6 +152,33 @@ type exportProgressState struct {
 	startTime      time.Time
 	lastUpdateTime time.Time
 	lastBytes      int64
+}
+
+// Modern key bindings
+type tuiKeyMap struct {
+	Up       key.Binding
+	Down     key.Binding
+	Select   key.Binding
+	Confirm  key.Binding
+	Back     key.Binding
+	Quit     key.Binding
+	Help     key.Binding
+	Filter   key.Binding
+	Sort     key.Binding
+	Features key.Binding
+	Cloud    key.Binding
+}
+
+func (k tuiKeyMap) ShortHelp() []key.Binding {
+	return []key.Binding{k.Help, k.Quit}
+}
+
+func (k tuiKeyMap) FullHelp() [][]key.Binding {
+	return [][]key.Binding{
+		{k.Up, k.Down, k.Select, k.Confirm},
+		{k.Filter, k.Sort, k.Features, k.Cloud},
+		{k.Back, k.Help, k.Quit},
+	}
 }
 
 // Color palette and styles (same as hyperctl)
@@ -708,20 +743,30 @@ func (m tuiModel) renderSelection() string {
 		b.WriteString("\n")
 	}
 
-	// Help
+	// Modern help section
 	b.WriteString("\n")
+	b.WriteString(lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder(), true, false, false, false).
+		BorderForeground(primaryColor).
+		Foreground(mutedColor).
+		Padding(1, 0).
+		Render(""))
+	b.WriteString("\n")
+
 	if m.showHelp {
-		b.WriteString(m.renderHelp())
+		// Full help with all keybindings
+		helpView := m.helpModel.FullHelpView(m.keys.FullHelp())
+		b.WriteString(lipgloss.NewStyle().
+			Foreground(mutedColor).
+			Italic(true).
+			Render(helpView))
 	} else {
-		b.WriteString(titleStyleTUI.Render("🎯 Controls:"))
-		b.WriteString("\n")
-		b.WriteString(helpStyleTUI.Render("Navigation: ↑/k: Up | ↓/j: Down | Space: Toggle [x] | Enter: Continue"))
-		b.WriteString("\n")
-		b.WriteString(helpStyleTUI.Render("Multi-Select: a: All | n: None | A: Regex | 1-7: Quick filters"))
-		b.WriteString("\n")
-		b.WriteString(helpStyleTUI.Render("Actions:    u: Cloud Upload | t: Templates | f: Features | s: Sort | c: Clear"))
-		b.WriteString("\n")
-		b.WriteString(helpStyleTUI.Render("Other:      h/?: Help | q: Quit"))
+		// Short help with essential keys
+		shortHelp := m.helpModel.ShortHelpView(m.keys.ShortHelp())
+		b.WriteString(lipgloss.NewStyle().
+			Foreground(mutedColor).
+			Italic(true).
+			Render("💡 " + shortHelp))
 	}
 
 	if m.message != "" {
@@ -987,37 +1032,92 @@ func (m tuiModel) renderExport() string {
 		}
 	}
 
-	b.WriteString(titleStyleTUI.Render("📦 Exporting VMs"))
+	// Modern header with gradient
+	header := lipgloss.NewStyle().
+		Bold(true).
+		Foreground(primaryColor).
+		Background(lipgloss.Color("#0066cc")).
+		Width(80).
+		Align(lipgloss.Center).
+		Render("🚀 Exporting Virtual Machines")
+	b.WriteString(header)
 	b.WriteString("\n\n")
 
-	// Overall progress
-	overallProgress := fmt.Sprintf("%d / %d VMs completed", m.currentExport, len(selectedVMs))
-	b.WriteString(progressLabelStyleTUI.Render(overallProgress))
+	// Modern progress bar
+	progressPercent := float64(m.currentExport) / float64(len(selectedVMs))
+	progressBar := m.progressBar.ViewAs(progressPercent)
+
+	progressInfo := lipgloss.NewStyle().
+		Foreground(primaryColor).
+		Bold(true).
+		Render(fmt.Sprintf("Overall Progress: %d / %d VMs (%.0f%%)",
+			m.currentExport,
+			len(selectedVMs),
+			progressPercent*100))
+
+	b.WriteString(progressInfo)
+	b.WriteString("\n")
+	b.WriteString(progressBar)
 	b.WriteString("\n\n")
 
-	// VM list with status
+	// Current VM info with modern styling
+	if m.currentExport < len(selectedVMs) {
+		currentVM := selectedVMs[m.currentExport]
+		currentBox := lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(primaryColor).
+			Padding(1, 2).
+			Render(fmt.Sprintf("⏳ Currently Exporting: %s\n   %s",
+				lipgloss.NewStyle().Bold(true).Foreground(successColor).Render(currentVM.vm.Name),
+				currentVM.vm.Path))
+		b.WriteString(currentBox)
+		b.WriteString("\n\n")
+	}
+
+	// VM list with modern icons and styling
+	vmListBox := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(mutedColor).
+		Padding(1, 2).
+		Width(78)
+
+	var vmList strings.Builder
 	for i, item := range selectedVMs {
-		status := ""
-		icon := ""
+		var status string
+		var icon string
+		var style lipgloss.Style
 
 		if i < m.currentExport {
 			status = "Completed"
 			icon = "✅"
+			style = lipgloss.NewStyle().Foreground(successColor)
 		} else if i == m.currentExport {
 			status = "Exporting..."
 			icon = "⏳"
+			style = lipgloss.NewStyle().Foreground(primaryColor).Bold(true)
 		} else {
 			status = "Pending"
-			icon = "⏸ "
+			icon = "⏸️ "
+			style = lipgloss.NewStyle().Foreground(mutedColor)
 		}
 
-		vmLine := fmt.Sprintf("%s %s - %s", icon, truncateString(item.vm.Name, 40), status)
-		b.WriteString(vmLine)
-		b.WriteString("\n")
+		vmLine := style.Render(fmt.Sprintf("%s %-45s %s",
+			icon,
+			truncateString(item.vm.Name, 45),
+			status))
+		vmList.WriteString(vmLine)
+		vmList.WriteString("\n")
 	}
 
-	b.WriteString("\n")
-	b.WriteString(helpStyleTUI.Render("Export in progress... Press q to cancel"))
+	b.WriteString(vmListBox.Render(vmList.String()))
+	b.WriteString("\n\n")
+
+	// Modern help with bubbles/help component
+	helpView := m.helpModel.ShortHelpView([]key.Binding{m.keys.Quit})
+	b.WriteString(lipgloss.NewStyle().
+		Foreground(mutedColor).
+		Italic(true).
+		Render("💡 " + helpView + " | Export in progress..."))
 
 	return b.String()
 }

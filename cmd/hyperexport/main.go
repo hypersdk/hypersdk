@@ -18,7 +18,11 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/charmbracelet/bubbles/help"
+	"github.com/charmbracelet/bubbles/key"
+	"github.com/charmbracelet/bubbles/progress"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/pterm/pterm"
 
 	"hypersdk/config"
@@ -1765,6 +1769,63 @@ func runInteractiveTUI(ctx context.Context, client *vsphere.VSphereClient, cfg *
 		outputDirPath = "./exports"
 	}
 
+	// Initialize modern UI components
+	prog := progress.New(
+		progress.WithDefaultGradient(),
+		progress.WithWidth(40),
+	)
+
+	h := help.New()
+	h.Styles.ShortKey = lipgloss.NewStyle().Foreground(lipgloss.Color("#00ffff"))
+	h.Styles.ShortDesc = lipgloss.NewStyle().Foreground(lipgloss.Color("#666666"))
+
+	keys := tuiKeyMap{
+		Up: key.NewBinding(
+			key.WithKeys("up", "k"),
+			key.WithHelp("↑/k", "move up"),
+		),
+		Down: key.NewBinding(
+			key.WithKeys("down", "j"),
+			key.WithHelp("↓/j", "move down"),
+		),
+		Select: key.NewBinding(
+			key.WithKeys(" "),
+			key.WithHelp("space", "toggle [x]"),
+		),
+		Confirm: key.NewBinding(
+			key.WithKeys("enter"),
+			key.WithHelp("enter", "confirm"),
+		),
+		Back: key.NewBinding(
+			key.WithKeys("esc"),
+			key.WithHelp("esc", "back"),
+		),
+		Quit: key.NewBinding(
+			key.WithKeys("q", "ctrl+c"),
+			key.WithHelp("q", "quit"),
+		),
+		Help: key.NewBinding(
+			key.WithKeys("?"),
+			key.WithHelp("?", "toggle help"),
+		),
+		Filter: key.NewBinding(
+			key.WithKeys("/"),
+			key.WithHelp("/", "filter"),
+		),
+		Sort: key.NewBinding(
+			key.WithKeys("s"),
+			key.WithHelp("s", "sort"),
+		),
+		Features: key.NewBinding(
+			key.WithKeys("f"),
+			key.WithHelp("f", "features"),
+		),
+		Cloud: key.NewBinding(
+			key.WithKeys("u"),
+			key.WithHelp("u", "cloud"),
+		),
+	}
+
 	// Create initial model
 	m := tuiModel{
 		vms:         []tuiVMItem{},
@@ -1776,6 +1837,9 @@ func runInteractiveTUI(ctx context.Context, client *vsphere.VSphereClient, cfg *
 		outputDir:   outputDirPath,
 		log:         log,
 		ctx:         ctx,
+		progressBar: prog,
+		helpModel:   h,
+		keys:        keys,
 	}
 
 	// Run the TUI program
