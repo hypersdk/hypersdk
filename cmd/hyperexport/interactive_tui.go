@@ -1871,6 +1871,128 @@ func formatDuration(d time.Duration) string {
 	return fmt.Sprintf("%dh %dm", hours, minutes)
 }
 
+func (m tuiModel) renderCloudUpload() string {
+	var b strings.Builder
+
+	// Header
+	header := lipgloss.NewStyle().
+		Bold(true).
+		Foreground(primaryColor).
+		Background(lightCharcoal).
+		Width(80).
+		Align(lipgloss.Center).
+		Render("☁️  Uploading to Cloud")
+	b.WriteString(header)
+	b.WriteString("\n\n")
+
+	if m.cloudConfig == nil {
+		return errorStyleTUI.Render("No cloud configuration found")
+	}
+
+	// Cloud provider info
+	providerBox := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(tealInfo).
+		Padding(1, 2).
+		Width(76)
+
+	var providerInfo strings.Builder
+	providerInfo.WriteString(lipgloss.NewStyle().
+		Foreground(tealInfo).
+		Bold(true).
+		Render(fmt.Sprintf("📦 Provider: %s", m.cloudConfig.provider)))
+	providerInfo.WriteString("\n")
+	providerInfo.WriteString(lipgloss.NewStyle().Foreground(textColor).Render(
+		fmt.Sprintf("   Bucket: %s", m.cloudConfig.bucket)))
+	if m.cloudConfig.prefix != "" {
+		providerInfo.WriteString("\n")
+		providerInfo.WriteString(lipgloss.NewStyle().Foreground(textColor).Render(
+			fmt.Sprintf("   Prefix: %s", m.cloudConfig.prefix)))
+	}
+
+	b.WriteString(providerBox.Render(providerInfo.String()))
+	b.WriteString("\n\n")
+
+	// Upload progress
+	progressBox := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(primaryColor).
+		Padding(1, 2).
+		Width(76)
+
+	var progress strings.Builder
+
+	if m.exportProgress.totalBytes > 0 {
+		uploadPercent := float64(m.exportProgress.currentBytes) / float64(m.exportProgress.totalBytes) * 100
+		progress.WriteString(lipgloss.NewStyle().
+			Foreground(primaryColor).
+			Bold(true).
+			Render(fmt.Sprintf("⬆️  Upload Progress: %.1f%%", uploadPercent)))
+		progress.WriteString("\n\n")
+
+		// Progress bar
+		progressBar := m.progressBar.ViewAs(uploadPercent / 100.0)
+		progress.WriteString(progressBar)
+		progress.WriteString("\n\n")
+
+		// Transfer stats
+		progress.WriteString(lipgloss.NewStyle().Foreground(textColor).Render(
+			fmt.Sprintf("📊 %s / %s",
+				formatBytes(m.exportProgress.currentBytes),
+				formatBytes(m.exportProgress.totalBytes))))
+		progress.WriteString("\n")
+
+		// Upload speed
+		if m.exportProgress.speed > 0 {
+			progress.WriteString(lipgloss.NewStyle().Foreground(tealInfo).Render(
+				fmt.Sprintf("⚡ %.2f MB/s", m.exportProgress.speed)))
+			progress.WriteString("\n")
+
+			// ETA
+			if m.exportProgress.totalBytes > m.exportProgress.currentBytes {
+				remainingBytes := m.exportProgress.totalBytes - m.exportProgress.currentBytes
+				remainingMB := float64(remainingBytes) / (1024 * 1024)
+				etaSeconds := remainingMB / m.exportProgress.speed
+				etaDuration := time.Duration(etaSeconds * float64(time.Second))
+
+				progress.WriteString(lipgloss.NewStyle().Foreground(amberYellow).Render(
+					fmt.Sprintf("⏱  ETA: %s", formatDuration(etaDuration))))
+			}
+		}
+	} else {
+		progress.WriteString(m.spinner.View())
+		progress.WriteString(" Preparing files for upload...")
+	}
+
+	b.WriteString(progressBox.Render(progress.String()))
+	b.WriteString("\n\n")
+
+	// Current file
+	if m.currentFileName != "" {
+		fileBox := lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(mutedGray).
+			Padding(0, 1)
+
+		b.WriteString(fileBox.Render(
+			lipgloss.NewStyle().Foreground(mutedGray).Render(
+				fmt.Sprintf("📄 %s (%d/%d)",
+					truncateString(m.currentFileName, 60),
+					m.exportProgress.currentFileIdx+1,
+					m.exportProgress.totalFiles))))
+		b.WriteString("\n\n")
+	}
+
+	// Help
+	helpView := m.helpModel.ShortHelpView([]key.Binding{m.keys.Quit})
+	b.WriteString(lipgloss.NewStyle().
+		Foreground(mutedColor).
+		Italic(true).
+		Render("💡 " + helpView + " | Upload in progress..."))
+
+	return b.String()
+}
+
 func (m tuiModel) renderDone() string {
 	return successStyleTUI.Render("✅ Export complete!\n\nPress q to quit")
 }

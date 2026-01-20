@@ -599,58 +599,6 @@ func getConfigStep(provider CloudProvider, phase string) int {
 	return 1
 }
 
-// Cloud upload progress visualization
-func (m *tuiModel) renderCloudUpload() string {
-	var b strings.Builder
-
-	b.WriteString(titleStyleTUI.Render("☁️  Uploading to Cloud"))
-	b.WriteString("\n\n")
-
-	if m.currentVMName != "" {
-		b.WriteString(infoStyleTUI.Render(fmt.Sprintf("Uploading: %s", m.currentVMName)))
-		b.WriteString("\n\n")
-	}
-
-	// Progress bar
-	if m.exportProgress.totalBytes > 0 {
-		percentage := float64(m.exportProgress.currentBytes) / float64(m.exportProgress.totalBytes) * 100
-
-		barWidth := 50
-		filled := int(float64(barWidth) * percentage / 100)
-		bar := strings.Repeat("█", filled) + strings.Repeat("░", barWidth-filled)
-
-		b.WriteString(progressBarStyleTUI.Render(bar))
-		b.WriteString(" ")
-		b.WriteString(progressLabelStyleTUI.Render(fmt.Sprintf("%.1f%%", percentage)))
-		b.WriteString("\n\n")
-
-		// Transfer details
-		details := fmt.Sprintf("%s / %s",
-			formatBytes(m.exportProgress.currentBytes),
-			formatBytes(m.exportProgress.totalBytes))
-		b.WriteString(infoStyleTUI.Render(details))
-		b.WriteString("\n")
-
-		// Speed
-		if m.exportProgress.speed > 0 {
-			speedStr := fmt.Sprintf("Speed: %.1f MB/s", m.exportProgress.speed)
-			b.WriteString(statsStyleTUI.Render(speedStr))
-			b.WriteString("\n")
-		}
-
-		// Files uploaded
-		if m.exportProgress.totalFiles > 0 {
-			filesStr := fmt.Sprintf("Files: %d / %d", m.exportProgress.currentFileIdx, m.exportProgress.totalFiles)
-			b.WriteString(helpStyleTUI.Render(filesStr))
-			b.WriteString("\n")
-		}
-	}
-
-	b.WriteString("\n")
-	b.WriteString(helpStyleTUI.Render("Upload in progress... Press q to cancel"))
-
-	return b.String()
-}
 
 // Cloud browser for downloading/browsing exports
 func newCloudBrowserModel(provider CloudProvider, parent *tuiModel) cloudBrowserModel {
