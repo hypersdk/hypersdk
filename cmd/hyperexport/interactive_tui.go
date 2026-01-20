@@ -67,7 +67,7 @@ type tuiModel struct {
 	vms              []tuiVMItem
 	filteredVMs      []tuiVMItem
 	cursor           int
-	phase            string // "select", "confirm", "template", "regex", "cloud", "features", "export", "cloudupload", "done", "search", "details", "validation", "config"
+	phase            string // "select", "confirm", "template", "regex", "cloud", "features", "export", "cloudupload", "done", "search", "details", "validation", "config", "stats"
 	detailsVM        *vsphere.VMInfo // VM to show details for
 	validationReport *ValidationReport // Pre-export validation results
 	configPanel      *configPanelState // Interactive config panel state
@@ -490,6 +490,8 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.handleValidationKeys(msg)
 		case "config":
 			return m.handleConfigPanelKeys(msg)
+		case "stats":
+			return m.handleStatsKeys(msg)
 		case "cloud":
 			// Cloud phase is handled by cloudSelectionModel
 			return m, nil
@@ -647,6 +649,11 @@ func (m tuiModel) handleSelectionKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "s":
 		m.cycleSortMode()
 		m.applyFiltersAndSort()
+		return m, nil
+
+	case "D":
+		// Show statistics dashboard
+		m.phase = "stats"
 		return m, nil
 
 	case "c":
@@ -1147,6 +1154,19 @@ func parseInt(s string) int64 {
 	return val
 }
 
+// handleStatsKeys handles keyboard input for stats dashboard
+func (m tuiModel) handleStatsKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "ctrl+c", "q":
+		return m, tea.Quit
+	case "escape":
+		// Go back to select screen
+		m.phase = "select"
+		return m, nil
+	}
+	return m, nil
+}
+
 func (m tuiModel) countEnabledFeatures() int {
 	count := 0
 	if m.featureConfig.enableSnapshot {
@@ -1187,6 +1207,8 @@ func (m tuiModel) View() string {
 		return m.renderValidation()
 	case "config":
 		return m.renderConfigPanel()
+	case "stats":
+		return m.renderStats()
 	case "export":
 		return m.renderExport()
 	case "cloudupload":
@@ -2040,6 +2062,159 @@ func (m tuiModel) renderConfigPanel() string {
 	// Help text
 	b.WriteString(helpStyleTUI.Render(
 		"Ctrl+S or Enter on last field: Save | Esc: Cancel | q: Quit"))
+
+	return b.String()
+}
+
+// renderStats renders the statistics dashboard
+func (m tuiModel) renderStats() string {
+	var b strings.Builder
+
+	boxWidth := m.getBoxWidth()
+	headerWidth := m.getHeaderWidth()
+
+	// Header
+	header := lipgloss.NewStyle().
+		Bold(true).
+		Foreground(primaryColor).
+		Background(lightCharcoal).
+		Width(headerWidth).
+		Align(lipgloss.Center).
+		Render("📊 Statistics Dashboard")
+	b.WriteString(header)
+	b.WriteString("\n\n")
+
+	// VM Inventory Statistics
+	var totalVMs int
+	var poweredOn, poweredOff int
+	var totalCPUs int32
+	var totalMemoryMB int32
+	var totalStorageBytes int64
+
+	for _, vm := range m.vms {
+		totalVMs++
+		totalCPUs += vm.vm.NumCPU
+		totalMemoryMB += vm.vm.MemoryMB
+		totalStorageBytes += vm.vm.Storage
+		if vm.vm.PowerState == "poweredOn" {
+			poweredOn++
+		} else {
+			poweredOff++
+		}
+	}
+
+	// VM Inventory Box
+	inventoryBox := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(tealInfo).
+		Padding(1, 2).
+		Width(boxWidth)
+
+	var inventory strings.Builder
+	inventory.WriteString(lipgloss.NewStyle().
+		Foreground(tealInfo).
+		Bold(true).
+		Render("🖥️  VM Inventory"))
+	inventory.WriteString("\n\n")
+
+	inventory.WriteString(fmt.Sprintf("Total VMs: %s\n",
+		lipgloss.NewStyle().Foreground(primaryColor).Bold(true).Render(fmt.Sprintf("%d", totalVMs))))
+	inventory.WriteString(fmt.Sprintf("  ● Powered On: %s\n",
+		lipgloss.NewStyle().Foreground(successGreen).Render(fmt.Sprintf("%d", poweredOn))))
+	inventory.WriteString(fmt.Sprintf("  ○ Powered Off: %s\n",
+		lipgloss.NewStyle().Foreground(mutedGray).Render(fmt.Sprintf("%d", poweredOff))))
+	inventory.WriteString("\n")
+	inventory.WriteString(fmt.Sprintf("Total vCPUs: %s\n",
+		lipgloss.NewStyle().Foreground(textColor).Render(fmt.Sprintf("%d", totalCPUs))))
+	inventory.WriteString(fmt.Sprintf("Total Memory: %s\n",
+		lipgloss.NewStyle().Foreground(textColor).Render(fmt.Sprintf("%.1f GB", float64(totalMemoryMB)/1024))))
+	inventory.WriteString(fmt.Sprintf("Total Storage: %s\n",
+		lipgloss.NewStyle().Foreground(textColor).Render(formatBytes(totalStorageBytes))))
+
+	b.WriteString(inventoryBox.Render(inventory.String()))
+	b.WriteString("\n\n")
+
+	// Selected VMs Box
+	selectedCount := m.countSelected()
+	if selectedCount > 0 {
+		var selectedCPUs int32
+		var selectedMemoryMB int32
+		var selectedStorageBytes int64
+
+		for _, vm := range m.vms {
+			if vm.selected {
+				selectedCPUs += vm.vm.NumCPU
+				selectedMemoryMB += vm.vm.MemoryMB
+				selectedStorageBytes += vm.vm.Storage
+			}
+		}
+
+		selectedBox := lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(primaryColor).
+			Padding(1, 2).
+			Width(boxWidth)
+
+		var selected strings.Builder
+		selected.WriteString(lipgloss.NewStyle().
+			Foreground(primaryColor).
+			Bold(true).
+			Render("✓ Selected for Export"))
+		selected.WriteString("\n\n")
+
+		selected.WriteString(fmt.Sprintf("Selected VMs: %s\n",
+			lipgloss.NewStyle().Foreground(primaryColor).Bold(true).Render(fmt.Sprintf("%d", selectedCount))))
+		selected.WriteString(fmt.Sprintf("Total vCPUs: %s\n",
+			lipgloss.NewStyle().Foreground(textColor).Render(fmt.Sprintf("%d", selectedCPUs))))
+		selected.WriteString(fmt.Sprintf("Total Memory: %s\n",
+			lipgloss.NewStyle().Foreground(textColor).Render(fmt.Sprintf("%.1f GB", float64(selectedMemoryMB)/1024))))
+		selected.WriteString(fmt.Sprintf("Total Storage: %s\n",
+			lipgloss.NewStyle().Foreground(textColor).Render(formatBytes(selectedStorageBytes))))
+
+		b.WriteString(selectedBox.Render(selected.String()))
+		b.WriteString("\n\n")
+	}
+
+	// Configuration Summary Box
+	configBox := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(amberYellow).
+		Padding(1, 2).
+		Width(boxWidth)
+
+	var configSummary strings.Builder
+	configSummary.WriteString(lipgloss.NewStyle().
+		Foreground(amberYellow).
+		Bold(true).
+		Render("⚙️  Configuration"))
+	configSummary.WriteString("\n\n")
+
+	configSummary.WriteString(fmt.Sprintf("Output Directory: %s\n",
+		lipgloss.NewStyle().Foreground(textColor).Render(m.outputDir)))
+
+	if m.enableCloudUpload && m.cloudConfig != nil {
+		configSummary.WriteString(fmt.Sprintf("Cloud Upload: %s (%s)\n",
+			lipgloss.NewStyle().Foreground(successGreen).Render("Enabled"),
+			m.cloudConfig.provider))
+	} else {
+		configSummary.WriteString(fmt.Sprintf("Cloud Upload: %s\n",
+			lipgloss.NewStyle().Foreground(mutedGray).Render("Disabled")))
+	}
+
+	enabledFeatures := m.countEnabledFeatures()
+	if enabledFeatures > 0 {
+		configSummary.WriteString(fmt.Sprintf("Advanced Features: %s\n",
+			lipgloss.NewStyle().Foreground(successGreen).Render(fmt.Sprintf("%d enabled", enabledFeatures))))
+	} else {
+		configSummary.WriteString(fmt.Sprintf("Advanced Features: %s\n",
+			lipgloss.NewStyle().Foreground(mutedGray).Render("None")))
+	}
+
+	b.WriteString(configBox.Render(configSummary.String()))
+	b.WriteString("\n\n")
+
+	// Help text
+	b.WriteString(helpStyleTUI.Render("Esc: Back to VM list | q: Quit"))
 
 	return b.String()
 }
