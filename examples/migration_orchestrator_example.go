@@ -21,19 +21,19 @@ func main() {
 	appLogger := logger.New("info")
 
 	// Example 1: Basic Migration with Progress Tracking
-	fmt.Println("=== Example 1: Basic Migration ===\n")
+	fmt.Println("=== Example 1: Basic Migration ===")
 	basicMigrationExample(appLogger)
 
 	// Example 2: Migration with Full Monitoring
-	fmt.Println("\n=== Example 2: Full Monitoring ===\n")
+	fmt.Println("\n=== Example 2: Full Monitoring ===")
 	fullMonitoringExample(appLogger)
 
 	// Example 3: Batch Migration
-	fmt.Println("\n=== Example 3: Batch Migration ===\n")
+	fmt.Println("\n=== Example 3: Batch Migration ===")
 	batchMigrationExample(appLogger)
 
 	// Example 4: Migration with Webhooks
-	fmt.Println("\n=== Example 4: Webhook Notifications ===\n")
+	fmt.Println("\n=== Example 4: Webhook Notifications ===")
 	webhookExample(appLogger)
 }
 
@@ -280,7 +280,7 @@ func webhookExample(log logger.Logger) {
 			status = "enabled"
 		}
 		fmt.Printf("  %d. %s (%s)\n", i+1, webhook.Type, status)
-		fmt.Printf("     Events: ", webhook.Type)
+		fmt.Printf("     Events: ")
 		events := []string{}
 		if webhook.OnStart {
 			events = append(events, "start")

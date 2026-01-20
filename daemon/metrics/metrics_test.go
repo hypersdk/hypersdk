@@ -253,3 +253,142 @@ func TestMetricsLabels(t *testing.T) {
 		})
 	}
 }
+
+func TestRecordJobStart(t *testing.T) {
+	initialValue := testutil.ToFloat64(ActiveJobs)
+	RecordJobStart("vsphere")
+	newValue := testutil.ToFloat64(ActiveJobs)
+	if newValue <= initialValue {
+		t.Errorf("RecordJobStart did not increment ActiveJobs: before=%v, after=%v", initialValue, newValue)
+	}
+}
+
+func TestRecordJobCompletion(t *testing.T) {
+	initialActive := testutil.ToFloat64(ActiveJobs)
+	RecordJobCompletion("vsphere", "completed", 123.45)
+	newActive := testutil.ToFloat64(ActiveJobs)
+	if newActive >= initialActive {
+		t.Errorf("RecordJobCompletion did not decrement ActiveJobs: before=%v, after=%v", initialActive, newActive)
+	}
+}
+
+func TestRecordVMExport(t *testing.T) {
+	ExportedVMs.Reset()
+	ExportedBytes.Reset()
+
+	RecordVMExport("vsphere", "linux", 1024*1024*100) // 100 MB
+
+	if got := testutil.ToFloat64(ExportedVMs.WithLabelValues("vsphere", "linux")); got != 1 {
+		t.Errorf("RecordVMExport VM count = %v, want 1", got)
+	}
+
+	expectedBytes := float64(1024 * 1024 * 100)
+	if got := testutil.ToFloat64(ExportedBytes.WithLabelValues("vsphere")); got != expectedBytes {
+		t.Errorf("RecordVMExport bytes = %v, want %v", got, expectedBytes)
+	}
+}
+
+func TestRecordExportSpeed(t *testing.T) {
+	RecordExportSpeed("vsphere", 10*1024*1024) // 10 MB/s
+	// Just verify it doesn't panic
+	count := testutil.CollectAndCount(ExportSpeed)
+	if count == 0 {
+		t.Error("RecordExportSpeed did not collect metrics")
+	}
+}
+
+func TestRecordAPIRequest(t *testing.T) {
+	APIRequests.Reset()
+	RecordAPIRequest("GET", "/api/test", "200", 0.123)
+
+	if got := testutil.ToFloat64(APIRequests.WithLabelValues("GET", "/api/test", "200")); got != 1 {
+		t.Errorf("RecordAPIRequest count = %v, want 1", got)
+	}
+}
+
+func TestRecordError(t *testing.T) {
+	ErrorsTotal.Reset()
+	RecordError("connection_timeout", "vsphere")
+
+	if got := testutil.ToFloat64(ErrorsTotal.WithLabelValues("connection_timeout", "vsphere")); got != 1 {
+		t.Errorf("RecordError count = %v, want 1", got)
+	}
+}
+
+func TestRecordRetry(t *testing.T) {
+	RetryAttempts.Reset()
+	RecordRetry("disk_download", "vsphere")
+
+	if got := testutil.ToFloat64(RetryAttempts.WithLabelValues("disk_download", "vsphere")); got != 1 {
+		t.Errorf("RecordRetry count = %v, want 1", got)
+	}
+}
+
+func TestUpdateVMsDiscovered(t *testing.T) {
+	UpdateVMsDiscovered("vsphere", "poweredOn", 42)
+
+	if got := testutil.ToFloat64(VMsDiscovered.WithLabelValues("vsphere", "poweredOn")); got != 42 {
+		t.Errorf("UpdateVMsDiscovered = %v, want 42", got)
+	}
+}
+
+func TestUpdateQueuedJobs(t *testing.T) {
+	UpdateQueuedJobs(15)
+
+	if got := testutil.ToFloat64(QueuedJobs); got != 15 {
+		t.Errorf("UpdateQueuedJobs = %v, want 15", got)
+	}
+}
+
+func TestRecordDiskDownload(t *testing.T) {
+	DiskDownloads.Reset()
+	RecordDiskDownload("vsphere", 75, 120.5)
+
+	count := testutil.CollectAndCount(DiskDownloads)
+	if count == 0 {
+		t.Error("RecordDiskDownload did not collect metrics")
+	}
+}
+
+func TestRecordOVFGeneration(t *testing.T) {
+	RecordOVFGeneration(5.5)
+
+	count := testutil.CollectAndCount(OVFGenerationDuration)
+	if count == 0 {
+		t.Error("RecordOVFGeneration did not collect metrics")
+	}
+}
+
+func TestSetBuildInfo(t *testing.T) {
+	BuildInfo.Reset()
+	SetBuildInfo("1.0.0", "go1.21")
+
+	if got := testutil.ToFloat64(BuildInfo.WithLabelValues("1.0.0", "go1.21")); got != 1 {
+		t.Errorf("SetBuildInfo = %v, want 1", got)
+	}
+}
+
+func TestDiskSizeToLabel(t *testing.T) {
+	tests := []struct {
+		sizeGB int
+		want   string
+	}{
+		{5, "small"},
+		{9, "small"},
+		{10, "medium"},
+		{49, "medium"},
+		{50, "large"},
+		{99, "large"},
+		{100, "xlarge"},
+		{499, "xlarge"},
+		{500, "xxlarge"},
+		{1000, "xxlarge"},
+	}
+
+	for _, tt := range tests {
+		got := diskSizeToLabel(tt.sizeGB)
+		if got != tt.want {
+			t.Errorf("diskSizeToLabel(%d) = %v, want %v", tt.sizeGB, got, tt.want)
+		}
+	}
+}

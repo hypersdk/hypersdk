@@ -36,13 +36,11 @@ func TestNewClient(t *testing.T) {
 	log := logger.New("info")
 
 	cfg := &config.ProxmoxConfig{
-		Host:     server.URL[7:], // Remove "http://"
-		Port:     0,              // Will be determined from Host
-		Username: "test",
-		Password: "test",
-		Realm:    "pam",
-		Insecure: true,
-		Timeout:  5 * time.Second,
+		Host:      server.URL[7:], // Remove "http://"
+		Port:      0,              // Will be determined from Host
+		Username:  "test@pam",
+		Password:  "test",
+		VerifySSL: false,
 	}
 
 	// This will fail because httptest server doesn't have port in expected format

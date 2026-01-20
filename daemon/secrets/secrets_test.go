@@ -4,6 +4,7 @@ package secrets
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 )
@@ -423,5 +424,304 @@ func TestSecretTypes(t *testing.T) {
 
 	if len(types) != 8 {
 		t.Errorf("expected 8 secret types, got %d", len(types))
+	}
+}
+
+func TestMemoryManager_SetEmptyName(t *testing.T) {
+	ctx := context.Background()
+	mgr := NewMemoryManager()
+
+	secret := &Secret{
+		Name:  "",
+		Type:  SecretTypeVCenter,
+		Value: map[string]string{"key": "value"},
+	}
+
+	err := mgr.Set(ctx, secret)
+	if err == nil {
+		t.Error("expected error for empty secret name")
+	}
+}
+
+func TestMemoryManager_DeleteNonExistent(t *testing.T) {
+	ctx := context.Background()
+	mgr := NewMemoryManager()
+
+	err := mgr.Delete(ctx, "non-existent")
+	if err == nil {
+		t.Error("expected error when deleting non-existent secret")
+	}
+}
+
+func TestMemoryManager_RotateNonExistent(t *testing.T) {
+	ctx := context.Background()
+	mgr := NewMemoryManager()
+
+	err := mgr.Rotate(ctx, "non-existent", map[string]string{"key": "value"})
+	if err == nil {
+		t.Error("expected error when rotating non-existent secret")
+	}
+}
+
+func TestMemoryManager_ListEmpty(t *testing.T) {
+	ctx := context.Background()
+	mgr := NewMemoryManager()
+
+	names, err := mgr.List(ctx, "")
+	if err != nil {
+		t.Fatalf("List failed: %v", err)
+	}
+
+	if len(names) != 0 {
+		t.Errorf("expected 0 secrets, got %d", len(names))
+	}
+}
+
+func TestMemoryManager_ConcurrentAccess(t *testing.T) {
+	ctx := context.Background()
+	mgr := NewMemoryManager()
+
+	done := make(chan bool)
+	errors := make(chan error, 100)
+
+	// Concurrent writes
+	for i := 0; i < 10; i++ {
+		go func(id int) {
+			secret := &Secret{
+				Name:  fmt.Sprintf("secret-%d", id),
+				Type:  SecretTypeVCenter,
+				Value: map[string]string{"id": fmt.Sprintf("%d", id)},
+			}
+			if err := mgr.Set(ctx, secret); err != nil {
+				errors <- err
+			}
+			done <- true
+		}(i)
+	}
+
+	// Concurrent reads
+	for i := 0; i < 10; i++ {
+		go func(id int) {
+			time.Sleep(5 * time.Millisecond)
+			_, err := mgr.Get(ctx, fmt.Sprintf("secret-%d", id))
+			if err != nil && err.Error() != "secret not found: secret-"+fmt.Sprintf("%d", id) {
+				errors <- err
+			}
+			done <- true
+		}(i)
+	}
+
+	// Wait for all goroutines
+	for i := 0; i < 20; i++ {
+		<-done
+	}
+
+	close(errors)
+	for err := range errors {
+		t.Errorf("concurrent access error: %v", err)
+	}
+}
+
+func TestMemoryManager_IsolationAfterCopy(t *testing.T) {
+	ctx := context.Background()
+	mgr := NewMemoryManager()
+
+	original := &Secret{
+		Name: "test",
+		Type: SecretTypeVCenter,
+		Value: map[string]string{
+			"username": "admin",
+			"password": "secret",
+		},
+		Metadata: map[string]string{
+			"env": "prod",
+		},
+	}
+
+	// Set the secret
+	err := mgr.Set(ctx, original)
+	if err != nil {
+		t.Fatalf("Set failed: %v", err)
+	}
+
+	// Modify original after setting
+	original.Value["password"] = "modified"
+	original.Metadata["env"] = "dev"
+
+	// Get the secret - should have original values
+	retrieved, err := mgr.Get(ctx, "test")
+	if err != nil {
+		t.Fatalf("Get failed: %v", err)
+	}
+
+	if retrieved.Value["password"] != "secret" {
+		t.Error("external modification affected stored secret")
+	}
+
+	if retrieved.Metadata["env"] != "prod" {
+		t.Error("external metadata modification affected stored secret")
+	}
+
+	// Modify retrieved value
+	retrieved.Value["password"] = "another-modification"
+
+	// Get again - should still have original values
+	retrieved2, err := mgr.Get(ctx, "test")
+	if err != nil {
+		t.Fatalf("Second get failed: %v", err)
+	}
+
+	if retrieved2.Value["password"] != "secret" {
+		t.Error("modification of retrieved secret affected stored secret")
+	}
+}
+
+func TestCopyMap(t *testing.T) {
+	tests := []struct {
+		name  string
+		input map[string]string
+		want  map[string]string
+	}{
+		{
+			name:  "nil map",
+			input: nil,
+			want:  nil,
+		},
+		{
+			name:  "empty map",
+			input: map[string]string{},
+			want:  map[string]string{},
+		},
+		{
+			name: "non-empty map",
+			input: map[string]string{
+				"key1": "value1",
+				"key2": "value2",
+			},
+			want: map[string]string{
+				"key1": "value1",
+				"key2": "value2",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := copyMap(tt.input)
+
+			if tt.input == nil && got != nil {
+				t.Error("nil input should return nil")
+			}
+
+			if tt.input != nil && got == nil {
+				t.Error("non-nil input should return non-nil")
+			}
+
+			if tt.input != nil && got != nil {
+				if len(got) != len(tt.want) {
+					t.Errorf("length mismatch: got %d, want %d", len(got), len(tt.want))
+				}
+
+				for k, v := range tt.want {
+					if got[k] != v {
+						t.Errorf("value mismatch for key %s: got %s, want %s", k, got[k], v)
+					}
+				}
+
+				// Verify it's a copy, not the same map
+				if tt.input != nil && len(tt.input) > 0 {
+					for k := range got {
+						got[k] = "modified"
+					}
+					for _, v := range tt.input {
+						if v == "modified" {
+							t.Error("modifying copy affected original")
+						}
+					}
+				}
+			}
+		})
+	}
+}
+
+func TestIncrementVersion(t *testing.T) {
+	tests := []struct {
+		version string
+		want    string
+	}{
+		{"1", "2"},
+		{"5", "6"},
+		{"99", "100"},
+		{"0", "1"},
+		{"invalid", "1"}, // Falls back to 0, then increments to 1
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.version, func(t *testing.T) {
+			got := incrementVersion(tt.version)
+			if got != tt.want {
+				t.Errorf("incrementVersion(%s) = %s, want %s", tt.version, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestCachedSecretManager_Delete(t *testing.T) {
+	ctx := context.Background()
+	backend := NewMemoryManager()
+	cached := NewCachedSecretManager(backend, 1*time.Hour)
+
+	secret := &Secret{
+		Name:  "to-delete",
+		Type:  SecretTypeAWS,
+		Value: map[string]string{"key": "value"},
+	}
+
+	// Set and cache
+	cached.Set(ctx, secret)
+	cached.Get(ctx, "to-delete")
+
+	// Delete should invalidate cache
+	err := cached.Delete(ctx, "to-delete")
+	if err != nil {
+		t.Fatalf("Delete failed: %v", err)
+	}
+
+	// Get should fail
+	_, err = cached.Get(ctx, "to-delete")
+	if err == nil {
+		t.Error("expected error after delete")
+	}
+}
+
+func TestCachedSecretManager_Rotate(t *testing.T) {
+	ctx := context.Background()
+	backend := NewMemoryManager()
+	cached := NewCachedSecretManager(backend, 1*time.Hour)
+
+	secret := &Secret{
+		Name:  "to-rotate",
+		Type:  SecretTypeAPIKey,
+		Value: map[string]string{"key": "old"},
+	}
+
+	// Set and cache
+	cached.Set(ctx, secret)
+	cached.Get(ctx, "to-rotate")
+
+	// Rotate should invalidate cache
+	err := cached.Rotate(ctx, "to-rotate", map[string]string{"key": "new"})
+	if err != nil {
+		t.Fatalf("Rotate failed: %v", err)
+	}
+
+	// Get should return new value
+	rotated, err := cached.Get(ctx, "to-rotate")
+	if err != nil {
+		t.Fatalf("Get failed: %v", err)
+	}
+
+	if rotated.Value["key"] != "new" {
+		t.Error("expected new value after rotation")
 	}
 }

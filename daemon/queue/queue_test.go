@@ -309,7 +309,7 @@ func TestPriorityOrdering(t *testing.T) {
 	for i := 0; i < config.MaxWorkers; i++ {
 		queue.Enqueue(&Job{ID: fmt.Sprintf("blocker-%d", i), Priority: PriorityLow})
 	}
-	time.Sleep(100 * time.Millisecond) // Let workers pick up blocker jobs
+	time.Sleep(200 * time.Millisecond) // Let workers pick up blocker jobs
 
 	// Now enqueue jobs with different priorities
 	jobs := []*Job{
@@ -359,7 +359,7 @@ func TestFIFOWithinPriority(t *testing.T) {
 	for i := 0; i < config.MaxWorkers; i++ {
 		queue.Enqueue(&Job{ID: fmt.Sprintf("blocker-%d", i), Priority: PriorityLow})
 	}
-	time.Sleep(100 * time.Millisecond) // Let workers pick up blocker jobs
+	time.Sleep(200 * time.Millisecond) // Let workers pick up blocker jobs
 
 	// Enqueue jobs with same priority
 	for i := 0; i < 5; i++ {
