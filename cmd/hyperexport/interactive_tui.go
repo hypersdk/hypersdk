@@ -102,6 +102,10 @@ type tuiModel struct {
 	searchInput textinput.Model
 	keys        tuiKeyMap
 
+	// Terminal size
+	termWidth  int
+	termHeight int
+
 	// Configuration
 	client    *vsphere.VSphereClient
 	outputDir string
@@ -364,6 +368,21 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.phase = "select"
 		m.applyFiltersAndSort()
+		return m, nil
+
+	case tea.WindowSizeMsg:
+		// Update terminal size and adjust UI components
+		m.termWidth = msg.Width
+		m.termHeight = msg.Height
+
+		// Update progress bar width to fit terminal
+		if msg.Width > 20 {
+			m.progressBar.Width = min(msg.Width-10, 70)
+		}
+
+		// Update help model width
+		m.helpModel.Width = msg.Width
+
 		return m, nil
 
 	case tea.KeyMsg:
@@ -1718,12 +1737,15 @@ func (m tuiModel) renderTemplate() string {
 func (m tuiModel) renderValidation() string {
 	var b strings.Builder
 
+	boxWidth := m.getBoxWidth()
+	headerWidth := m.getHeaderWidth()
+
 	// Header
 	header := lipgloss.NewStyle().
 		Bold(true).
 		Foreground(primaryColor).
 		Background(lightCharcoal).
-		Width(80).
+		Width(headerWidth).
 		Align(lipgloss.Center).
 		Render("🔍 Pre-Export Validation")
 	b.WriteString(header)
@@ -1745,7 +1767,7 @@ func (m tuiModel) renderValidation() string {
 			Border(lipgloss.RoundedBorder()).
 			BorderForeground(successGreen).
 			Padding(1, 2).
-			Width(76).
+			Width(boxWidth).
 			Render(lipgloss.NewStyle().
 				Foreground(successGreen).
 				Bold(true).
@@ -1755,7 +1777,7 @@ func (m tuiModel) renderValidation() string {
 			Border(lipgloss.RoundedBorder()).
 			BorderForeground(errorColor).
 			Padding(1, 2).
-			Width(76).
+			Width(boxWidth).
 			Render(lipgloss.NewStyle().
 				Foreground(errorColor).
 				Bold(true).
@@ -1769,7 +1791,7 @@ func (m tuiModel) renderValidation() string {
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(mutedGray).
 		Padding(1, 2).
-		Width(76)
+		Width(boxWidth)
 
 	var checks strings.Builder
 	for _, check := range report.Checks {
@@ -1830,12 +1852,15 @@ func (m tuiModel) renderValidation() string {
 func (m tuiModel) renderConfigPanel() string {
 	var b strings.Builder
 
+	boxWidth := m.getBoxWidth()
+	headerWidth := m.getHeaderWidth()
+
 	// Header
 	header := lipgloss.NewStyle().
 		Bold(true).
 		Foreground(primaryColor).
 		Background(lightCharcoal).
-		Width(80).
+		Width(headerWidth).
 		Align(lipgloss.Center).
 		Render("⚙️  Configuration Editor")
 	b.WriteString(header)
@@ -1852,7 +1877,7 @@ func (m tuiModel) renderConfigPanel() string {
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(tealInfo).
 		Padding(0, 1).
-		Width(76)
+		Width(boxWidth)
 
 	instructions := lipgloss.NewStyle().Foreground(tealInfo).Render(
 		"💡 Use ↑/↓ or Tab/Shift+Tab to navigate | Enter to move to next field | Ctrl+S to save")
@@ -1870,13 +1895,13 @@ func (m tuiModel) renderConfigPanel() string {
 				Border(lipgloss.RoundedBorder()).
 				BorderForeground(primaryColor).
 				Padding(1, 2).
-				Width(76)
+				Width(boxWidth)
 		} else {
 			fieldBox = lipgloss.NewStyle().
 				Border(lipgloss.RoundedBorder()).
 				BorderForeground(mutedGray).
 				Padding(1, 2).
-				Width(76)
+				Width(boxWidth)
 		}
 
 		// Field content
@@ -2195,6 +2220,63 @@ func (m tuiModel) renderBandwidthGraph() string {
 }
 
 // formatDuration formats a duration in a human-readable way
+// min returns the minimum of two ints
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+// max returns the maximum of two ints
+func max(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
+}
+
+// getResponsiveWidth calculates responsive width based on terminal size
+func (m tuiModel) getResponsiveWidth() int {
+	if m.termWidth == 0 {
+		return 80 // Default width
+	}
+
+	// Use 90% of terminal width, with min/max bounds
+	width := min(max(m.termWidth-4, 40), 120)
+	return width
+}
+
+// getBoxWidth returns width for lipgloss boxes based on terminal size
+func (m tuiModel) getBoxWidth() int {
+	width := m.getResponsiveWidth()
+	return width - 4 // Account for padding and borders
+}
+
+// getHeaderWidth returns width for headers
+func (m tuiModel) getHeaderWidth() int {
+	return m.getResponsiveWidth()
+}
+
+// getColumnWidth calculates column width for multi-column layouts
+func (m tuiModel) getColumnWidth(numColumns int) int {
+	totalWidth := m.getResponsiveWidth()
+	// Account for spacing between columns
+	spacing := (numColumns - 1) * 2
+	return (totalWidth - spacing) / numColumns
+}
+
+// truncateToWidth truncates a string to fit within a width
+func truncateToWidth(s string, width int) string {
+	if len(s) <= width {
+		return s
+	}
+	if width < 3 {
+		return s[:width]
+	}
+	return s[:width-3] + "..."
+}
+
 func formatDuration(d time.Duration) string {
 	if d < time.Minute {
 		return fmt.Sprintf("%.0fs", d.Seconds())
@@ -2212,12 +2294,15 @@ func formatDuration(d time.Duration) string {
 func (m tuiModel) renderCloudUpload() string {
 	var b strings.Builder
 
+	boxWidth := m.getBoxWidth()
+	headerWidth := m.getHeaderWidth()
+
 	// Header
 	header := lipgloss.NewStyle().
 		Bold(true).
 		Foreground(primaryColor).
 		Background(lightCharcoal).
-		Width(80).
+		Width(headerWidth).
 		Align(lipgloss.Center).
 		Render("☁️  Uploading to Cloud")
 	b.WriteString(header)
@@ -2232,7 +2317,7 @@ func (m tuiModel) renderCloudUpload() string {
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(tealInfo).
 		Padding(1, 2).
-		Width(76)
+		Width(boxWidth)
 
 	var providerInfo strings.Builder
 	providerInfo.WriteString(lipgloss.NewStyle().
@@ -2256,7 +2341,7 @@ func (m tuiModel) renderCloudUpload() string {
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(primaryColor).
 		Padding(1, 2).
-		Width(76)
+		Width(boxWidth)
 
 	var progress strings.Builder
 
