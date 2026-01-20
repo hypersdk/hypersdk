@@ -67,7 +67,8 @@ type tuiModel struct {
 	vms              []tuiVMItem
 	filteredVMs      []tuiVMItem
 	cursor           int
-	phase            string // "select", "confirm", "template", "regex", "cloud", "features", "export", "cloudupload", "done"
+	phase            string // "select", "confirm", "template", "regex", "cloud", "features", "export", "cloudupload", "done", "search", "details"
+	detailsVM        *vsphere.VMInfo // VM to show details for
 	searchQuery      string
 	sortMode         string // "name", "cpu", "memory", "storage", "power"
 	filterPower      string // "", "on", "off"
@@ -293,8 +294,25 @@ type exportDoneMsg struct {
 	err    error
 }
 
+type exportProgressMsg struct {
+	vmName         string
+	currentBytes   int64
+	totalBytes     int64
+	currentFileIdx int
+	totalFiles     int
+	fileName       string
+}
+
+type tickMsg time.Time
+
+func tickCmd() tea.Cmd {
+	return tea.Tick(time.Millisecond*100, func(t time.Time) tea.Msg {
+		return tickMsg(t)
+	})
+}
+
 func (m tuiModel) Init() tea.Cmd {
-	return m.loadVMs
+	return tea.Batch(m.loadVMs, m.spinner.Tick)
 }
 
 func (m tuiModel) loadVMs() tea.Msg {
@@ -334,6 +352,10 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.handleTemplateKeys(msg)
 		case "features":
 			return m.handleFeaturesKeys(msg)
+		case "search":
+			return m.handleSearchKeys(msg)
+		case "details":
+			return m.handleDetailsKeys(msg)
 		case "cloud":
 			// Cloud phase is handled by cloudSelectionModel
 			return m, nil
@@ -357,6 +379,44 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		}
 		return m, m.exportNext()
+
+	case exportProgressMsg:
+		// Update progress state
+		m.currentVMName = msg.vmName
+		m.currentFileName = msg.fileName
+		m.exportProgress.currentBytes = msg.currentBytes
+		m.exportProgress.totalBytes = msg.totalBytes
+		m.exportProgress.currentFileIdx = msg.currentFileIdx
+		m.exportProgress.totalFiles = msg.totalFiles
+
+		// Calculate speed
+		now := time.Now()
+		if !m.exportProgress.lastUpdateTime.IsZero() {
+			elapsed := now.Sub(m.exportProgress.lastUpdateTime).Seconds()
+			if elapsed > 0 {
+				bytesDiff := msg.currentBytes - m.exportProgress.lastBytes
+				m.exportProgress.speed = float64(bytesDiff) / elapsed / (1024 * 1024) // MB/s
+			}
+		}
+		m.exportProgress.lastUpdateTime = now
+		m.exportProgress.lastBytes = msg.currentBytes
+
+		return m, nil
+
+	case tickMsg:
+		var cmd tea.Cmd
+		if m.phase == "export" {
+			// Continue ticking during export
+			cmd = tickCmd()
+		}
+		// Update spinner
+		m.spinner, cmd = m.spinner.Update(msg)
+		return m, cmd
+
+	case spinner.TickMsg:
+		var cmd tea.Cmd
+		m.spinner, cmd = m.spinner.Update(msg)
+		return m, cmd
 	}
 
 	return m, nil
@@ -431,9 +491,11 @@ func (m tuiModel) handleSelectionKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case "/":
-		m.searchQuery = ""
-		m.message = "Type to search..."
-		return m, nil
+		m.phase = "search"
+		m.searchInput.Reset()
+		m.searchInput.Focus()
+		m.searchInput.Placeholder = "Type to search VMs..."
+		return m, textinput.Blink
 
 	case "s":
 		m.cycleSortMode()
@@ -476,6 +538,15 @@ func (m tuiModel) handleSelectionKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.phase = "features"
 		m.cursor = 0
 		return m, nil
+
+	case "i", "I":
+		// Show VM details
+		vms := m.getVisibleVMs()
+		if m.cursor < len(vms) {
+			m.detailsVM = &vms[m.cursor].vm
+			m.phase = "details"
+		}
+		return m, nil
 	}
 
 	return m, nil
@@ -491,7 +562,8 @@ func (m tuiModel) handleConfirmKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "y", "Y", "enter":
 		m.phase = "export"
 		m.currentExport = 0
-		return m, m.exportNext()
+		m.exportProgress.startTime = time.Now()
+		return m, tea.Batch(m.exportNext(), tickCmd())
 	case "u", "U":
 		// Configure cloud upload from confirm screen
 		m.phase = "cloud"
@@ -631,6 +703,57 @@ func (m tuiModel) handleFeaturesKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+func (m tuiModel) handleSearchKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
+
+	switch msg.Type {
+	case tea.KeyCtrlC:
+		return m, tea.Quit
+
+	case tea.KeyEscape:
+		// Cancel search and return to select
+		m.phase = "select"
+		m.searchQuery = ""
+		m.searchInput.Blur()
+		m.applyFiltersAndSort()
+		m.message = "Search cancelled"
+		return m, nil
+
+	case tea.KeyEnter:
+		// Apply search and return to select
+		m.phase = "select"
+		m.searchQuery = m.searchInput.Value()
+		m.searchInput.Blur()
+		m.applyFiltersAndSort()
+		if m.searchQuery != "" {
+			visibleCount := len(m.getVisibleVMs())
+			m.message = fmt.Sprintf("🔍 Found %d VMs matching '%s'", visibleCount, m.searchQuery)
+		}
+		return m, nil
+
+	default:
+		// Update the search input and filter in real-time
+		m.searchInput, cmd = m.searchInput.Update(msg)
+		m.searchQuery = m.searchInput.Value()
+		m.applyFiltersAndSort()
+	}
+
+	return m, cmd
+}
+
+func (m tuiModel) handleDetailsKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "ctrl+c", "q":
+		return m, tea.Quit
+	case "escape", "i", "I", "enter":
+		// Return to selection
+		m.phase = "select"
+		m.detailsVM = nil
+		return m, nil
+	}
+	return m, nil
+}
+
 func (m tuiModel) countEnabledFeatures() int {
 	count := 0
 	if m.featureConfig.enableSnapshot {
@@ -663,6 +786,10 @@ func (m tuiModel) View() string {
 		return m.renderTemplate()
 	case "features":
 		return m.renderFeatures()
+	case "search":
+		return m.renderSearch()
+	case "details":
+		return m.renderDetails()
 	case "export":
 		return m.renderExport()
 	case "cloudupload":
@@ -1045,6 +1172,226 @@ func (m tuiModel) renderRegex() string {
 	return b.String()
 }
 
+func (m tuiModel) renderSearch() string {
+	var b strings.Builder
+
+	b.WriteString(titleStyleTUI.Render("🔍 Live Search"))
+	b.WriteString("\n\n")
+	b.WriteString(infoStyleTUI.Render("Search VMs by name or path (type to filter in real-time):"))
+	b.WriteString("\n\n")
+
+	// Search input box
+	searchBox := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(deepOrange).
+		Padding(0, 1).
+		Width(60)
+
+	b.WriteString(searchBox.Render(m.searchInput.View()))
+	b.WriteString("\n\n")
+
+	// Show matching results in real-time
+	visibleVMs := m.getVisibleVMs()
+	if m.searchQuery != "" {
+		if len(visibleVMs) > 0 {
+			resultStyle := lipgloss.NewStyle().Foreground(successGreen).Bold(true)
+			b.WriteString(resultStyle.Render(fmt.Sprintf("✓ %d VMs match your search", len(visibleVMs))))
+			b.WriteString("\n\n")
+
+			// Show preview of matches
+			previewCount := 10
+			if len(visibleVMs) < previewCount {
+				previewCount = len(visibleVMs)
+			}
+
+			previewBox := lipgloss.NewStyle().
+				Border(lipgloss.RoundedBorder()).
+				BorderForeground(mutedGray).
+				Padding(1, 2).
+				Width(70)
+
+			var previewList strings.Builder
+			for i := 0; i < previewCount; i++ {
+				vm := visibleVMs[i]
+				// Highlight matching text
+				name := highlightMatch(vm.vm.Name, m.searchQuery)
+				previewList.WriteString(fmt.Sprintf("  • %s\n", name))
+			}
+
+			if len(visibleVMs) > previewCount {
+				previewList.WriteString(lipgloss.NewStyle().Foreground(mutedGray).Render(
+					fmt.Sprintf("  ... and %d more", len(visibleVMs)-previewCount)))
+			}
+
+			b.WriteString(previewBox.Render(previewList.String()))
+		} else {
+			b.WriteString(errorStyleTUI.Render("⚠ No VMs match your search"))
+		}
+	} else {
+		hintStyle := lipgloss.NewStyle().Foreground(mutedGray).Italic(true)
+		b.WriteString(hintStyle.Render(fmt.Sprintf("💡 %d VMs available. Start typing to filter...", len(m.vms))))
+	}
+
+	b.WriteString("\n\n")
+	b.WriteString(helpStyleTUI.Render("Enter: Apply search | Esc: Cancel | Type: Filter in real-time"))
+
+	return b.String()
+}
+
+// highlightMatch highlights matching substring in text
+func highlightMatch(text, query string) string {
+	if query == "" {
+		return text
+	}
+
+	lowerText := strings.ToLower(text)
+	lowerQuery := strings.ToLower(query)
+	index := strings.Index(lowerText, lowerQuery)
+
+	if index == -1 {
+		return text
+	}
+
+	before := text[:index]
+	match := text[index : index+len(query)]
+	after := text[index+len(query):]
+
+	highlightStyle := lipgloss.NewStyle().Foreground(deepOrange).Background(lightCharcoal).Bold(true)
+	return before + highlightStyle.Render(match) + after
+}
+
+func (m tuiModel) renderDetails() string {
+	var b strings.Builder
+
+	if m.detailsVM == nil {
+		return errorStyleTUI.Render("No VM selected for details")
+	}
+
+	vm := *m.detailsVM
+
+	// Header
+	header := lipgloss.NewStyle().
+		Bold(true).
+		Foreground(primaryColor).
+		Background(lightCharcoal).
+		Width(80).
+		Align(lipgloss.Center).
+		Render("🖥️  VM Information")
+	b.WriteString(header)
+	b.WriteString("\n\n")
+
+	// Main info box
+	mainInfoBox := lipgloss.NewStyle().
+		Border(lipgloss.DoubleBorder()).
+		BorderForeground(deepOrange).
+		Padding(1, 2).
+		Width(76)
+
+	var mainInfo strings.Builder
+
+	// VM Name
+	mainInfo.WriteString(lipgloss.NewStyle().
+		Foreground(successGreen).
+		Bold(true).
+		Render(fmt.Sprintf("🏷️  Name: %s", vm.Name)))
+	mainInfo.WriteString("\n\n")
+
+	// Power State
+	var powerIcon string
+	var powerColor lipgloss.Color
+	if vm.PowerState == "poweredOn" {
+		powerIcon = "⚡"
+		powerColor = successGreen
+	} else {
+		powerIcon = "○"
+		powerColor = mutedGray
+	}
+	mainInfo.WriteString(lipgloss.NewStyle().Foreground(powerColor).Render(
+		fmt.Sprintf("%s Power State: %s", powerIcon, vm.PowerState)))
+	mainInfo.WriteString("\n\n")
+
+	// Guest OS
+	mainInfo.WriteString(lipgloss.NewStyle().Foreground(tealInfo).Render(
+		fmt.Sprintf("💿 Guest OS: %s", vm.GuestOS)))
+	mainInfo.WriteString("\n\n")
+
+	// Path
+	mainInfo.WriteString(lipgloss.NewStyle().Foreground(mutedGray).Render(
+		fmt.Sprintf("📁 Path: %s", vm.Path)))
+
+	b.WriteString(mainInfoBox.Render(mainInfo.String()))
+	b.WriteString("\n\n")
+
+	// Resources section
+	resourcesBox := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(tealInfo).
+		Padding(1, 2).
+		Width(76)
+
+	var resources strings.Builder
+	resources.WriteString(lipgloss.NewStyle().
+		Foreground(tealInfo).
+		Bold(true).
+		Render("⚙️  Resources"))
+	resources.WriteString("\n\n")
+
+	// CPU
+	resources.WriteString(lipgloss.NewStyle().Foreground(amberYellow).Render(
+		fmt.Sprintf("  🔢 vCPUs:         %d", vm.NumCPU)))
+	resources.WriteString("\n")
+
+	// Memory
+	memoryGB := float64(vm.MemoryMB) / 1024.0
+	resources.WriteString(lipgloss.NewStyle().Foreground(amberYellow).Render(
+		fmt.Sprintf("  🧠 Memory:        %d MB (%.1f GB)", vm.MemoryMB, memoryGB)))
+	resources.WriteString("\n")
+
+	// Storage
+	storageGB := float64(vm.Storage) / (1024 * 1024 * 1024)
+	resources.WriteString(lipgloss.NewStyle().Foreground(amberYellow).Render(
+		fmt.Sprintf("  💾 Storage:       %s (%.1f GB)", formatBytes(vm.Storage), storageGB)))
+
+	b.WriteString(resourcesBox.Render(resources.String()))
+	b.WriteString("\n\n")
+
+	// Estimated export size
+	estimateBox := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(warningColor).
+		Padding(1, 2).
+		Width(76)
+
+	var estimate strings.Builder
+	estimate.WriteString(lipgloss.NewStyle().
+		Foreground(warningColor).
+		Bold(true).
+		Render("📦 Export Information"))
+	estimate.WriteString("\n\n")
+
+	estimate.WriteString(lipgloss.NewStyle().Foreground(textColor).Render(
+		fmt.Sprintf("  Estimated Size:   ~%s", formatBytes(vm.Storage))))
+	estimate.WriteString("\n")
+
+	// Check disk space
+	diskSpace := getDiskSpace(m.outputDir)
+	if diskSpace > vm.Storage {
+		estimate.WriteString(lipgloss.NewStyle().Foreground(successGreen).Render(
+			fmt.Sprintf("  Available Space:  %s ✓", formatBytes(diskSpace))))
+	} else {
+		estimate.WriteString(lipgloss.NewStyle().Foreground(errorColor).Render(
+			fmt.Sprintf("  Available Space:  %s ⚠ INSUFFICIENT!", formatBytes(diskSpace))))
+	}
+
+	b.WriteString(estimateBox.Render(estimate.String()))
+	b.WriteString("\n\n")
+
+	// Help
+	b.WriteString(helpStyleTUI.Render("Press i/Esc/Enter to return to VM list"))
+
+	return b.String()
+}
+
 func (m tuiModel) renderTemplate() string {
 	var b strings.Builder
 
@@ -1195,16 +1542,68 @@ func (m tuiModel) renderExport() string {
 	b.WriteString(progressBar)
 	b.WriteString("\n\n")
 
-	// Current VM info with modern styling
+	// Current VM info with real-time progress
 	if m.currentExport < len(selectedVMs) {
 		currentVM := selectedVMs[m.currentExport]
+
+		// Build progress details
+		var progressDetails strings.Builder
+		progressDetails.WriteString(fmt.Sprintf("⏳ Currently Exporting: %s\n",
+			lipgloss.NewStyle().Bold(true).Foreground(successColor).Render(currentVM.vm.Name)))
+		progressDetails.WriteString(fmt.Sprintf("   Path: %s\n", currentVM.vm.Path))
+
+		// Real-time transfer statistics
+		if m.exportProgress.totalBytes > 0 {
+			filePercent := float64(m.exportProgress.currentBytes) / float64(m.exportProgress.totalBytes) * 100
+			progressDetails.WriteString(fmt.Sprintf("\n   📊 Transfer: %s / %s (%.1f%%)\n",
+				formatBytes(m.exportProgress.currentBytes),
+				formatBytes(m.exportProgress.totalBytes),
+				filePercent))
+
+			// File progress bar
+			fileBar := m.progressBar.ViewAs(filePercent / 100.0)
+			progressDetails.WriteString(fmt.Sprintf("   %s\n", fileBar))
+		}
+
+		// Current file being transferred
+		if m.currentFileName != "" {
+			progressDetails.WriteString(fmt.Sprintf("\n   📄 File: %s (%d/%d)\n",
+				truncateString(m.currentFileName, 50),
+				m.exportProgress.currentFileIdx+1,
+				m.exportProgress.totalFiles))
+		}
+
+		// Transfer speed
+		if m.exportProgress.speed > 0 {
+			speedStyle := lipgloss.NewStyle().Foreground(tealInfo).Bold(true)
+			progressDetails.WriteString(fmt.Sprintf("\n   ⚡ Speed: %s\n",
+				speedStyle.Render(fmt.Sprintf("%.2f MB/s", m.exportProgress.speed))))
+
+			// Calculate ETA
+			if m.exportProgress.totalBytes > m.exportProgress.currentBytes && m.exportProgress.speed > 0 {
+				remainingBytes := m.exportProgress.totalBytes - m.exportProgress.currentBytes
+				remainingMB := float64(remainingBytes) / (1024 * 1024)
+				etaSeconds := remainingMB / m.exportProgress.speed
+				etaDuration := time.Duration(etaSeconds * float64(time.Second))
+
+				etaStyle := lipgloss.NewStyle().Foreground(amberYellow)
+				progressDetails.WriteString(fmt.Sprintf("   ⏱  ETA: %s\n",
+					etaStyle.Render(formatDuration(etaDuration))))
+			}
+		}
+
+		// Elapsed time
+		if !m.exportProgress.startTime.IsZero() {
+			elapsed := time.Since(m.exportProgress.startTime)
+			progressDetails.WriteString(fmt.Sprintf("\n   ⌛ Elapsed: %s",
+				formatDuration(elapsed)))
+		}
+
 		currentBox := lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
 			BorderForeground(primaryColor).
 			Padding(1, 2).
-			Render(fmt.Sprintf("⏳ Currently Exporting: %s\n   %s",
-				lipgloss.NewStyle().Bold(true).Foreground(successColor).Render(currentVM.vm.Name),
-				currentVM.vm.Path))
+			Render(progressDetails.String())
 		b.WriteString(currentBox)
 		b.WriteString("\n\n")
 	}
@@ -1227,8 +1626,9 @@ func (m tuiModel) renderExport() string {
 			icon = "✅"
 			style = lipgloss.NewStyle().Foreground(successColor)
 		} else if i == m.currentExport {
-			status = "Exporting..."
-			icon = "⏳"
+			// Show spinner for current export
+			status = m.spinner.View() + " Exporting..."
+			icon = ""
 			style = lipgloss.NewStyle().Foreground(primaryColor).Bold(true)
 		} else {
 			status = "Pending"
@@ -1247,6 +1647,13 @@ func (m tuiModel) renderExport() string {
 	b.WriteString(vmListBox.Render(vmList.String()))
 	b.WriteString("\n\n")
 
+	// Bandwidth usage visualization
+	if m.exportProgress.speed > 0 {
+		bandwidthBox := m.renderBandwidthGraph()
+		b.WriteString(bandwidthBox)
+		b.WriteString("\n\n")
+	}
+
 	// Modern help with bubbles/help component
 	helpView := m.helpModel.ShortHelpView([]key.Binding{m.keys.Quit})
 	b.WriteString(lipgloss.NewStyle().
@@ -1255,6 +1662,48 @@ func (m tuiModel) renderExport() string {
 		Render("💡 " + helpView + " | Export in progress..."))
 
 	return b.String()
+}
+
+// renderBandwidthGraph creates a simple bar graph for bandwidth usage
+func (m tuiModel) renderBandwidthGraph() string {
+	maxBandwidth := 100.0 // Assume 100 MB/s max for visualization
+	if m.featureConfig.enableBandwidthLimit && m.featureConfig.bandwidthLimitMBps > 0 {
+		maxBandwidth = float64(m.featureConfig.bandwidthLimitMBps)
+	}
+
+	barWidth := 40
+	currentBars := int(m.exportProgress.speed / maxBandwidth * float64(barWidth))
+	if currentBars > barWidth {
+		currentBars = barWidth
+	}
+
+	bars := strings.Repeat("█", currentBars)
+	empty := strings.Repeat("░", barWidth-currentBars)
+
+	bandwidthStr := fmt.Sprintf("📈 Bandwidth: %s%s %.2f/%.0f MB/s",
+		lipgloss.NewStyle().Foreground(successGreen).Render(bars),
+		lipgloss.NewStyle().Foreground(mutedGray).Render(empty),
+		m.exportProgress.speed,
+		maxBandwidth)
+
+	return lipgloss.NewStyle().
+		Foreground(tealInfo).
+		Render(bandwidthStr)
+}
+
+// formatDuration formats a duration in a human-readable way
+func formatDuration(d time.Duration) string {
+	if d < time.Minute {
+		return fmt.Sprintf("%.0fs", d.Seconds())
+	}
+	if d < time.Hour {
+		minutes := int(d.Minutes())
+		seconds := int(d.Seconds()) % 60
+		return fmt.Sprintf("%dm %ds", minutes, seconds)
+	}
+	hours := int(d.Hours())
+	minutes := int(d.Minutes()) % 60
+	return fmt.Sprintf("%dh %dm", hours, minutes)
 }
 
 func (m tuiModel) renderDone() string {
