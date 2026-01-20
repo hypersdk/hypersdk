@@ -67,8 +67,9 @@ type tuiModel struct {
 	vms              []tuiVMItem
 	filteredVMs      []tuiVMItem
 	cursor           int
-	phase            string // "select", "confirm", "template", "regex", "cloud", "features", "export", "cloudupload", "done", "search", "details"
+	phase            string // "select", "confirm", "template", "regex", "cloud", "features", "export", "cloudupload", "done", "search", "details", "validation"
 	detailsVM        *vsphere.VMInfo // VM to show details for
+	validationReport *ValidationReport // Pre-export validation results
 	searchQuery      string
 	sortMode         string // "name", "cpu", "memory", "storage", "power"
 	filterPower      string // "", "on", "off"
@@ -305,6 +306,11 @@ type exportProgressMsg struct {
 
 type tickMsg time.Time
 
+type validationCompleteMsg struct {
+	report *ValidationReport
+	err    error
+}
+
 func tickCmd() tea.Cmd {
 	return tea.Tick(time.Millisecond*100, func(t time.Time) tea.Msg {
 		return tickMsg(t)
@@ -356,6 +362,8 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.handleSearchKeys(msg)
 		case "details":
 			return m.handleDetailsKeys(msg)
+		case "validation":
+			return m.handleValidationKeys(msg)
 		case "cloud":
 			// Cloud phase is handled by cloudSelectionModel
 			return m, nil
@@ -417,6 +425,16 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		var cmd tea.Cmd
 		m.spinner, cmd = m.spinner.Update(msg)
 		return m, cmd
+
+	case validationCompleteMsg:
+		if msg.err != nil {
+			m.err = msg.err
+			m.phase = "error"
+			return m, nil
+		}
+		m.validationReport = msg.report
+		// Validation display is already shown, just update the model
+		return m, nil
 	}
 
 	return m, nil
@@ -560,10 +578,14 @@ func (m tuiModel) handleConfirmKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.phase = "select"
 		return m, nil
 	case "y", "Y", "enter":
-		m.phase = "export"
-		m.currentExport = 0
-		m.exportProgress.startTime = time.Now()
-		return m, tea.Batch(m.exportNext(), tickCmd())
+		// Run validation first
+		m.phase = "validation"
+		return m, m.runValidation()
+
+	case "v", "V":
+		// Show validation without starting export
+		m.phase = "validation"
+		return m, m.runValidation()
 	case "u", "U":
 		// Configure cloud upload from confirm screen
 		m.phase = "cloud"
@@ -754,6 +776,36 @@ func (m tuiModel) handleDetailsKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+func (m tuiModel) handleValidationKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "ctrl+c", "q":
+		return m, tea.Quit
+	case "escape", "n":
+		// Cancel and go back
+		m.phase = "confirm"
+		m.validationReport = nil
+		return m, nil
+	case "y", "Y", "enter":
+		// Proceed with export if validation passed
+		if m.validationReport != nil && m.validationReport.AllPassed {
+			m.phase = "export"
+			m.currentExport = 0
+			m.exportProgress.startTime = time.Now()
+			return m, tea.Batch(m.exportNext(), tickCmd())
+		}
+		// If validation failed, require explicit override
+		m.message = "Validation failed! Press 'o' to override and export anyway, or Esc to cancel"
+		return m, nil
+	case "o", "O":
+		// Override validation failures
+		m.phase = "export"
+		m.currentExport = 0
+		m.exportProgress.startTime = time.Now()
+		return m, tea.Batch(m.exportNext(), tickCmd())
+	}
+	return m, nil
+}
+
 func (m tuiModel) countEnabledFeatures() int {
 	count := 0
 	if m.featureConfig.enableSnapshot {
@@ -790,6 +842,8 @@ func (m tuiModel) View() string {
 		return m.renderSearch()
 	case "details":
 		return m.renderDetails()
+	case "validation":
+		return m.renderValidation()
 	case "export":
 		return m.renderExport()
 	case "cloudupload":
@@ -1135,7 +1189,7 @@ func (m tuiModel) renderConfirm() string {
 	}
 
 	b.WriteString("\n\n")
-	b.WriteString(helpStyleTUI.Render("y/Y/Enter: Start export | u: Cloud upload | f: Features | n/Esc: Go back | q: Quit"))
+	b.WriteString(helpStyleTUI.Render("y/Enter: Validate & export | v: Validation only | u: Cloud | f: Features | n/Esc: Back | q: Quit"))
 
 	return b.String()
 }
@@ -1421,6 +1475,117 @@ func (m tuiModel) renderTemplate() string {
 	}
 
 	b.WriteString(helpStyleTUI.Render("↑/↓: Navigate | Enter/1-4: Select | Esc: Back"))
+
+	return b.String()
+}
+
+func (m tuiModel) renderValidation() string {
+	var b strings.Builder
+
+	// Header
+	header := lipgloss.NewStyle().
+		Bold(true).
+		Foreground(primaryColor).
+		Background(lightCharcoal).
+		Width(80).
+		Align(lipgloss.Center).
+		Render("🔍 Pre-Export Validation")
+	b.WriteString(header)
+	b.WriteString("\n\n")
+
+	if m.validationReport == nil {
+		// Show loading spinner
+		b.WriteString(m.spinner.View())
+		b.WriteString(" Running validation checks...")
+		return b.String()
+	}
+
+	report := m.validationReport
+
+	// Overall status
+	var statusBox string
+	if report.AllPassed {
+		statusBox = lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(successGreen).
+			Padding(1, 2).
+			Width(76).
+			Render(lipgloss.NewStyle().
+				Foreground(successGreen).
+				Bold(true).
+				Render("✓ All validation checks passed!"))
+	} else {
+		statusBox = lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(errorColor).
+			Padding(1, 2).
+			Width(76).
+			Render(lipgloss.NewStyle().
+				Foreground(errorColor).
+				Bold(true).
+				Render("⚠ Some validation checks failed"))
+	}
+	b.WriteString(statusBox)
+	b.WriteString("\n\n")
+
+	// Validation checks
+	checksBox := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(mutedGray).
+		Padding(1, 2).
+		Width(76)
+
+	var checks strings.Builder
+	for _, check := range report.Checks {
+		var icon string
+		var style lipgloss.Style
+
+		if !check.Passed {
+			icon = "✗"
+			style = lipgloss.NewStyle().Foreground(errorColor).Bold(true)
+		} else if check.Warning {
+			icon = "⚠"
+			style = lipgloss.NewStyle().Foreground(warningColor)
+		} else {
+			icon = "✓"
+			style = lipgloss.NewStyle().Foreground(successGreen)
+		}
+
+		checkLine := fmt.Sprintf("%s %-25s %s",
+			style.Render(icon),
+			check.Name,
+			check.Message)
+		checks.WriteString(checkLine)
+		checks.WriteString("\n")
+	}
+
+	b.WriteString(checksBox.Render(checks.String()))
+	b.WriteString("\n\n")
+
+	// Warnings summary
+	if report.HasWarnings {
+		warningBox := lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(warningColor).
+			Padding(0, 1)
+
+		b.WriteString(warningBox.Render(
+			lipgloss.NewStyle().Foreground(warningColor).Render(
+				"⚠ Review warnings above before proceeding")))
+		b.WriteString("\n\n")
+	}
+
+	// Help text
+	if report.AllPassed {
+		b.WriteString(helpStyleTUI.Render("y/Enter: Start export | Esc: Go back | q: Quit"))
+	} else {
+		b.WriteString(helpStyleTUI.Render("o: Override and export anyway | Esc: Go back | q: Quit"))
+	}
+
+	if m.message != "" {
+		b.WriteString("\n\n")
+		b.WriteString(errorStyleTUI.Render(m.message))
+	}
 
 	return b.String()
 }
@@ -1896,6 +2061,41 @@ func (m *tuiModel) applyQuickFilter(key string) {
 	}
 
 	m.applyFiltersAndSort()
+}
+
+func (m tuiModel) runValidation() tea.Cmd {
+	return func() tea.Msg {
+		// Get selected VMs
+		selectedVMs := []vsphere.VMInfo{}
+		for _, item := range m.vms {
+			if item.selected {
+				selectedVMs = append(selectedVMs, item.vm)
+			}
+		}
+
+		if len(selectedVMs) == 0 {
+			return validationCompleteMsg{
+				err: fmt.Errorf("no VMs selected"),
+			}
+		}
+
+		// Calculate total storage requirement
+		var totalStorage int64
+		for _, vm := range selectedVMs {
+			totalStorage += vm.Storage
+		}
+
+		// Run pre-export validation
+		validator := NewPreExportValidator(m.log)
+
+		// For now, validate against the first VM (we'll aggregate later)
+		report := validator.ValidateExport(m.ctx, selectedVMs[0], m.outputDir, totalStorage)
+
+		return validationCompleteMsg{
+			report: report,
+			err:    nil,
+		}
+	}
 }
 
 func (m tuiModel) exportNext() tea.Cmd {
