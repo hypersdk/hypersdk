@@ -106,6 +106,9 @@ type tuiModel struct {
 	termWidth  int
 	termHeight int
 
+	// Animation frame counter
+	animFrame int
+
 	// Configuration
 	client    *vsphere.VSphereClient
 	outputDir string
@@ -307,7 +310,89 @@ var (
 
 	keyDescStyleTUI = lipgloss.NewStyle().
 			Foreground(mutedColor)
+
+	// Enhanced progress bar with gradient colors
+	progressFilledStyleTUI = lipgloss.NewStyle().
+				Foreground(primaryColor).
+				Bold(true)
+
+	progressEmptyStyleTUI = lipgloss.NewStyle().
+				Foreground(mutedColor)
+
+	// Animated spinner styles for different contexts
+	spinnerStyleTUI = lipgloss.NewStyle().
+			Foreground(primaryColor).
+			Bold(true)
+
+	spinnerLoadingStyleTUI = lipgloss.NewStyle().
+				Foreground(tealInfo)
+
+	spinnerProcessingStyleTUI = lipgloss.NewStyle().
+					Foreground(amberYellow)
 )
+
+// getSpinnerFrames returns animated spinner frames
+func getSpinnerFrames() []string {
+	return []string{
+		"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏",
+	}
+}
+
+// getDotSpinnerFrames returns dot-based spinner frames
+func getDotSpinnerFrames() []string {
+	return []string{
+		"⣾", "⣽", "⣻", "⢿", "⡿", "⣟", "⣯", "⣷",
+	}
+}
+
+// getProgressSpinnerFrames returns progress-style spinner frames
+func getProgressSpinnerFrames() []string {
+	return []string{
+		"◐", "◓", "◑", "◒",
+	}
+}
+
+// renderAnimatedProgressBar renders a smooth gradient progress bar
+func renderAnimatedProgressBar(percent float64, width int) string {
+	if width < 4 {
+		return ""
+	}
+
+	filled := int(float64(width) * (percent / 100.0))
+	if filled > width {
+		filled = width
+	}
+
+	// Build progress bar with gradient effect
+	var bar strings.Builder
+
+	// Filled portion with gradient
+	for i := 0; i < filled; i++ {
+		if i < filled-1 {
+			bar.WriteString(progressFilledStyleTUI.Render("█"))
+		} else {
+			// Last character with gradient
+			bar.WriteString(progressFilledStyleTUI.Render("▓"))
+		}
+	}
+
+	// Empty portion
+	for i := filled; i < width; i++ {
+		bar.WriteString(progressEmptyStyleTUI.Render("░"))
+	}
+
+	return bar.String()
+}
+
+// renderPulsingDot returns a pulsing dot for loading states
+func renderPulsingDot(frame int) string {
+	dots := []string{"⚬", "⚬", "⚬", "⦿", "⦿", "⦿"}
+	idx := frame % len(dots)
+	if idx < 3 {
+		return spinnerLoadingStyleTUI.Render(dots[idx])
+	}
+	return spinnerProcessingStyleTUI.Render(dots[idx])
+}
 
 type vmsLoadedMsg struct {
 	vms []vsphere.VMInfo
@@ -319,6 +404,8 @@ type exportDoneMsg struct {
 	err    error
 }
 
+type tickMsg time.Time
+
 type exportProgressMsg struct {
 	vmName         string
 	currentBytes   int64
@@ -327,8 +414,6 @@ type exportProgressMsg struct {
 	totalFiles     int
 	fileName       string
 }
-
-type tickMsg time.Time
 
 type validationCompleteMsg struct {
 	report *ValidationReport
@@ -342,7 +427,7 @@ func tickCmd() tea.Cmd {
 }
 
 func (m tuiModel) Init() tea.Cmd {
-	return tea.Batch(m.loadVMs, m.spinner.Tick)
+	return tea.Batch(m.loadVMs, m.spinner.Tick, tickCmd())
 }
 
 func (m tuiModel) loadVMs() tea.Msg {
@@ -453,9 +538,12 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tickMsg:
+		// Increment animation frame for spinners and animations
+		m.animFrame++
+
 		var cmd tea.Cmd
-		if m.phase == "export" {
-			// Continue ticking during export
+		if m.phase == "export" || m.phase == "validation" || m.phase == "cloudupload" {
+			// Continue ticking during animated phases
 			cmd = tickCmd()
 		}
 		// Update spinner
@@ -1752,9 +1840,12 @@ func (m tuiModel) renderValidation() string {
 	b.WriteString("\n\n")
 
 	if m.validationReport == nil {
-		// Show loading spinner
-		b.WriteString(m.spinner.View())
-		b.WriteString(" Running validation checks...")
+		// Show animated loading spinner
+		frames := getSpinnerFrames()
+		spinnerChar := frames[m.animFrame%len(frames)]
+		b.WriteString(spinnerLoadingStyleTUI.Render(spinnerChar))
+		b.WriteString(" ")
+		b.WriteString(lipgloss.NewStyle().Foreground(tealInfo).Render("Running validation checks..."))
 		return b.String()
 	}
 
@@ -2353,9 +2444,12 @@ func (m tuiModel) renderCloudUpload() string {
 			Render(fmt.Sprintf("⬆️  Upload Progress: %.1f%%", uploadPercent)))
 		progress.WriteString("\n\n")
 
-		// Progress bar
-		progressBar := m.progressBar.ViewAs(uploadPercent / 100.0)
-		progress.WriteString(progressBar)
+		// Progress bar (animated with gradient)
+		barWidth := min(boxWidth-10, 60)
+		animatedBar := renderAnimatedProgressBar(uploadPercent, barWidth)
+		progress.WriteString(animatedBar)
+		progress.WriteString(" ")
+		progress.WriteString(progressLabelStyleTUI.Render(fmt.Sprintf("%.1f%%", uploadPercent)))
 		progress.WriteString("\n\n")
 
 		// Transfer stats
@@ -2383,8 +2477,12 @@ func (m tuiModel) renderCloudUpload() string {
 			}
 		}
 	} else {
-		progress.WriteString(m.spinner.View())
-		progress.WriteString(" Preparing files for upload...")
+		// Animated spinner for preparing files
+		frames := getDotSpinnerFrames()
+		spinnerChar := frames[m.animFrame%len(frames)]
+		progress.WriteString(spinnerProcessingStyleTUI.Render(spinnerChar))
+		progress.WriteString(" ")
+		progress.WriteString(lipgloss.NewStyle().Foreground(amberYellow).Render("Preparing files for upload..."))
 	}
 
 	b.WriteString(progressBox.Render(progress.String()))
