@@ -67,9 +67,10 @@ type tuiModel struct {
 	vms              []tuiVMItem
 	filteredVMs      []tuiVMItem
 	cursor           int
-	phase            string // "select", "confirm", "template", "regex", "cloud", "features", "export", "cloudupload", "done", "search", "details", "validation"
+	phase            string // "select", "confirm", "template", "regex", "cloud", "features", "export", "cloudupload", "done", "search", "details", "validation", "config"
 	detailsVM        *vsphere.VMInfo // VM to show details for
 	validationReport *ValidationReport // Pre-export validation results
+	configPanel      *configPanelState // Interactive config panel state
 	searchQuery      string
 	sortMode         string // "name", "cpu", "memory", "storage", "power"
 	filterPower      string // "", "on", "off"
@@ -158,6 +159,25 @@ type exportProgressState struct {
 	startTime      time.Time
 	lastUpdateTime time.Time
 	lastBytes      int64
+}
+
+// configPanelState manages interactive configuration editing
+type configPanelState struct {
+	focusedField int
+	fields       []configField
+	isDirty      bool
+}
+
+// configField represents a single configurable field
+type configField struct {
+	label       string
+	key         string
+	value       string
+	inputModel  textinput.Model
+	fieldType   string // "text", "number", "bool", "select"
+	options     []string // for select fields
+	description string
+	validator   func(string) error
 }
 
 // Modern key bindings
@@ -364,6 +384,8 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.handleDetailsKeys(msg)
 		case "validation":
 			return m.handleValidationKeys(msg)
+		case "config":
+			return m.handleConfigPanelKeys(msg)
 		case "cloud":
 			// Cloud phase is handled by cloudSelectionModel
 			return m, nil
@@ -596,6 +618,11 @@ func (m tuiModel) handleConfirmKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.phase = "features"
 		m.cursor = 0
 		return m, nil
+	case "c", "C":
+		// Open interactive configuration panel
+		m.phase = "config"
+		m.configPanel = m.newConfigPanel()
+		return m, nil
 	}
 	return m, nil
 }
@@ -806,6 +833,213 @@ func (m tuiModel) handleValidationKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// newConfigPanel creates an interactive configuration panel
+func (m *tuiModel) newConfigPanel() *configPanelState {
+	panel := &configPanelState{
+		focusedField: 0,
+		fields:       make([]configField, 0),
+		isDirty:      false,
+	}
+
+	// Helper to create text input
+	makeInput := func(placeholder, value string) textinput.Model {
+		ti := textinput.New()
+		ti.Placeholder = placeholder
+		ti.SetValue(value)
+		ti.CharLimit = 200
+		ti.Width = 60
+		return ti
+	}
+
+	// Add configuration fields
+	fields := []configField{
+		{
+			label:       "Output Directory",
+			key:         "output_dir",
+			value:       m.outputDir,
+			inputModel:  makeInput("/path/to/exports", m.outputDir),
+			fieldType:   "text",
+			description: "Directory where VM exports will be saved",
+		},
+		{
+			label:       "Bandwidth Limit (MB/s)",
+			key:         "bandwidth_limit",
+			value:       fmt.Sprintf("%d", m.featureConfig.bandwidthLimitMBps),
+			inputModel:  makeInput("0 = unlimited", fmt.Sprintf("%d", m.featureConfig.bandwidthLimitMBps)),
+			fieldType:   "number",
+			description: "Maximum upload/download speed (0 for unlimited)",
+		},
+		{
+			label:       "Email SMTP Host",
+			key:         "email_smtp_host",
+			value:       m.featureConfig.emailSMTPHost,
+			inputModel:  makeInput("smtp.example.com", m.featureConfig.emailSMTPHost),
+			fieldType:   "text",
+			description: "SMTP server hostname for email notifications",
+		},
+		{
+			label:       "Email From Address",
+			key:         "email_from",
+			value:       m.featureConfig.emailFrom,
+			inputModel:  makeInput("exports@example.com", m.featureConfig.emailFrom),
+			fieldType:   "text",
+			description: "From email address for notifications",
+		},
+		{
+			label:       "Email To Address",
+			key:         "email_to",
+			value:       m.featureConfig.emailTo,
+			inputModel:  makeInput("admin@example.com", m.featureConfig.emailTo),
+			fieldType:   "text",
+			description: "Recipient email address (comma-separated for multiple)",
+		},
+		{
+			label:       "Keep Snapshots Count",
+			key:         "keep_snapshots",
+			value:       fmt.Sprintf("%d", m.featureConfig.keepSnapshots),
+			inputModel:  makeInput("0 = keep all", fmt.Sprintf("%d", m.featureConfig.keepSnapshots)),
+			fieldType:   "number",
+			description: "Number of snapshots to retain (0 = keep all)",
+		},
+		{
+			label:       "Cleanup Max Age (days)",
+			key:         "cleanup_max_age",
+			value:       fmt.Sprintf("%d", m.featureConfig.cleanupMaxAge),
+			inputModel:  makeInput("30", fmt.Sprintf("%d", m.featureConfig.cleanupMaxAge)),
+			fieldType:   "number",
+			description: "Delete exports older than this many days",
+		},
+		{
+			label:       "Cleanup Max Count",
+			key:         "cleanup_max_count",
+			value:       fmt.Sprintf("%d", m.featureConfig.cleanupMaxCount),
+			inputModel:  makeInput("10", fmt.Sprintf("%d", m.featureConfig.cleanupMaxCount)),
+			fieldType:   "number",
+			description: "Keep only N most recent exports",
+		},
+	}
+
+	panel.fields = fields
+	// Focus first field
+	if len(panel.fields) > 0 {
+		panel.fields[0].inputModel.Focus()
+	}
+
+	return panel
+}
+
+// handleConfigPanelKeys handles keyboard input for config panel
+func (m tuiModel) handleConfigPanelKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	if m.configPanel == nil {
+		// Initialize config panel if not present
+		m.configPanel = m.newConfigPanel()
+	}
+
+	panel := m.configPanel
+
+	switch msg.String() {
+	case "ctrl+c", "q":
+		return m, tea.Quit
+
+	case "escape":
+		// Cancel and go back
+		m.phase = "confirm"
+		m.configPanel = nil
+		return m, nil
+
+	case "up", "shift+tab":
+		// Move to previous field
+		if panel.focusedField > 0 {
+			panel.fields[panel.focusedField].inputModel.Blur()
+			panel.focusedField--
+			panel.fields[panel.focusedField].inputModel.Focus()
+		}
+		return m, nil
+
+	case "down", "tab":
+		// Move to next field
+		if panel.focusedField < len(panel.fields)-1 {
+			panel.fields[panel.focusedField].inputModel.Blur()
+			panel.focusedField++
+			panel.fields[panel.focusedField].inputModel.Focus()
+		}
+		return m, nil
+
+	case "enter":
+		// Move to next field or save if at last field
+		if panel.focusedField < len(panel.fields)-1 {
+			panel.fields[panel.focusedField].inputModel.Blur()
+			panel.focusedField++
+			panel.fields[panel.focusedField].inputModel.Focus()
+		} else {
+			// Save configuration
+			return m.saveConfigPanel()
+		}
+		return m, nil
+
+	case "ctrl+s":
+		// Save configuration
+		return m.saveConfigPanel()
+
+	default:
+		// Update the focused field's input model
+		var cmd tea.Cmd
+		panel.fields[panel.focusedField].inputModel, cmd = panel.fields[panel.focusedField].inputModel.Update(msg)
+		panel.isDirty = true
+		return m, cmd
+	}
+}
+
+// saveConfigPanel saves the configuration from the panel
+func (m tuiModel) saveConfigPanel() (tea.Model, tea.Cmd) {
+	if m.configPanel == nil {
+		return m, nil
+	}
+
+	// Update model with values from config panel
+	for _, field := range m.configPanel.fields {
+		value := field.inputModel.Value()
+		switch field.key {
+		case "output_dir":
+			m.outputDir = value
+		case "bandwidth_limit":
+			if val := parseInt(value); val >= 0 {
+				m.featureConfig.bandwidthLimitMBps = val
+			}
+		case "email_smtp_host":
+			m.featureConfig.emailSMTPHost = value
+		case "email_from":
+			m.featureConfig.emailFrom = value
+		case "email_to":
+			m.featureConfig.emailTo = value
+		case "keep_snapshots":
+			if val := parseInt(value); val >= 0 {
+				m.featureConfig.keepSnapshots = int(val)
+			}
+		case "cleanup_max_age":
+			if val := parseInt(value); val >= 0 {
+				m.featureConfig.cleanupMaxAge = int(val)
+			}
+		case "cleanup_max_count":
+			if val := parseInt(value); val >= 0 {
+				m.featureConfig.cleanupMaxCount = int(val)
+			}
+		}
+	}
+
+	m.message = "Configuration saved successfully!"
+	m.phase = "confirm"
+	m.configPanel = nil
+	return m, nil
+}
+
+// parseInt parses a string to int64, returns 0 on error
+func parseInt(s string) int64 {
+	var val int64
+	fmt.Sscanf(s, "%d", &val)
+	return val
+}
+
 func (m tuiModel) countEnabledFeatures() int {
 	count := 0
 	if m.featureConfig.enableSnapshot {
@@ -844,6 +1078,8 @@ func (m tuiModel) View() string {
 		return m.renderDetails()
 	case "validation":
 		return m.renderValidation()
+	case "config":
+		return m.renderConfigPanel()
 	case "export":
 		return m.renderExport()
 	case "cloudupload":
@@ -1189,7 +1425,7 @@ func (m tuiModel) renderConfirm() string {
 	}
 
 	b.WriteString("\n\n")
-	b.WriteString(helpStyleTUI.Render("y/Enter: Validate & export | v: Validation only | u: Cloud | f: Features | n/Esc: Back | q: Quit"))
+	b.WriteString(helpStyleTUI.Render("y/Enter: Validate & export | v: Validation only | c: Config | u: Cloud | f: Features | n/Esc: Back | q: Quit"))
 
 	return b.String()
 }
@@ -1586,6 +1822,108 @@ func (m tuiModel) renderValidation() string {
 		b.WriteString("\n\n")
 		b.WriteString(errorStyleTUI.Render(m.message))
 	}
+
+	return b.String()
+}
+
+// renderConfigPanel renders the interactive configuration panel
+func (m tuiModel) renderConfigPanel() string {
+	var b strings.Builder
+
+	// Header
+	header := lipgloss.NewStyle().
+		Bold(true).
+		Foreground(primaryColor).
+		Background(lightCharcoal).
+		Width(80).
+		Align(lipgloss.Center).
+		Render("⚙️  Configuration Editor")
+	b.WriteString(header)
+	b.WriteString("\n\n")
+
+	if m.configPanel == nil {
+		return errorStyleTUI.Render("Config panel not initialized")
+	}
+
+	panel := m.configPanel
+
+	// Instructions box
+	instructionsBox := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(tealInfo).
+		Padding(0, 1).
+		Width(76)
+
+	instructions := lipgloss.NewStyle().Foreground(tealInfo).Render(
+		"💡 Use ↑/↓ or Tab/Shift+Tab to navigate | Enter to move to next field | Ctrl+S to save")
+	b.WriteString(instructionsBox.Render(instructions))
+	b.WriteString("\n\n")
+
+	// Render each config field
+	for i, field := range panel.fields {
+		isFocused := i == panel.focusedField
+
+		// Field box styling
+		var fieldBox lipgloss.Style
+		if isFocused {
+			fieldBox = lipgloss.NewStyle().
+				Border(lipgloss.RoundedBorder()).
+				BorderForeground(primaryColor).
+				Padding(1, 2).
+				Width(76)
+		} else {
+			fieldBox = lipgloss.NewStyle().
+				Border(lipgloss.RoundedBorder()).
+				BorderForeground(mutedGray).
+				Padding(1, 2).
+				Width(76)
+		}
+
+		// Field content
+		var fieldContent strings.Builder
+
+		// Label
+		labelStyle := lipgloss.NewStyle().
+			Bold(true)
+		if isFocused {
+			labelStyle = labelStyle.Foreground(primaryColor)
+		} else {
+			labelStyle = labelStyle.Foreground(textColor)
+		}
+		fieldContent.WriteString(labelStyle.Render(field.label))
+		fieldContent.WriteString("\n")
+
+		// Description
+		descStyle := lipgloss.NewStyle().
+			Foreground(mutedGray).
+			Italic(true)
+		fieldContent.WriteString(descStyle.Render(field.description))
+		fieldContent.WriteString("\n\n")
+
+		// Input field
+		fieldContent.WriteString(field.inputModel.View())
+
+		b.WriteString(fieldBox.Render(fieldContent.String()))
+		b.WriteString("\n")
+	}
+
+	// Status message
+	if panel.isDirty {
+		b.WriteString("\n")
+		statusBox := lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(warningColor).
+			Padding(0, 1)
+		b.WriteString(statusBox.Render(
+			lipgloss.NewStyle().Foreground(warningColor).Render(
+				"⚠ Unsaved changes")))
+	}
+
+	b.WriteString("\n\n")
+
+	// Help text
+	b.WriteString(helpStyleTUI.Render(
+		"Ctrl+S or Enter on last field: Save | Esc: Cancel | q: Quit"))
 
 	return b.String()
 }
