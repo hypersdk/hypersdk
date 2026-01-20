@@ -1284,11 +1284,35 @@ func run(ctx context.Context, cfg *config.Config, log logger.Logger) error {
 }
 
 func selectVMInteractive(vms []string, log logger.Logger) (string, error) {
+	// Clear screen for better UX
+	pterm.Print("\033[H\033[2J")
+
 	if len(vms) == 1 {
 		log.Info("auto-selecting only VM", "vm", vms[0])
-		pterm.Info.Println("Auto-selecting the only available VM")
+		pterm.Success.Println("Auto-selecting the only available VM")
 		return vms[0], nil
 	}
+
+	// Show header with branding
+	pterm.DefaultBigText.WithLetters(
+		pterm.NewLettersFromStringWithStyle("HYPER", pterm.NewStyle(pterm.FgCyan)),
+		pterm.NewLettersFromStringWithStyle("EXPORT", pterm.NewStyle(pterm.FgLightBlue))).
+		Render()
+
+	pterm.Println()
+
+	// Show VM count and instructions
+	pterm.DefaultBox.
+		WithTitle("VM Selection").
+		WithTitleTopCenter().
+		WithBoxStyle(pterm.NewStyle(pterm.FgCyan)).
+		Printfln("Found %d virtual machines\n\n"+
+			"💡 Use ↑/↓ arrows to navigate\n"+
+			"💡 Press / to search and filter\n"+
+			"💡 Press Enter to select\n"+
+			"💡 Press Ctrl+C to cancel", len(vms))
+
+	pterm.Println()
 
 	// Extract VM names for display
 	vmNames := make([]string, len(vms))
@@ -1297,89 +1321,156 @@ func selectVMInteractive(vms []string, log logger.Logger) (string, error) {
 		vmNames[i] = parts[len(parts)-1]
 	}
 
+	// Sort VMs alphabetically for easier navigation
+	sorted := make([]string, len(vmNames))
+	copy(sorted, vmNames)
+	sortIndices := make([]int, len(vmNames))
+	for i := range sortIndices {
+		sortIndices[i] = i
+	}
+
+	// Simple bubble sort with index tracking
+	for i := 0; i < len(sorted)-1; i++ {
+		for j := 0; j < len(sorted)-i-1; j++ {
+			if sorted[j] > sorted[j+1] {
+				sorted[j], sorted[j+1] = sorted[j+1], sorted[j]
+				sortIndices[j], sortIndices[j+1] = sortIndices[j+1], sortIndices[j]
+			}
+		}
+	}
+
+	// Show selection prompt
+	pterm.DefaultHeader.WithFullWidth().
+		WithBackgroundStyle(pterm.NewStyle(pterm.BgDarkGray)).
+		WithTextStyle(pterm.NewStyle(pterm.FgLightWhite)).
+		Println("Select VM to Export")
+
 	// Interactive select with search
 	selectedName, err := pterm.DefaultInteractiveSelect.
-		WithOptions(vmNames).
-		WithDefaultText("Select a VM to export").
+		WithOptions(sorted).
+		WithDefaultText("Select a VM to export [type to search]").
 		WithFilter(true).
+		WithMaxHeight(15).
 		Show()
 
 	if err != nil {
 		return "", err
 	}
 
-	// Find the full path
-	for i, name := range vmNames {
+	// Find the original index
+	var originalIndex int
+	for i, name := range sorted {
 		if name == selectedName {
-			pterm.Success.Printfln("Selected: %s", selectedName)
-			return vms[i], nil
+			originalIndex = sortIndices[i]
+			break
 		}
 	}
 
-	return "", fmt.Errorf("VM not found")
+	pterm.Println()
+	pterm.Success.WithPrefix(pterm.Prefix{
+		Text:  "SELECTED",
+		Style: pterm.NewStyle(pterm.BgGreen, pterm.FgBlack),
+	}).Printfln("%s", selectedName)
+
+	return vms[originalIndex], nil
 }
 
 func displayVMInfo(info *vsphere.VMInfo) {
-	// Create table data
+	pterm.Println()
+
+	// Show VM details in a beautiful panel
+	pterm.DefaultHeader.WithFullWidth().
+		WithBackgroundStyle(pterm.NewStyle(pterm.BgCyan)).
+		WithTextStyle(pterm.NewStyle(pterm.FgBlack)).
+		Println("📋 Virtual Machine Details")
+
+	pterm.Println()
+
+	// Create enhanced table data with icons
 	data := pterm.TableData{
 		{"Property", "Value"},
-		{"Name", info.Name},
-		{"Power State", getPowerStateIcon(info.PowerState) + " " + info.PowerState},
-		{"Guest OS", info.GuestOS},
-		{"Memory", fmt.Sprintf("%d MB", info.MemoryMB)},
-		{"CPUs", fmt.Sprintf("%d", info.NumCPU)},
-		{"Storage", formatBytes(info.Storage)},
+		{"🖥️  VM Name", pterm.Bold.Sprint(info.Name)},
+		{"⚡ Power State", getPowerStateIcon(info.PowerState) + " " + pterm.Bold.Sprint(info.PowerState)},
+		{"💿 Guest OS", info.GuestOS},
+		{"🧠 Memory", pterm.Cyan(fmt.Sprintf("%d MB (%.1f GB)", info.MemoryMB, float64(info.MemoryMB)/1024))},
+		{"⚙️  vCPUs", pterm.Cyan(fmt.Sprintf("%d", info.NumCPU))},
+		{"💾 Storage", pterm.Cyan(formatBytes(info.Storage))},
+		{"📁 Path", pterm.FgGray.Sprint(info.Path)},
 	}
 
-	// Render table
+	// Render enhanced table
 	pterm.DefaultTable.
 		WithHasHeader().
-		WithHeaderRowSeparator("-").
+		WithHeaderRowSeparator("─").
 		WithBoxed().
+		WithLeftAlignment().
 		WithData(data).
 		Render()
+
+	pterm.Println()
 }
 
 func showExportSummary(info *vsphere.VMInfo, result *vsphere.ExportResult) {
-	// Create summary table
+	pterm.Println()
+	pterm.Println()
+
+	// Show celebration header
+	pterm.DefaultBigText.WithLetters(
+		pterm.NewLettersFromStringWithStyle("SUCCESS", pterm.NewStyle(pterm.FgGreen))).
+		Render()
+
+	pterm.Println()
+
+	// Calculate speed
+	speedMBps := float64(result.TotalSize) / result.Duration.Seconds() / 1024 / 1024
+
+	// Create enhanced summary table with icons
 	data := pterm.TableData{
 		{"Metric", "Value"},
-		{"VM Name", info.Name},
-		{"Duration", result.Duration.Round(time.Second).String()},
-		{"Total Size", formatBytes(result.TotalSize)},
-		{"Files Exported", fmt.Sprintf("%d", len(result.Files))},
-		{"Output Directory", result.OutputDir},
+		{"🖥️  VM Name", pterm.Bold.Sprint(info.Name)},
+		{"⏱️  Duration", pterm.Cyan(result.Duration.Round(time.Second).String())},
+		{"💾 Total Size", pterm.Cyan(formatBytes(result.TotalSize))},
+		{"⚡ Avg Speed", pterm.Cyan(fmt.Sprintf("%.1f MB/s", speedMBps))},
+		{"📦 Files Exported", pterm.Cyan(fmt.Sprintf("%d", len(result.Files)))},
+		{"📁 Output Directory", pterm.FgGray.Sprint(result.OutputDir)},
 	}
 
 	// Add manifest path if generated
 	if result.ManifestPath != "" {
-		data = append(data, []string{"Artifact Manifest", result.ManifestPath})
+		data = append(data, []string{"📋 Artifact Manifest", pterm.Green(result.ManifestPath)})
 	}
 
 	// Add conversion results if present (Phase 2)
 	if result.ConversionResult != nil {
-		convStatus := pterm.Red("FAILED")
+		convStatus := pterm.Red("❌ FAILED")
 		if result.ConversionResult.Success {
-			convStatus = pterm.Green("SUCCESS")
+			convStatus = pterm.Green("✅ SUCCESS")
 		}
-		data = append(data, []string{"Conversion Status", convStatus})
+		data = append(data, []string{"🔄 Conversion Status", convStatus})
 
 		if result.ConversionResult.Success {
-			data = append(data, []string{"Converted Files", fmt.Sprintf("%d", len(result.ConversionResult.ConvertedFiles))})
-			data = append(data, []string{"Conversion Duration", result.ConversionResult.Duration.Round(time.Second).String()})
+			data = append(data, []string{"📦 Converted Files", pterm.Cyan(fmt.Sprintf("%d", len(result.ConversionResult.ConvertedFiles)))})
+			data = append(data, []string{"⏱️  Conversion Time", pterm.Cyan(result.ConversionResult.Duration.Round(time.Second).String())})
 			if result.ConversionResult.ReportPath != "" {
-				data = append(data, []string{"Conversion Report", result.ConversionResult.ReportPath})
+				data = append(data, []string{"📊 Conversion Report", pterm.Green(result.ConversionResult.ReportPath)})
 			}
 		} else if result.ConversionResult.Error != "" {
-			data = append(data, []string{"Conversion Error", result.ConversionResult.Error})
+			data = append(data, []string{"❌ Conversion Error", pterm.Red(result.ConversionResult.Error)})
 		}
 	}
 
-	pterm.DefaultSection.Println("Export Summary")
+	pterm.DefaultHeader.WithFullWidth().
+		WithBackgroundStyle(pterm.NewStyle(pterm.BgGreen)).
+		WithTextStyle(pterm.NewStyle(pterm.FgBlack)).
+		Println("✅ Export Summary")
+
+	pterm.Println()
+
 	pterm.DefaultTable.
 		WithHasHeader().
-		WithHeaderRowSeparator("-").
+		WithHeaderRowSeparator("─").
 		WithBoxed().
+		WithLeftAlignment().
 		WithData(data).
 		Render()
 
