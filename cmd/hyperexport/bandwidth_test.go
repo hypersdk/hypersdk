@@ -7,6 +7,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"hypersdk/logger"
 )
 
 func TestNewBandwidthLimiter(t *testing.T) {
@@ -26,7 +28,7 @@ func TestNewBandwidthLimiter(t *testing.T) {
 			config := &BandwidthConfig{
 				MaxBytesPerSecond: tt.bytesPerSecond,
 			}
-			limiter := NewBandwidthLimiter(config, newTestLogger())
+			limiter := NewBandwidthLimiter(config, logger.NewTestLogger(t))
 			if limiter == nil {
 				t.Fatal("NewBandwidthLimiter returned nil")
 			}
@@ -42,7 +44,7 @@ func TestBandwidthLimiter_Wait(t *testing.T) {
 	config := &BandwidthConfig{
 		MaxBytesPerSecond: 1024 * 1024, // 1 MB/s
 	}
-	limiter := NewBandwidthLimiter(config, newTestLogger())
+	limiter := NewBandwidthLimiter(config, logger.NewTestLogger(t))
 	ctx := context.Background()
 
 	start := time.Now()
@@ -63,7 +65,7 @@ func TestBandwidthLimiter_WaitContext(t *testing.T) {
 	config := &BandwidthConfig{
 		MaxBytesPerSecond: 1024, // 1 KB/s (slow for testing)
 	}
-	limiter := NewBandwidthLimiter(config, newTestLogger())
+	limiter := NewBandwidthLimiter(config, logger.NewTestLogger(t))
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
 	defer cancel()
 
@@ -78,7 +80,7 @@ func TestBandwidthLimiter_ConcurrentWait(t *testing.T) {
 	config := &BandwidthConfig{
 		MaxBytesPerSecond: 1024 * 1024, // 1 MB/s
 	}
-	limiter := NewBandwidthLimiter(config, newTestLogger())
+	limiter := NewBandwidthLimiter(config, logger.NewTestLogger(t))
 	ctx := context.Background()
 
 	var wg sync.WaitGroup
@@ -100,7 +102,7 @@ func TestBandwidthLimiter_GetStats(t *testing.T) {
 	config := &BandwidthConfig{
 		MaxBytesPerSecond: 5 * 1024 * 1024, // 5 MB/s
 	}
-	limiter := NewBandwidthLimiter(config, newTestLogger())
+	limiter := NewBandwidthLimiter(config, logger.NewTestLogger(t))
 	ctx := context.Background()
 
 	// Transfer some data
@@ -119,7 +121,7 @@ func TestNewAdaptiveBandwidthLimiter(t *testing.T) {
 	minRate := int64(1 * 1024 * 1024)   // 1 MB/s
 	maxRate := int64(100 * 1024 * 1024) // 100 MB/s
 
-	adaptive := NewAdaptiveBandwidthLimiter(minRate, maxRate, newTestLogger())
+	adaptive := NewAdaptiveBandwidthLimiter(minRate, maxRate, logger.NewTestLogger(t))
 	if adaptive == nil {
 		t.Fatal("NewAdaptiveBandwidthLimiter returned nil")
 	}
@@ -135,7 +137,7 @@ func TestNewAdaptiveBandwidthLimiter(t *testing.T) {
 }
 
 func TestAdaptiveBandwidthLimiter_RecordSuccess(t *testing.T) {
-	adaptive := NewAdaptiveBandwidthLimiter(1024*1024, 100*1024*1024, newTestLogger())
+	adaptive := NewAdaptiveBandwidthLimiter(1024*1024, 100*1024*1024, logger.NewTestLogger(t))
 
 	// Record multiple successes
 	for i := 0; i < 20; i++ {
@@ -149,7 +151,7 @@ func TestAdaptiveBandwidthLimiter_RecordSuccess(t *testing.T) {
 }
 
 func TestAdaptiveBandwidthLimiter_RecordError(t *testing.T) {
-	adaptive := NewAdaptiveBandwidthLimiter(1024*1024, 100*1024*1024, newTestLogger())
+	adaptive := NewAdaptiveBandwidthLimiter(1024*1024, 100*1024*1024, logger.NewTestLogger(t))
 
 	// Record multiple errors
 	for i := 0; i < 5; i++ {
@@ -165,7 +167,7 @@ func TestAdaptiveBandwidthLimiter_RecordError(t *testing.T) {
 func TestAdaptiveBandwidthLimiter_MinMaxBounds(t *testing.T) {
 	minRate := int64(1 * 1024 * 1024)   // 1 MB/s
 	maxRate := int64(10 * 1024 * 1024)  // 10 MB/s
-	adaptive := NewAdaptiveBandwidthLimiter(minRate, maxRate, newTestLogger())
+	adaptive := NewAdaptiveBandwidthLimiter(minRate, maxRate, logger.NewTestLogger(t))
 
 	// Current speed should be within bounds
 	if adaptive.currentSpeed < minRate {
@@ -177,7 +179,7 @@ func TestAdaptiveBandwidthLimiter_MinMaxBounds(t *testing.T) {
 }
 
 func TestAdaptiveBandwidthLimiter_Wait(t *testing.T) {
-	adaptive := NewAdaptiveBandwidthLimiter(1024*1024, 100*1024*1024, newTestLogger())
+	adaptive := NewAdaptiveBandwidthLimiter(1024*1024, 100*1024*1024, logger.NewTestLogger(t))
 	ctx := context.Background()
 
 	err := adaptive.Wait(ctx, 1024)
@@ -187,7 +189,7 @@ func TestAdaptiveBandwidthLimiter_Wait(t *testing.T) {
 }
 
 func TestAdaptiveBandwidthLimiter_GetStats(t *testing.T) {
-	adaptive := NewAdaptiveBandwidthLimiter(1024*1024, 100*1024*1024, newTestLogger())
+	adaptive := NewAdaptiveBandwidthLimiter(1024*1024, 100*1024*1024, logger.NewTestLogger(t))
 	ctx := context.Background()
 
 	adaptive.Wait(ctx, 1024)
@@ -204,7 +206,7 @@ func TestLimitedReader_Read(t *testing.T) {
 	config := &BandwidthConfig{
 		MaxBytesPerSecond: 10 * 1024 * 1024, // 10 MB/s (fast for testing)
 	}
-	limiter := NewBandwidthLimiter(config, newTestLogger())
+	limiter := NewBandwidthLimiter(config, logger.NewTestLogger(t))
 	ctx := context.Background()
 
 	lr := NewLimitedReader(reader, limiter, ctx)
@@ -225,7 +227,7 @@ func TestLimitedReader_ReadFull(t *testing.T) {
 	config := &BandwidthConfig{
 		MaxBytesPerSecond: 1024 * 1024, // 1 MB/s
 	}
-	limiter := NewBandwidthLimiter(config, newTestLogger())
+	limiter := NewBandwidthLimiter(config, logger.NewTestLogger(t))
 	ctx := context.Background()
 
 	lr := NewLimitedReader(reader, limiter, ctx)
@@ -244,7 +246,7 @@ func TestLimitedWriter_Write(t *testing.T) {
 	config := &BandwidthConfig{
 		MaxBytesPerSecond: 10 * 1024 * 1024, // 10 MB/s
 	}
-	limiter := NewBandwidthLimiter(config, newTestLogger())
+	limiter := NewBandwidthLimiter(config, logger.NewTestLogger(t))
 	ctx := context.Background()
 
 	lw := NewLimitedWriter(&buf, limiter, ctx)
@@ -267,7 +269,7 @@ func TestLimitedWriter_MultipleWrites(t *testing.T) {
 	config := &BandwidthConfig{
 		MaxBytesPerSecond: 10 * 1024 * 1024, // 10 MB/s
 	}
-	limiter := NewBandwidthLimiter(config, newTestLogger())
+	limiter := NewBandwidthLimiter(config, logger.NewTestLogger(t))
 	ctx := context.Background()
 
 	lw := NewLimitedWriter(&buf, limiter, ctx)
@@ -313,7 +315,7 @@ func TestBandwidthLimiter_ZeroRate(t *testing.T) {
 	config := &BandwidthConfig{
 		MaxBytesPerSecond: 0, // Unlimited
 	}
-	limiter := NewBandwidthLimiter(config, newTestLogger())
+	limiter := NewBandwidthLimiter(config, logger.NewTestLogger(t))
 	ctx := context.Background()
 
 	// Should complete immediately
