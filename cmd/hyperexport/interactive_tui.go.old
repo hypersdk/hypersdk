@@ -565,19 +565,18 @@ func (k tuiKeyMap) FullHelp() [][]key.Binding {
 	}
 }
 
-// Vision-optimized color palette (based on human eye sensitivity: green > yellow > red).
+// Modern color palette inspired by Tokyo Night / Catppuccin aesthetic
 var (
-	// Core palette - dark orange in the sweet spot (#D35400 - #C75B12).
-	// Avoids eye strain (too bright #FFA500) and muddy unreadable (too brown #8B4513).
-	deepOrange    = lipgloss.Color("#D35400") // Primary accent (optimal contrast, no glare)
-	tealInfo      = lipgloss.Color("#5DADE2") // Directories/info
-	successGreen  = lipgloss.Color("#A3BE8C") // Success messages (eye-sensitive green)
-	warmRed       = lipgloss.Color("#E74C3C") // Errors (bright for visibility)
-	amberYellow   = lipgloss.Color("#F39C12") // Highlights/warnings (readable yellow)
-	offWhite      = lipgloss.Color("#F5F5DC") // Normal text (cream)
-	darkCharcoal  = lipgloss.Color("#0B0C10") // Background (very dark)
-	lightCharcoal = lipgloss.Color("#1C1E22") // Subtle backgrounds
-	mutedGray     = lipgloss.Color("#6B7280") // Muted elements
+	// Core palette - vibrant, modern colors for terminal UIs
+	deepOrange    = lipgloss.Color("#FF9E64") // Vibrant peach/orange (primary accent)
+	tealInfo      = lipgloss.Color("#7DCFFF") // Bright cyan (info/directories)
+	successGreen  = lipgloss.Color("#9ECE6A") // Fresh lime green (success)
+	warmRed       = lipgloss.Color("#F7768E") // Soft red (errors)
+	amberYellow   = lipgloss.Color("#E0AF68") // Golden amber (warnings)
+	offWhite      = lipgloss.Color("#C0CAF5") // Light lavender-white (text)
+	darkCharcoal  = lipgloss.Color("#1A1B26") // Tokyo Night dark background
+	lightCharcoal = lipgloss.Color("#24283B") // Slightly lighter background
+	mutedGray     = lipgloss.Color("#565F89") // Muted blue-gray
 
 	// Semantic color mappings.
 	primaryColor   = deepOrange    // Orange as signal
@@ -789,10 +788,16 @@ func (m tuiModel) Init() tea.Cmd {
 }
 
 func (m tuiModel) loadVMs() tea.Msg {
+	defer func() {
+		if r := recover(); r != nil {
+			m.log.Error("loadVMs panic", "panic", r)
+		}
+	}()
 	vms, err := m.client.ListVMs(m.ctx)
 	if err != nil {
 		return vmsLoadedMsg{err: err}
 	}
+	m.log.Info("VMs loaded successfully", "count", len(vms))
 	return vmsLoadedMsg{vms: vms}
 }
 
@@ -805,12 +810,15 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		}
 
+		m.log.Info("Processing loaded VMs", "count", len(msg.vms))
 		m.vms = make([]tuiVMItem, len(msg.vms))
 		for i, vm := range msg.vms {
 			m.vms[i] = tuiVMItem{vm: vm, selected: false}
 		}
 		m.phase = "select"
+		m.log.Info("Applying filters and sorting")
 		m.applyFiltersAndSort()
+		m.log.Info("Filters applied, entering select phase")
 		return m, nil
 
 	case tea.WindowSizeMsg:
@@ -946,14 +954,11 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Increment animation frame for spinners and animations
 		m.animFrame++
 
-		var cmd tea.Cmd
 		if m.phase == "export" || m.phase == "validation" || m.phase == "cloudupload" {
 			// Continue ticking during animated phases
-			cmd = tickCmd()
+			return m, tickCmd()
 		}
-		// Update spinner
-		m.spinner, cmd = m.spinner.Update(msg)
-		return m, cmd
+		return m, nil
 
 	case spinner.TickMsg:
 		var cmd tea.Cmd
@@ -976,6 +981,14 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m tuiModel) handleSelectionKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	vms := m.getVisibleVMs()
+
+	// Clamp cursor to valid range
+	if m.cursor >= len(vms) && len(vms) > 0 {
+		m.cursor = len(vms) - 1
+	}
+	if m.cursor < 0 {
+		m.cursor = 0
+	}
 
 	switch msg.String() {
 	case "ctrl+c", "q":
@@ -1859,21 +1872,21 @@ func renderCoolBanner() string {
 ╠═╣╚╦╝╠═╝║╣ ╠╦╝  ║╣ ╔╩╦╝╠═╝║ ║╠╦╝ ║
 ╩ ╩ ╩ ╩  ╚═╝╩╚═  ╚═╝╩ ╚═╩  ╚═╝╩╚═ ╩ `
 
-	// Gradient styling for the banner
+	// Modern gradient styling for the banner
 	gradientBanner := lipgloss.NewStyle().
-		Foreground(tealInfo).
+		Foreground(deepOrange).
 		Bold(true).
 		Render(banner)
 
 	subtitle := lipgloss.NewStyle().
-		Foreground(amberYellow).
-		Italic(true).
+		Foreground(tealInfo).
+		Bold(true).
 		Render("        ⚡ Multi-Cloud VM Export Platform ⚡")
 
-	// Create a bordered box around the banner
+	// Create a modern bordered box around the banner
 	box := lipgloss.NewStyle().
-		Border(lipgloss.DoubleBorder()).
-		BorderForeground(tealInfo).
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(deepOrange).
 		Padding(1, 2).
 		Align(lipgloss.Center)
 
@@ -2216,9 +2229,19 @@ func (m tuiModel) renderSelection() string {
 	b.WriteString(hintStyle.Render(hintMsg))
 	b.WriteString("\n\n")
 
-	// VM list
+	// VM list with proper bounds checking
 	vms := m.getVisibleVMs()
-	start := m.cursor - 10
+
+	// Safe cursor position for rendering
+	safeCursor := m.cursor
+	if safeCursor >= len(vms) && len(vms) > 0 {
+		safeCursor = len(vms) - 1
+	}
+	if safeCursor < 0 {
+		safeCursor = 0
+	}
+
+	start := safeCursor - 10
 	if start < 0 {
 		start = 0
 	}
@@ -2235,13 +2258,13 @@ func (m tuiModel) renderSelection() string {
 
 	var vmListContent strings.Builder
 
-	for i := start; i < end; i++ {
+	for i := start; i < end && i < len(vms); i++ {
 		item := vms[i]
 
 		// Cool cursor with neon effect
 		cursor := "   "
 		cursorStyle := lipgloss.NewStyle()
-		if m.cursor == i {
+		if safeCursor == i {
 			cursor = " ▶ "
 			cursorStyle = lipgloss.NewStyle().Foreground(tealInfo).Bold(true)
 		}
@@ -2275,7 +2298,7 @@ func (m tuiModel) renderSelection() string {
 				Foreground(successGreen).
 				Bold(true)
 		}
-		if m.cursor == i {
+		if safeCursor == i {
 			vmNameStyle = vmNameStyle.Background(lightBg)
 		}
 
@@ -2297,7 +2320,7 @@ func (m tuiModel) renderSelection() string {
 		)
 
 		// Add selection highlight
-		if m.cursor == i {
+		if safeCursor == i {
 			lineStyle := lipgloss.NewStyle().
 				Background(lightBg).
 				Foreground(tealInfo).

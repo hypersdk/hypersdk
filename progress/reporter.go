@@ -49,32 +49,53 @@ func NewBarProgress(writer io.Writer, options ...progressbar.Option) *BarProgres
 }
 
 func (b *BarProgress) Start(total int64, description string) {
+	if b == nil || b.bar == nil {
+		return
+	}
 	b.bar.ChangeMax64(total)
 	b.bar.Describe(description)
 	b.bar.Reset()
 }
 
 func (b *BarProgress) Update(current int64) {
+	if b == nil || b.bar == nil {
+		return
+	}
 	_ = b.bar.Set64(current)
 }
 
 func (b *BarProgress) Add(count int64) {
+	if b == nil || b.bar == nil {
+		return
+	}
 	_ = b.bar.Add64(count)
 }
 
 func (b *BarProgress) Finish() {
+	if b == nil || b.bar == nil {
+		return
+	}
 	_ = b.bar.Finish()
 }
 
 func (b *BarProgress) SetTotal(total int64) {
+	if b == nil || b.bar == nil {
+		return
+	}
 	b.bar.ChangeMax64(total)
 }
 
 func (b *BarProgress) Describe(description string) {
+	if b == nil || b.bar == nil {
+		return
+	}
 	b.bar.Describe(description)
 }
 
 func (b *BarProgress) Close() error {
+	if b == nil || b.bar == nil {
+		return nil
+	}
 	return b.bar.Close()
 }
 

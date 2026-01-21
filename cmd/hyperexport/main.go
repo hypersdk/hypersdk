@@ -18,11 +18,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/charmbracelet/bubbles/help"
-	"github.com/charmbracelet/bubbles/key"
-	"github.com/charmbracelet/bubbles/progress"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 	"github.com/pterm/pterm"
 
 	"hypersdk/config"
@@ -585,7 +580,7 @@ func showIntro() {
 			WithBackgroundStyle(styleOrange).
 			WithTextStyle(pterm.NewStyle(pterm.FgBlack)).
 			WithMargin(4).
-			Sprint("   HyperExport   "),
+			Sprint("    HyperSDK    "),
 	)
 	pterm.Println()
 
@@ -641,7 +636,7 @@ func run(ctx context.Context, cfg *config.Config, log logger.Logger) error {
 
 	// Launch interactive TUI mode if requested
 	if *interactive || *tui {
-		return runInteractiveTUI(ctx, client, cfg, log)
+		return runInteractiveHuh(ctx, client, cfg, log)
 	}
 
 	// Display VM information if requested
@@ -1823,24 +1818,17 @@ func countFailed(report *ValidationReport) int {
 	return count
 }
 
-// runInteractiveTUI launches the advanced interactive TUI mode
-func runInteractiveTUI(ctx context.Context, client *vsphere.VSphereClient, cfg *config.Config, log logger.Logger) error {
-	// Get output directory
-	outputDirPath := *outputDir
-	if outputDirPath == "" {
-		outputDirPath = "./exports"
-	}
+// runInteractiveTUI_OLD - old bubbletea TUI implementation (replaced by runInteractiveHuh)
+// This function has been deprecated and replaced with a simpler huh-based implementation
+// The old file (interactive_tui.go) has been renamed to interactive_tui.go.old
+func runInteractiveTUI_OLD(ctx context.Context, client *vsphere.VSphereClient, cfg *config.Config, log logger.Logger) error {
+	return fmt.Errorf("old TUI implementation has been replaced with runInteractiveHuh - please use --interactive flag")
+}
 
-	// Initialize modern UI components
-	prog := progress.New(
-		progress.WithDefaultGradient(),
-		progress.WithWidth(40),
-	)
-
-	h := help.New()
-	h.Styles.ShortKey = lipgloss.NewStyle().Foreground(lipgloss.Color("#D35400"))
-	h.Styles.ShortDesc = lipgloss.NewStyle().Foreground(lipgloss.Color("#6B7280"))
-
+/*
+// Old implementation commented out for reference
+func runInteractiveTUI_OLD_ORIGINAL(ctx context.Context, client *vsphere.VSphereClient, cfg *config.Config, log logger.Logger) error {
+	// 200+ lines of complex bubbletea initialization code
 	keys := tuiKeyMap{
 		Up: key.NewBinding(
 			key.WithKeys("up", "k"),
@@ -1993,6 +1981,8 @@ func runInteractiveTUI(ctx context.Context, client *vsphere.VSphereClient, cfg *
 		ctx:             ctx,
 		progressBar:     prog,
 		helpModel:       h,
+		spinner:         s,
+		searchInput:     si,
 		keys:            keys,
 		splitScreenMode: false,
 		focusedPane:     "list",
@@ -2009,14 +1999,21 @@ func runInteractiveTUI(ctx context.Context, client *vsphere.VSphereClient, cfg *
 		showPreview:     false,
 	}
 
-	// Run the TUI program
-	p := tea.NewProgram(m, tea.WithAltScreen())
+	// Run the TUI program with panic recovery for debugging
+	defer func() {
+		if r := recover(); r != nil {
+			log.Error("TUI panic recovered", "panic", r, "stack", string(debug.Stack()))
+		}
+	}()
+
+	p := tea.NewProgram(m, tea.WithAltScreen(), tea.WithMouseCellMotion())
 	if _, err := p.Run(); err != nil {
 		return fmt.Errorf("TUI error: %w", err)
 	}
 
 	return nil
 }
+*/
 
 // showVMInfoCmd retrieves and displays VM information for the command-line --vm-info flag
 func showVMInfoCmd(ctx context.Context, client *vsphere.VSphereClient, vmName string, quiet bool, log logger.Logger) error {

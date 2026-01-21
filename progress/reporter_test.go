@@ -402,3 +402,80 @@ func TestMultiProgressWithMultipleBars(t *testing.T) {
 		}
 	}
 }
+
+// TestBarProgressNilSafety tests that all BarProgress methods handle nil receivers safely
+// This test was added to prevent nil pointer panics that occurred in production
+func TestBarProgressNilSafety(t *testing.T) {
+	t.Run("NilReceiver", func(t *testing.T) {
+		// Test nil receiver - should not panic
+		var nilBar *BarProgress
+
+		// All methods should handle nil gracefully
+		nilBar.Start(100, "test")
+		nilBar.Update(50)
+		nilBar.Add(10)
+		nilBar.Finish()
+		nilBar.SetTotal(200)
+		nilBar.Describe("description")
+		err := nilBar.Close()
+		if err != nil {
+			t.Errorf("Close() on nil returned error: %v", err)
+		}
+	})
+
+	t.Run("NilInternalBar", func(t *testing.T) {
+		// Test bar with nil internal bar field - should not panic
+		barWithNilInternal := &BarProgress{bar: nil}
+
+		// All methods should handle nil bar field gracefully
+		barWithNilInternal.Start(100, "test")
+		barWithNilInternal.Update(50)
+		barWithNilInternal.Add(10)
+		barWithNilInternal.Finish()
+		barWithNilInternal.SetTotal(200)
+		barWithNilInternal.Describe("description")
+		err := barWithNilInternal.Close()
+		if err != nil {
+			t.Errorf("Close() on nil bar returned error: %v", err)
+		}
+	})
+
+	t.Run("ConcurrentNilAccess", func(t *testing.T) {
+		// Simulate concurrent access to nil bar - should not panic
+		var nilBar *BarProgress
+		done := make(chan bool, 5)
+
+		for i := 0; i < 5; i++ {
+			go func() {
+				nilBar.Add(1)
+				nilBar.Update(10)
+				done <- true
+			}()
+		}
+
+		for i := 0; i < 5; i++ {
+			<-done
+		}
+	})
+}
+
+// TestProgressBarOperationsOnClosedBar tests operations on a closed bar
+func TestProgressBarOperationsOnClosedBar(t *testing.T) {
+	var buf bytes.Buffer
+	bar := NewBarProgress(&buf)
+
+	bar.Start(100, "Test")
+	bar.Close()
+
+	// Operations after close should not panic (though they may not have effect)
+	bar.Update(50)
+	bar.Add(10)
+	bar.Finish()
+
+	// Second close should not panic
+	err := bar.Close()
+	if err != nil {
+		// It's okay if close returns an error on second call
+		t.Logf("Second Close() returned: %v", err)
+	}
+}

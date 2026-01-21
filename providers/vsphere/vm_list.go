@@ -51,11 +51,18 @@ func (c *VSphereClient) ListVMs(ctx context.Context) ([]VMInfo, error) {
 		// Get path from map
 		path := vmPaths[refs[i]]
 
+		// Skip VMs without config (templates, inaccessible VMs, etc.)
+		if vm.Config == nil {
+			continue
+		}
+
 		// Calculate storage
 		var totalStorage int64
-		for _, device := range vm.Config.Hardware.Device {
-			if disk, ok := device.(*types.VirtualDisk); ok {
-				totalStorage += disk.CapacityInBytes
+		if vm.Config.Hardware.Device != nil {
+			for _, device := range vm.Config.Hardware.Device {
+				if disk, ok := device.(*types.VirtualDisk); ok {
+					totalStorage += disk.CapacityInBytes
+				}
 			}
 		}
 
