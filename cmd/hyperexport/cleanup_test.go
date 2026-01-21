@@ -6,10 +6,12 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	"hypersdk/logger"
 )
 
 func TestNewCleanupManager(t *testing.T) {
-	manager := NewCleanupManager(nil)
+	manager := NewCleanupManager(logger.NewTestLogger(t))
 	if manager == nil {
 		t.Fatal("NewCleanupManager returned nil")
 	}
@@ -73,7 +75,7 @@ func TestCleanupConfig_Validation(t *testing.T) {
 
 func TestCleanupManager_CleanupOldExports_ByAge(t *testing.T) {
 	tmpDir := t.TempDir()
-	manager := NewCleanupManager(nil)
+	manager := NewCleanupManager(logger.NewTestLogger(t))
 	ctx := context.Background()
 
 	// Create export directories
@@ -124,7 +126,7 @@ func TestCleanupManager_CleanupOldExports_ByAge(t *testing.T) {
 
 func TestCleanupManager_CleanupOldExports_ByCount(t *testing.T) {
 	tmpDir := t.TempDir()
-	manager := NewCleanupManager(nil)
+	manager := NewCleanupManager(logger.NewTestLogger(t))
 	ctx := context.Background()
 
 	// Create 5 export directories
@@ -178,7 +180,7 @@ func TestCleanupManager_CleanupOldExports_ByCount(t *testing.T) {
 
 func TestCleanupManager_CleanupOldExports_DryRun(t *testing.T) {
 	tmpDir := t.TempDir()
-	manager := NewCleanupManager(nil)
+	manager := NewCleanupManager(logger.NewTestLogger(t))
 	ctx := context.Background()
 
 	// Create old export
@@ -220,7 +222,7 @@ func TestCleanupManager_CleanupOldExports_DryRun(t *testing.T) {
 
 func TestCleanupManager_CleanupOldExports_PreservePattern(t *testing.T) {
 	tmpDir := t.TempDir()
-	manager := NewCleanupManager(nil)
+	manager := NewCleanupManager(logger.NewTestLogger(t))
 	ctx := context.Background()
 
 	// Create exports
@@ -272,7 +274,7 @@ func TestCleanupManager_CleanupOldExports_PreservePattern(t *testing.T) {
 
 func TestCleanupManager_CleanupOldExports_EmptyDirectory(t *testing.T) {
 	tmpDir := t.TempDir()
-	manager := NewCleanupManager(nil)
+	manager := NewCleanupManager(logger.NewTestLogger(t))
 	ctx := context.Background()
 
 	config := &CleanupConfig{
@@ -290,7 +292,7 @@ func TestCleanupManager_CleanupOldExports_EmptyDirectory(t *testing.T) {
 }
 
 func TestCleanupManager_CleanupOldExports_NonexistentDirectory(t *testing.T) {
-	manager := NewCleanupManager(nil)
+	manager := NewCleanupManager(logger.NewTestLogger(t))
 	ctx := context.Background()
 
 	config := &CleanupConfig{
@@ -398,7 +400,7 @@ func TestExportInfo_Fields(t *testing.T) {
 
 func TestCleanupManager_CleanupOldExports_NilConfig(t *testing.T) {
 	tmpDir := t.TempDir()
-	manager := NewCleanupManager(nil)
+	manager := NewCleanupManager(logger.NewTestLogger(t))
 	ctx := context.Background()
 
 	// Should use default config when nil
@@ -414,7 +416,7 @@ func TestCleanupManager_CleanupOldExports_NilConfig(t *testing.T) {
 
 func TestCleanupManager_CleanupOldExports_WithTotalSizeLimit(t *testing.T) {
 	tmpDir := t.TempDir()
-	manager := NewCleanupManager(nil)
+	manager := NewCleanupManager(logger.NewTestLogger(t))
 	ctx := context.Background()
 
 	// Create multiple exports with different sizes
