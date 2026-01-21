@@ -133,11 +133,33 @@ type bulkOpStatus struct {
 	error     error
 }
 
+// vmBookmark represents a saved VM selection
+type vmBookmark struct {
+	name        string
+	description string
+	vmPaths     []string // VM paths included in bookmark
+	created     time.Time
+	icon        string
+}
+
+// savedFilter represents a saved filter configuration
+type savedFilter struct {
+	name        string
+	description string
+	powerState  string // "on", "off", ""
+	osFilter    string
+	minCPU      int32
+	minMemoryGB float64
+	minStorageGB float64
+	searchQuery string
+	created     time.Time
+}
+
 type tuiModel struct {
 	vms              []tuiVMItem
 	filteredVMs      []tuiVMItem
 	cursor           int
-	phase            string // "select", "confirm", "template", "regex", "cloud", "features", "export", "cloudupload", "done", "search", "details", "validation", "config", "stats", "queue", "history", "logs", "tree", "preview", "actions", "bulkops", "compare"
+	phase            string // "select", "confirm", "template", "regex", "cloud", "features", "export", "cloudupload", "done", "search", "details", "validation", "config", "stats", "queue", "history", "logs", "tree", "preview", "actions", "bulkops", "compare", "bookmarks"
 	detailsVM        *vsphere.VMInfo // VM to show details for
 	validationReport *ValidationReport // Pre-export validation results
 	configPanel      *configPanelState // Interactive config panel state
@@ -231,6 +253,13 @@ type tuiModel struct {
 	comparisonVMs    []vsphere.VMInfo
 	comparisonScroll int
 	comparisonMode   string // "overview", "resources", "storage", "network"
+
+	// Saved filters and bookmarks
+	showBookmarks    bool
+	bookmarks        []vmBookmark
+	bookmarkCursor   int
+	savedFilters     []savedFilter
+	filtersCursor    int
 
 	// Configuration
 	client    *vsphere.VSphereClient
@@ -350,6 +379,7 @@ type tuiKeyMap struct {
 	Actions     key.Binding
 	BulkOps     key.Binding
 	Compare     key.Binding
+	Bookmarks   key.Binding
 }
 
 func (k tuiKeyMap) ShortHelp() []key.Binding {
@@ -658,6 +688,8 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.handleBulkOpsKeys(msg)
 		case "compare":
 			return m.handleCompareKeys(msg)
+		case "bookmarks":
+			return m.handleBookmarksKeys(msg)
 		case "cloud":
 			// Cloud phase is handled by cloudSelectionModel
 			return m, nil
@@ -978,6 +1010,20 @@ func (m tuiModel) handleSelectionKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.comparisonScroll = 0
 		m.comparisonMode = "overview"
 		m.phase = "compare"
+		return m, nil
+
+	case "m", "M":
+		// Show bookmarks and saved filters
+		m.showBookmarks = true
+		m.bookmarkCursor = 0
+		m.phase = "bookmarks"
+		// Initialize with sample bookmarks if empty
+		if len(m.bookmarks) == 0 {
+			m.initializeSampleBookmarks()
+		}
+		if len(m.savedFilters) == 0 {
+			m.initializeSampleFilters()
+		}
 		return m, nil
 	}
 
@@ -1511,6 +1557,8 @@ func (m tuiModel) View() string {
 		return m.renderBulkOps()
 	case "compare":
 		return m.renderCompare()
+	case "bookmarks":
+		return m.renderBookmarks()
 	case "export":
 		return m.renderExport()
 	case "cloudupload":
@@ -3281,6 +3329,7 @@ Actions:
   x         Quick actions menu (power, snapshot, export)
   b         Bulk operations (perform actions on multiple VMs)
   C         Compare VMs side-by-side (select 2-4 VMs)
+  m         Bookmarks & saved filters
   u         Cloud upload (S3/Azure/GCS/SFTP)
   t         Export templates
   f         Advanced features
@@ -5772,6 +5821,364 @@ func (m tuiModel) handleCompareKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 
 	return m, nil
+}
+
+// renderBookmarks renders the bookmarks and saved filters view
+func (m tuiModel) renderBookmarks() string {
+	var b strings.Builder
+
+	header := lipgloss.NewStyle().
+		Foreground(deepOrange).
+		Bold(true).
+		Render("📌 BOOKMARKS & SAVED FILTERS  (Esc/M: Back | Enter: Apply | S: Save Current | D: Delete)")
+	b.WriteString(header)
+	b.WriteString("\n\n")
+
+	// Bookmarks section
+	bookmarkTitle := lipgloss.NewStyle().
+		Foreground(tealInfo).
+		Bold(true).
+		Render("VM Bookmarks")
+	b.WriteString(bookmarkTitle)
+	b.WriteString("\n")
+
+	if len(m.bookmarks) == 0 {
+		b.WriteString(lipgloss.NewStyle().
+			Foreground(mutedGray).
+			Render("  No bookmarks saved. Select VMs and press 'S' to save."))
+		b.WriteString("\n")
+	} else {
+		for i, bookmark := range m.bookmarks {
+			cursor := "  "
+			bookmarkStyle := lipgloss.NewStyle()
+
+			if i == m.bookmarkCursor {
+				cursor = "❯ "
+				bookmarkStyle = bookmarkStyle.
+					Foreground(deepOrange).
+					Bold(true).
+					Background(lightBg)
+			} else {
+				bookmarkStyle = bookmarkStyle.Foreground(offWhite)
+			}
+
+			line := fmt.Sprintf("%s%s %s (%d VMs)", cursor, bookmark.icon, bookmark.name, len(bookmark.vmPaths))
+			b.WriteString(bookmarkStyle.Render(line))
+			b.WriteString("\n")
+
+			if i == m.bookmarkCursor {
+				desc := lipgloss.NewStyle().
+					Foreground(mutedGray).
+					Italic(true).
+					Render(fmt.Sprintf("    %s", bookmark.description))
+				b.WriteString(desc)
+				b.WriteString("\n")
+			}
+		}
+	}
+
+	b.WriteString("\n")
+
+	// Saved filters section
+	filterTitle := lipgloss.NewStyle().
+		Foreground(tealInfo).
+		Bold(true).
+		Render("Saved Filters")
+	b.WriteString(filterTitle)
+	b.WriteString("\n")
+
+	if len(m.savedFilters) == 0 {
+		b.WriteString(lipgloss.NewStyle().
+			Foreground(mutedGray).
+			Render("  No filters saved. Press 'S' to save current filter."))
+		b.WriteString("\n")
+	} else {
+		filterStartIdx := len(m.bookmarks)
+		for i, filter := range m.savedFilters {
+			cursor := "  "
+			filterStyle := lipgloss.NewStyle()
+
+			cursorIdx := filterStartIdx + i
+			if cursorIdx == m.bookmarkCursor {
+				cursor = "❯ "
+				filterStyle = filterStyle.
+					Foreground(deepOrange).
+					Bold(true).
+					Background(lightBg)
+			} else {
+				filterStyle = filterStyle.Foreground(offWhite)
+			}
+
+			line := fmt.Sprintf("%s🔍 %s", cursor, filter.name)
+			b.WriteString(filterStyle.Render(line))
+			b.WriteString("\n")
+
+			if cursorIdx == m.bookmarkCursor {
+				desc := lipgloss.NewStyle().
+					Foreground(mutedGray).
+					Italic(true).
+					Render(fmt.Sprintf("    %s", filter.description))
+				b.WriteString(desc)
+				b.WriteString("\n")
+
+				// Show filter criteria
+				criteria := ""
+				if filter.powerState != "" {
+					criteria += fmt.Sprintf("Power: %s | ", filter.powerState)
+				}
+				if filter.osFilter != "" {
+					criteria += fmt.Sprintf("OS: %s | ", filter.osFilter)
+				}
+				if filter.minCPU > 0 {
+					criteria += fmt.Sprintf("CPU ≥ %d | ", filter.minCPU)
+				}
+				if filter.minMemoryGB > 0 {
+					criteria += fmt.Sprintf("Memory ≥ %.1f GB | ", filter.minMemoryGB)
+				}
+				if filter.searchQuery != "" {
+					criteria += fmt.Sprintf("Search: '%s'", filter.searchQuery)
+				}
+
+				if criteria != "" {
+					criteriaStyle := lipgloss.NewStyle().
+						Foreground(amberYellow).
+						Render(fmt.Sprintf("    %s", criteria))
+					b.WriteString(criteriaStyle)
+					b.WriteString("\n")
+				}
+			}
+		}
+	}
+
+	// Help footer
+	helpText := helpStyleTUI.Render("Enter: Apply | S: Save current selection/filter | D: Delete | Esc/M: Back")
+	b.WriteString("\n")
+	b.WriteString(helpText)
+	b.WriteString("\n")
+
+	return b.String()
+}
+
+// handleBookmarksKeys handles keyboard input in bookmarks view
+func (m tuiModel) handleBookmarksKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	totalItems := len(m.bookmarks) + len(m.savedFilters)
+
+	switch msg.String() {
+	case "ctrl+c", "q":
+		return m, tea.Quit
+
+	case "escape", "m", "M":
+		// Return to select phase
+		m.phase = "select"
+		m.showBookmarks = false
+		return m, nil
+
+	case "up", "k":
+		if m.bookmarkCursor > 0 {
+			m.bookmarkCursor--
+		}
+
+	case "down", "j":
+		if m.bookmarkCursor < totalItems-1 {
+			m.bookmarkCursor++
+		}
+
+	case "enter":
+		// Apply the selected bookmark or filter
+		if m.bookmarkCursor < len(m.bookmarks) {
+			// Apply bookmark
+			bookmark := m.bookmarks[m.bookmarkCursor]
+			m.applyBookmark(bookmark)
+			m.message = fmt.Sprintf("✓ Applied bookmark: %s (%d VMs selected)", bookmark.name, len(bookmark.vmPaths))
+			m.phase = "select"
+			m.showBookmarks = false
+		} else {
+			// Apply filter
+			filterIdx := m.bookmarkCursor - len(m.bookmarks)
+			if filterIdx >= 0 && filterIdx < len(m.savedFilters) {
+				filter := m.savedFilters[filterIdx]
+				m.applySavedFilter(filter)
+				m.message = fmt.Sprintf("✓ Applied filter: %s", filter.name)
+				m.phase = "select"
+				m.showBookmarks = false
+			}
+		}
+
+	case "s", "S":
+		// Save current selection or filter
+		if m.countSelected() > 0 {
+			// Save as bookmark
+			m.saveCurrentBookmark()
+			m.message = fmt.Sprintf("✓ Saved %d VMs as bookmark", m.countSelected())
+		} else if m.searchQuery != "" || m.filterPower != "" || m.filterOS != "" {
+			// Save current filter
+			m.saveCurrentFilter()
+			m.message = "✓ Saved current filter"
+		} else {
+			m.message = "Select VMs or apply filters first, then press 'S' to save"
+		}
+
+	case "d", "D":
+		// Delete the selected bookmark or filter
+		if m.bookmarkCursor < len(m.bookmarks) {
+			// Delete bookmark
+			bookmark := m.bookmarks[m.bookmarkCursor]
+			m.bookmarks = append(m.bookmarks[:m.bookmarkCursor], m.bookmarks[m.bookmarkCursor+1:]...)
+			m.message = fmt.Sprintf("✗ Deleted bookmark: %s", bookmark.name)
+			if m.bookmarkCursor >= len(m.bookmarks) && m.bookmarkCursor > 0 {
+				m.bookmarkCursor--
+			}
+		} else {
+			// Delete filter
+			filterIdx := m.bookmarkCursor - len(m.bookmarks)
+			if filterIdx >= 0 && filterIdx < len(m.savedFilters) {
+				filter := m.savedFilters[filterIdx]
+				m.savedFilters = append(m.savedFilters[:filterIdx], m.savedFilters[filterIdx+1:]...)
+				m.message = fmt.Sprintf("✗ Deleted filter: %s", filter.name)
+				if m.bookmarkCursor > 0 {
+					m.bookmarkCursor--
+				}
+			}
+		}
+	}
+
+	return m, nil
+}
+
+// applyBookmark applies a saved bookmark by selecting the VMs
+func (m *tuiModel) applyBookmark(bookmark vmBookmark) {
+	// Clear current selection
+	for i := range m.vms {
+		m.vms[i].selected = false
+	}
+
+	// Select VMs from bookmark
+	for _, vmPath := range bookmark.vmPaths {
+		for i := range m.vms {
+			if m.vms[i].vm.Path == vmPath {
+				m.vms[i].selected = true
+				break
+			}
+		}
+	}
+}
+
+// applySavedFilter applies a saved filter configuration
+func (m *tuiModel) applySavedFilter(filter savedFilter) {
+	m.filterPower = filter.powerState
+	m.filterOS = filter.osFilter
+	m.searchQuery = filter.searchQuery
+	m.applyFiltersAndSort()
+}
+
+// saveCurrentBookmark saves the currently selected VMs as a bookmark
+func (m *tuiModel) saveCurrentBookmark() {
+	vmPaths := make([]string, 0)
+	vmNames := make([]string, 0)
+
+	for _, item := range m.vms {
+		if item.selected {
+			vmPaths = append(vmPaths, item.vm.Path)
+			vmNames = append(vmNames, item.vm.Name)
+		}
+	}
+
+	if len(vmPaths) == 0 {
+		return
+	}
+
+	// Generate bookmark name from VM names
+	bookmarkName := vmNames[0]
+	if len(vmNames) > 1 {
+		bookmarkName += fmt.Sprintf(" +%d more", len(vmNames)-1)
+	}
+
+	bookmark := vmBookmark{
+		name:        bookmarkName,
+		description: fmt.Sprintf("Saved on %s", time.Now().Format("Jan 2, 2006 15:04")),
+		vmPaths:     vmPaths,
+		created:     time.Now(),
+		icon:        "📌",
+	}
+
+	m.bookmarks = append(m.bookmarks, bookmark)
+}
+
+// saveCurrentFilter saves the current filter configuration
+func (m *tuiModel) saveCurrentFilter() {
+	filterName := "Custom Filter"
+	if m.searchQuery != "" {
+		filterName = fmt.Sprintf("Search: %s", m.searchQuery)
+	} else if m.filterPower != "" {
+		filterName = fmt.Sprintf("Power: %s", m.filterPower)
+	} else if m.filterOS != "" {
+		filterName = fmt.Sprintf("OS: %s", m.filterOS)
+	}
+
+	filter := savedFilter{
+		name:        filterName,
+		description: fmt.Sprintf("Saved on %s", time.Now().Format("Jan 2, 2006 15:04")),
+		powerState:  m.filterPower,
+		osFilter:    m.filterOS,
+		searchQuery: m.searchQuery,
+		created:     time.Now(),
+	}
+
+	m.savedFilters = append(m.savedFilters, filter)
+}
+
+// initializeSampleBookmarks adds sample bookmarks for demonstration
+func (m *tuiModel) initializeSampleBookmarks() {
+	m.bookmarks = []vmBookmark{
+		{
+			name:        "Production Servers",
+			description: "All production VMs for export",
+			vmPaths:     []string{}, // Would be populated with actual VM paths
+			created:     time.Now().Add(-24 * time.Hour),
+			icon:        "🏭",
+		},
+		{
+			name:        "Development VMs",
+			description: "Development environment VMs",
+			vmPaths:     []string{},
+			created:     time.Now().Add(-48 * time.Hour),
+			icon:        "🔧",
+		},
+		{
+			name:        "Database Servers",
+			description: "All database VMs",
+			vmPaths:     []string{},
+			created:     time.Now().Add(-72 * time.Hour),
+			icon:        "💾",
+		},
+	}
+}
+
+// initializeSampleFilters adds sample filters for demonstration
+func (m *tuiModel) initializeSampleFilters() {
+	m.savedFilters = []savedFilter{
+		{
+			name:        "Large VMs",
+			description: "VMs with >8 CPUs and >16GB RAM",
+			minCPU:      8,
+			minMemoryGB: 16,
+			created:     time.Now().Add(-24 * time.Hour),
+		},
+		{
+			name:        "Linux Production",
+			description: "Running Linux VMs",
+			powerState:  "poweredOn",
+			osFilter:    "Linux",
+			created:     time.Now().Add(-48 * time.Hour),
+		},
+		{
+			name:        "Windows Powered Off",
+			description: "Stopped Windows VMs",
+			powerState:  "poweredOff",
+			osFilter:    "Windows",
+			created:     time.Now().Add(-72 * time.Hour),
+		},
+	}
 }
 
 // handleTreeKeys handles keyboard input in tree view

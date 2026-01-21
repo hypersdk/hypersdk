@@ -1954,6 +1954,10 @@ func runInteractiveTUI(ctx context.Context, client *vsphere.VSphereClient, cfg *
 			key.WithKeys("C"),
 			key.WithHelp("C", "compare VMs"),
 		),
+		Bookmarks: key.NewBinding(
+			key.WithKeys("m"),
+			key.WithHelp("m", "bookmarks & filters"),
+		),
 	}
 
 	// Create initial model
