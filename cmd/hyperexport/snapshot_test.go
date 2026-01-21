@@ -4,10 +4,12 @@ import (
 	"context"
 	"testing"
 	"time"
+
+	"hypersdk/logger"
 )
 
 func TestNewSnapshotManager(t *testing.T) {
-	sm := NewSnapshotManager(nil, nil)
+	sm := NewSnapshotManager(nil, logger.NewTestLogger(t))
 	if sm == nil {
 		t.Fatal("NewSnapshotManager returned nil")
 	}
@@ -73,7 +75,7 @@ func TestSnapshotConfig_Validation(t *testing.T) {
 }
 
 func TestSnapshotManager_CreateExportSnapshot(t *testing.T) {
-	sm := NewSnapshotManager(nil, nil)
+	sm := NewSnapshotManager(nil, logger.NewTestLogger(t))
 	ctx := context.Background()
 
 	config := &SnapshotConfig{
@@ -95,7 +97,7 @@ func TestSnapshotManager_CreateExportSnapshot(t *testing.T) {
 }
 
 func TestSnapshotManager_DeleteSnapshot(t *testing.T) {
-	sm := NewSnapshotManager(nil, nil)
+	sm := NewSnapshotManager(nil, logger.NewTestLogger(t))
 	ctx := context.Background()
 
 	// Test with nil client (should return error)
@@ -106,7 +108,7 @@ func TestSnapshotManager_DeleteSnapshot(t *testing.T) {
 }
 
 func TestSnapshotManager_ListSnapshots(t *testing.T) {
-	sm := NewSnapshotManager(nil, nil)
+	sm := NewSnapshotManager(nil, logger.NewTestLogger(t))
 	ctx := context.Background()
 
 	// Test with nil client (should return error)
@@ -120,7 +122,7 @@ func TestSnapshotManager_ListSnapshots(t *testing.T) {
 }
 
 func TestSnapshotManager_CleanupOldSnapshots(t *testing.T) {
-	sm := NewSnapshotManager(nil, nil)
+	sm := NewSnapshotManager(nil, logger.NewTestLogger(t))
 	ctx := context.Background()
 
 	config := &SnapshotConfig{

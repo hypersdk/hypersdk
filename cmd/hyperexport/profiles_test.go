@@ -5,10 +5,12 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	"hypersdk/logger"
 )
 
 func TestNewProfileManager(t *testing.T) {
-	pm, err := NewProfileManager(nil)
+	pm, err := NewProfileManager(logger.NewTestLogger(t))
 	if err != nil {
 		t.Fatalf("NewProfileManager failed: %v", err)
 	}
@@ -30,7 +32,7 @@ func TestProfileManager_SaveProfile(t *testing.T) {
 	tmpDir := t.TempDir()
 	pm := &ProfileManager{
 		profilesDir: tmpDir,
-		log:         nil,
+		log:         logger.NewTestLogger(t),
 	}
 
 	profile := &ExportProfile{
@@ -67,7 +69,7 @@ func TestProfileManager_SaveProfile_NoName(t *testing.T) {
 	tmpDir := t.TempDir()
 	pm := &ProfileManager{
 		profilesDir: tmpDir,
-		log:         nil,
+		log: logger.NewTestLogger(t),
 	}
 
 	profile := &ExportProfile{
@@ -85,7 +87,7 @@ func TestProfileManager_LoadProfile(t *testing.T) {
 	tmpDir := t.TempDir()
 	pm := &ProfileManager{
 		profilesDir: tmpDir,
-		log:         nil,
+		log: logger.NewTestLogger(t),
 	}
 
 	// Save a profile
@@ -127,7 +129,7 @@ func TestProfileManager_LoadProfile_NotFound(t *testing.T) {
 	tmpDir := t.TempDir()
 	pm := &ProfileManager{
 		profilesDir: tmpDir,
-		log:         nil,
+		log: logger.NewTestLogger(t),
 	}
 
 	_, err := pm.LoadProfile("nonexistent")
@@ -140,7 +142,7 @@ func TestProfileManager_ListProfiles(t *testing.T) {
 	tmpDir := t.TempDir()
 	pm := &ProfileManager{
 		profilesDir: tmpDir,
-		log:         nil,
+		log: logger.NewTestLogger(t),
 	}
 
 	// Save multiple profiles
@@ -171,7 +173,7 @@ func TestProfileManager_ListProfiles_Empty(t *testing.T) {
 	tmpDir := t.TempDir()
 	pm := &ProfileManager{
 		profilesDir: tmpDir,
-		log:         nil,
+		log: logger.NewTestLogger(t),
 	}
 
 	profiles, err := pm.ListProfiles()
@@ -188,7 +190,7 @@ func TestProfileManager_DeleteProfile(t *testing.T) {
 	tmpDir := t.TempDir()
 	pm := &ProfileManager{
 		profilesDir: tmpDir,
-		log:         nil,
+		log: logger.NewTestLogger(t),
 	}
 
 	// Save a profile
@@ -219,7 +221,7 @@ func TestProfileManager_DeleteProfile_NotFound(t *testing.T) {
 	tmpDir := t.TempDir()
 	pm := &ProfileManager{
 		profilesDir: tmpDir,
-		log:         nil,
+		log: logger.NewTestLogger(t),
 	}
 
 	err := pm.DeleteProfile("nonexistent")
@@ -232,7 +234,7 @@ func TestProfileManager_ProfileExists(t *testing.T) {
 	tmpDir := t.TempDir()
 	pm := &ProfileManager{
 		profilesDir: tmpDir,
-		log:         nil,
+		log: logger.NewTestLogger(t),
 	}
 
 	// Should not exist initially
@@ -257,7 +259,7 @@ func TestProfileManager_CreateDefaultProfiles(t *testing.T) {
 	tmpDir := t.TempDir()
 	pm := &ProfileManager{
 		profilesDir: tmpDir,
-		log:         nil,
+		log: logger.NewTestLogger(t),
 	}
 
 	err := pm.CreateDefaultProfiles()
@@ -402,7 +404,7 @@ func TestProfileManager_RoundTrip(t *testing.T) {
 	tmpDir := t.TempDir()
 	pm := &ProfileManager{
 		profilesDir: tmpDir,
-		log:         nil,
+		log: logger.NewTestLogger(t),
 	}
 
 	// Create a profile with all fields set
@@ -466,7 +468,7 @@ func TestProfileManager_UpdateProfile(t *testing.T) {
 	tmpDir := t.TempDir()
 	pm := &ProfileManager{
 		profilesDir: tmpDir,
-		log:         nil,
+		log: logger.NewTestLogger(t),
 	}
 
 	// Save initial profile
@@ -508,7 +510,7 @@ func TestProfileManager_ListProfiles_IgnoresNonJSON(t *testing.T) {
 	tmpDir := t.TempDir()
 	pm := &ProfileManager{
 		profilesDir: tmpDir,
-		log:         nil,
+		log: logger.NewTestLogger(t),
 	}
 
 	// Create a valid profile
