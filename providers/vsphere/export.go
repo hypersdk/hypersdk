@@ -240,21 +240,27 @@ func (c *VSphereClient) ExportOVF(ctx context.Context, vmPath string, opts Expor
 
 	c.logger.Info("starting download", "files", len(info.Items), "totalSize", totalSize)
 
-	// Create multi-progress manager for parallel downloads
-	multiProgress := progress.NewMultiProgress()
-	defer multiProgress.Close()
+	// Create multi-progress manager for parallel downloads (only if progress bars enabled)
+	var multiProgress *progress.MultiProgress
+	var overallBar *progress.BarProgress
+	if opts.ShowOverallProgress || opts.ShowIndividualProgress {
+		multiProgress = progress.NewMultiProgress()
+		defer multiProgress.Close()
 
-	// Create overall progress bar
-	overallBar := progress.NewOverallProgress(os.Stderr, vm.Name(), len(info.Items))
-	overallBar.Start(int64(len(info.Items)), "Files")
-	multiProgress.AddBar(overallBar)
+		// Create overall progress bar
+		if opts.ShowOverallProgress {
+			overallBar = progress.NewOverallProgress(os.Stderr, vm.Name(), len(info.Items))
+			overallBar.Start(int64(len(info.Items)), "Files")
+			multiProgress.AddBar(overallBar)
+		}
+	}
 
 	// Download files
 	downloadCtx, downloadCancel := context.WithTimeout(ctx, downloadTimeout)
 	defer downloadCancel()
 
 	var fileBars []*progress.BarProgress
-	if opts.ShowIndividualProgress {
+	if opts.ShowIndividualProgress && multiProgress != nil {
 		// Create individual progress bars for each file
 		for _, item := range info.Items {
 			bar := progress.NewDownloadProgress(os.Stderr, filepath.Base(item.Path), item.Size)
@@ -279,7 +285,9 @@ func (c *VSphereClient) ExportOVF(ctx context.Context, vmPath string, opts Expor
 	}
 
 	// Finish progress bars
-	overallBar.Finish()
+	if overallBar != nil {
+		overallBar.Finish()
+	}
 	for _, bar := range fileBars {
 		bar.Finish()
 	}

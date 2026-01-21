@@ -427,10 +427,11 @@ type tuiModel struct{
 	migrationWizard     *migrationWizardState
 
 	// Configuration
-	client    *vsphere.VSphereClient
-	outputDir string
-	log       logger.Logger
-	ctx       context.Context
+	client       *vsphere.VSphereClient
+	outputDir    string
+	log          logger.Logger
+	ctx          context.Context
+	cancelExport context.CancelFunc // Function to cancel ongoing export
 }
 
 // queuedExport represents a VM in the export queue
@@ -772,6 +773,11 @@ type validationCompleteMsg struct {
 	err    error
 }
 
+type exportStartMsg struct {
+	cancelFunc   context.CancelFunc
+	exportCmd    tea.Cmd // The actual export command to run after setting cancel
+}
+
 func tickCmd() tea.Cmd {
 	return tea.Tick(time.Millisecond*100, func(t time.Time) tea.Msg {
 		return tickMsg(t)
@@ -872,6 +878,8 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.handleResourcePlannerKeys(msg)
 		case "migration":
 			return m.handleMigrationWizardKeys(msg)
+		case "export":
+			return m.handleExportKeys(msg)
 		case "cloud":
 			// Cloud phase is handled by cloudSelectionModel
 			return m, nil
@@ -883,7 +891,15 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.phase = "confirm"
 		return m, nil
 
+	case exportStartMsg:
+		// Store the cancel function and start the export
+		m.cancelExport = msg.cancelFunc
+		return m, msg.exportCmd
+
 	case exportDoneMsg:
+		// Clear cancel function
+		m.cancelExport = nil
+
 		if msg.err != nil {
 			m.err = msg.err
 			return m, tea.Quit
@@ -1513,6 +1529,23 @@ func (m tuiModel) handleValidationKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.currentExport = 0
 		m.exportProgress.startTime = time.Now()
 		return m, tea.Batch(m.exportNext(), tickCmd())
+	}
+	return m, nil
+}
+
+func (m tuiModel) handleExportKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "ctrl+c", "q":
+		// Cancel ongoing export
+		if m.cancelExport != nil {
+			m.cancelExport()
+			m.message = "Export cancelled by user"
+			m.log.Warn("Export cancelled by user")
+		}
+		// Return to selection
+		m.phase = "select"
+		m.cancelExport = nil
+		return m, nil
 	}
 	return m, nil
 }
@@ -4406,6 +4439,9 @@ func (m tuiModel) exportNext() tea.Cmd {
 						m.log.Info("Bandwidth limit: %d MB/s", m.featureConfig.bandwidthLimitMBps)
 					}
 
+					// Create cancellable context for this export
+					exportCtx, cancelFunc := context.WithCancel(m.ctx)
+
 					// Create progress callback channel
 					progressChan := make(chan exportProgressMsg, 100)
 					doneChan := make(chan exportDoneMsg, 1)
@@ -4429,22 +4465,31 @@ func (m tuiModel) exportNext() tea.Cmd {
 						}
 					}
 
-					// Start export in background
-					go func() {
-						result, err := m.client.ExportOVF(m.ctx, vmPath, *opts)
-						if err != nil {
-							m.log.Error("Export failed for %s: %v", vmName, err)
-							doneChan <- exportDoneMsg{vmName: vmName, err: err}
-						} else {
-							m.log.Info("Export completed for %s: %s", vmName, result.OVFPath)
-							doneChan <- exportDoneMsg{vmName: vmName, err: nil}
-						}
-						close(progressChan)
-						close(doneChan)
-					}()
+					// Create the export command that will run in background
+					actualExportCmd := func() tea.Msg {
+						// Start export in background
+						go func() {
+							result, err := m.client.ExportOVF(exportCtx, vmPath, *opts)
+							if err != nil {
+								m.log.Error("Export failed for %s: %v", vmName, err)
+								doneChan <- exportDoneMsg{vmName: vmName, err: err}
+							} else {
+								m.log.Info("Export completed for %s: %s", vmName, result.OVFPath)
+								doneChan <- exportDoneMsg{vmName: vmName, err: nil}
+							}
+							close(progressChan)
+							close(doneChan)
+						}()
 
-					// Return a command that listens for progress and done messages
-					return m.waitForExport(progressChan, doneChan)
+						// Return first progress/done message
+						return m.waitForExport(progressChan, doneChan)
+					}
+
+					// Return message to set cancel function, then run export
+					return exportStartMsg{
+						cancelFunc: cancelFunc,
+						exportCmd:  actualExportCmd,
+					}
 				}
 				exportIndex++
 			}
