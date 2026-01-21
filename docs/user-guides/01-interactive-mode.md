@@ -10,6 +10,7 @@ The interactive mode provides a powerful Terminal User Interface (TUI) for disco
 - [Sorting](#sorting)
 - [Selection](#selection)
 - [Detail View](#detail-view)
+- [Split-Screen Mode](#split-screen-mode)
 - [Dry-Run Mode](#dry-run-mode)
 - [Migration Workflow](#migration-workflow)
 - [Keyboard Reference](#keyboard-reference)
@@ -142,6 +143,53 @@ Press `d` or `i` to view detailed information about the VM under the cursor.
 - **Space / Enter** - Toggle selection
 - **Esc / b** - Return to VM list
 
+## Split-Screen Mode
+
+Press `v` to toggle split-screen mode, which displays the VM list and VM details side-by-side for efficient navigation and inspection.
+
+**Layout:**
+- **Wide terminals (≥80 columns):** Horizontal split with list on left (45%) and details on right (50%)
+- **Narrow terminals (<80 columns):** Vertical split with list on top and details on bottom
+
+**Visual Indicators:**
+- Active pane highlighted with colored border (teal)
+- Inactive pane dimmed with gray border
+- Pane titles show "(ACTIVE)" or "(inactive)" status
+- Footer displays keyboard shortcuts
+
+**Controls in split-screen mode:**
+- **Tab** - Switch between list and details panes
+- **↑ / ↓** - Navigate VMs (when list pane is active)
+- **Space** - Select/deselect VM
+- **Enter** - Proceed to export
+- **v** - Exit split-screen mode
+- **Esc / b** - Go back
+- **q** - Quit
+
+**Details Pane Shows:**
+- VM name and path
+- Power state (color-coded: green for on, yellow for off)
+- Guest OS
+- CPU cores
+- Memory (MB)
+- Storage (GB)
+
+**Benefits:**
+- See VM details without leaving the list
+- Compare VMs quickly while navigating
+- Reduce context switching
+- Inspect VM specs while maintaining your position in the list
+- Perfect for reviewing large VM inventories
+
+**Example Workflow:**
+1. Press `v` to enter split-screen mode
+2. Navigate through VMs with ↑/↓ keys
+3. Details automatically update in right pane
+4. Press **Tab** to focus details pane for reading
+5. Press **Tab** again to return to list navigation
+6. Press **Space** to select interesting VMs
+7. Press **v** to exit split-screen when done
+
 ## Dry-Run Mode
 
 Press `r` to toggle dry-run mode.
@@ -257,6 +305,8 @@ The migration proceeds in stages:
 | a | Select all visible |
 | n | Deselect all visible |
 | d / i | Show detail view |
+| v | Toggle split-screen mode |
+| Tab | Switch pane (in split-screen) |
 | r | Toggle dry-run mode |
 
 ## Examples
