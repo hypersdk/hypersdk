@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"hypersdk/logger"
 )
 
 func TestNewEncryptor(t *testing.T) {
@@ -13,7 +15,7 @@ func TestNewEncryptor(t *testing.T) {
 		Passphrase: "test-passphrase",
 	}
 
-	encryptor := NewEncryptor(config, newTestLogger())
+	encryptor := NewEncryptor(config, logger.NewTestLogger(t))
 	if encryptor == nil {
 		t.Fatal("NewEncryptor returned nil")
 	}
@@ -65,7 +67,7 @@ func TestEncryptFile_AES256_RoundTrip(t *testing.T) {
 		Passphrase: "test-passphrase-12345",
 	}
 
-	encryptor := NewEncryptor(config, newTestLogger())
+	encryptor := NewEncryptor(config, logger.NewTestLogger(t))
 
 	// Encrypt
 	encryptedFile := filepath.Join(tmpDir, "test.txt.enc")
@@ -125,7 +127,7 @@ func TestEncryptFile_AES256_LargeFile(t *testing.T) {
 		Passphrase: "test-passphrase",
 	}
 
-	encryptor := NewEncryptor(config, newTestLogger())
+	encryptor := NewEncryptor(config, logger.NewTestLogger(t))
 
 	// Encrypt
 	encryptedFile := filepath.Join(tmpDir, "large.bin.enc")
@@ -174,7 +176,7 @@ func TestEncryptFile_AES256_WithKeyFile(t *testing.T) {
 		KeyFile: keyFile,
 	}
 
-	encryptor := NewEncryptor(config, newTestLogger())
+	encryptor := NewEncryptor(config, logger.NewTestLogger(t))
 
 	// Encrypt
 	encryptedFile := filepath.Join(tmpDir, "test.txt.enc")
@@ -214,7 +216,7 @@ func TestEncryptFile_AES256_NoPassphrase(t *testing.T) {
 		// No passphrase or key file
 	}
 
-	encryptor := NewEncryptor(config, newTestLogger())
+	encryptor := NewEncryptor(config, logger.NewTestLogger(t))
 
 	encryptedFile := filepath.Join(tmpDir, "test.txt.enc")
 	err := encryptor.EncryptFile(inputFile, encryptedFile)
@@ -238,7 +240,7 @@ func TestEncryptFile_AES256_WrongPassphrase(t *testing.T) {
 		Passphrase: "correct-passphrase",
 	}
 
-	encryptor := NewEncryptor(config, newTestLogger())
+	encryptor := NewEncryptor(config, logger.NewTestLogger(t))
 
 	encryptedFile := filepath.Join(tmpDir, "test.txt.enc")
 	err := encryptor.EncryptFile(inputFile, encryptedFile)
@@ -252,7 +254,7 @@ func TestEncryptFile_AES256_WrongPassphrase(t *testing.T) {
 		Passphrase: "wrong-passphrase",
 	}
 
-	wrongEncryptor := NewEncryptor(wrongConfig, nil)
+	wrongEncryptor := NewEncryptor(wrongConfig, logger.NewTestLogger(t))
 
 	decryptedFile := filepath.Join(tmpDir, "test.txt.dec")
 	err = wrongEncryptor.DecryptFile(encryptedFile, decryptedFile)
@@ -269,7 +271,7 @@ func TestEncryptFile_NonExistentInput(t *testing.T) {
 		Passphrase: "test",
 	}
 
-	encryptor := NewEncryptor(config, newTestLogger())
+	encryptor := NewEncryptor(config, logger.NewTestLogger(t))
 
 	err := encryptor.EncryptFile("/nonexistent/file.txt", filepath.Join(tmpDir, "out.enc"))
 	if err == nil {
@@ -290,7 +292,7 @@ func TestEncryptFile_UnsupportedMethod(t *testing.T) {
 		Passphrase: "test",
 	}
 
-	encryptor := NewEncryptor(config, newTestLogger())
+	encryptor := NewEncryptor(config, logger.NewTestLogger(t))
 
 	err := encryptor.EncryptFile(inputFile, filepath.Join(tmpDir, "out.enc"))
 	if err == nil {
@@ -326,7 +328,7 @@ func TestEncryptDirectory(t *testing.T) {
 		Passphrase: "test-passphrase",
 	}
 
-	encryptor := NewEncryptor(config, newTestLogger())
+	encryptor := NewEncryptor(config, logger.NewTestLogger(t))
 
 	// Encrypt directory
 	outputDir := filepath.Join(tmpDir, "encrypted")
@@ -480,7 +482,7 @@ func TestEncryptFile_AES256_EmptyFile(t *testing.T) {
 		Passphrase: "test",
 	}
 
-	encryptor := NewEncryptor(config, newTestLogger())
+	encryptor := NewEncryptor(config, logger.NewTestLogger(t))
 
 	// Encrypt
 	encryptedFile := filepath.Join(tmpDir, "empty.txt.enc")
@@ -525,7 +527,7 @@ func TestEncryptFile_AES256_BinaryData(t *testing.T) {
 		Passphrase: "test",
 	}
 
-	encryptor := NewEncryptor(config, newTestLogger())
+	encryptor := NewEncryptor(config, logger.NewTestLogger(t))
 
 	// Encrypt
 	encryptedFile := filepath.Join(tmpDir, "binary.bin.enc")
@@ -565,7 +567,7 @@ func TestEncryptDirectory_EmptyDirectory(t *testing.T) {
 		Passphrase: "test",
 	}
 
-	encryptor := NewEncryptor(config, newTestLogger())
+	encryptor := NewEncryptor(config, logger.NewTestLogger(t))
 
 	outputDir := filepath.Join(tmpDir, "encrypted")
 	err := encryptor.EncryptDirectory(inputDir, outputDir)
@@ -601,7 +603,7 @@ func TestDecryptFile_UnsupportedMethod(t *testing.T) {
 		Passphrase: "test",
 	}
 
-	encryptor := NewEncryptor(config, newTestLogger())
+	encryptor := NewEncryptor(config, logger.NewTestLogger(t))
 
 	decryptedFile := filepath.Join(tmpDir, "test.dec")
 	err := encryptor.DecryptFile(encryptedFile, decryptedFile)
@@ -623,7 +625,7 @@ func TestEncryptFile_AES256_NonExistentKeyFile(t *testing.T) {
 		KeyFile: "/nonexistent/key.txt",
 	}
 
-	encryptor := NewEncryptor(config, newTestLogger())
+	encryptor := NewEncryptor(config, logger.NewTestLogger(t))
 
 	encryptedFile := filepath.Join(tmpDir, "test.txt.enc")
 	err := encryptor.EncryptFile(inputFile, encryptedFile)
