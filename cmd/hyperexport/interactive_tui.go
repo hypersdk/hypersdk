@@ -4374,8 +4374,8 @@ func (m tuiModel) exportNext() tea.Cmd {
 						Compress:           false,
 						ValidateChecksum:   false,
 						ParallelDownloads:  1,
-						ShowIndividualProgress: true,
-						ShowOverallProgress:    true,
+						ShowIndividualProgress: false, // Disable terminal progress (we're in TUI mode)
+						ShowOverallProgress:    false, // Disable terminal progress (we're in TUI mode)
 					}
 
 					// Apply selected template if available
