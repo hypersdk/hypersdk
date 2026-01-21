@@ -12,6 +12,7 @@ The interactive mode provides a powerful Terminal User Interface (TUI) for disco
 - [Detail View](#detail-view)
 - [Split-Screen Mode](#split-screen-mode)
 - [Export Queue Management](#export-queue-management)
+- [Export History View](#export-history-view)
 - [Dry-Run Mode](#dry-run-mode)
 - [Migration Workflow](#migration-workflow)
 - [Keyboard Reference](#keyboard-reference)
@@ -243,6 +244,120 @@ Press `Q` (capital Q) to open the export queue manager, which allows you to reor
 - Visual feedback before starting
 - Change your mind before exporting
 
+## Export History View
+
+Press `H` (capital H) to open the export history viewer, which shows all past export operations with comprehensive filtering capabilities.
+
+**Opening the History:**
+- Press **H** from the main VM selection screen
+- History is loaded from `~/.hyperexport/history.json`
+- Shows all past exports in reverse chronological order (most recent first)
+
+**History Display:**
+The history view shows:
+- **Status indicator:** ✓ (green) for successful exports, ✗ (red) for failed
+- **Timestamp:** Date and time of export (MM/DD HH:MM format)
+- **VM name:** Name of the exported VM
+- **Format:** Export format (OVF, OVA, etc.)
+- **Size:** Total export size in GB
+- **Duration:** How long the export took
+
+**Summary Statistics:**
+At the top of the history view, you'll see:
+```
+📊 50 Total | ✓ 45 Success | ✗ 5 Failed | 💾 2.5 TB | ⏱ 45m avg
+```
+- **Total:** Number of exports matching current filters
+- **Success/Failed:** Count of successful vs failed exports
+- **Size:** Total data exported
+- **Avg duration:** Average export time
+
+**Filtering Options:**
+
+1. **Status Filter (F key):**
+   - Press **F** to cycle through: all → success → failed → all
+   - Filter by export success/failure status
+   - Active filter shown at top: `Status: success` or `Status: failed`
+
+2. **Date Range Filter (D key):**
+   - Press **D** to cycle through: all → today → week → month → all
+   - **today:** Exports from last 24 hours
+   - **week:** Exports from last 7 days
+   - **month:** Exports from last 30 days
+   - Active filter shown at top: `Time: today`, `Time: week`, or `Time: month`
+
+**History Controls:**
+- **↑ / k** - Navigate up in history
+- **↓ / j** - Navigate down in history
+- **F** - Cycle status filter (all/success/failed)
+- **D** - Cycle date filter (all/today/week/month)
+- **R** - Refresh history from disk
+- **Esc / b** - Return to VM selection
+- **q** - Quit application
+
+**Detailed View:**
+When you select a history entry, detailed information appears at the bottom:
+- Full VM name and path
+- Provider (vsphere, etc.)
+- Export format
+- Total size
+- Duration
+- Number of files exported
+- Timestamp
+- Output directory
+- Error message (if failed)
+
+**Use Cases:**
+
+1. **Audit trail:** Review what VMs were exported and when
+2. **Troubleshooting:** Find failed exports and view error messages
+3. **Capacity planning:** See total data exported and average times
+4. **Verification:** Confirm a VM was successfully exported
+5. **Re-export decisions:** Check if a VM needs to be re-exported
+
+**Example Workflow:**
+1. Press **H** to open history
+2. Press **F** to filter for failed exports only
+3. Navigate through failed exports with ↑/↓
+4. Review error messages in detailed view
+5. Press **Esc** to return to VM selection
+6. Re-export failed VMs
+
+**Example: Finding Recent Exports**
+1. Press **H** to open history
+2. Press **D** twice to filter by "today"
+3. Review all exports from last 24 hours
+4. Check success rate and any failures
+
+**Example: Viewing Large Exports**
+1. Press **H** to open history
+2. Navigate through history - largest exports show higher GB values
+3. Review duration to estimate time for similar VMs
+4. Use this data to plan future export batches
+
+**Performance Notes:**
+- History is loaded once when opening the view
+- Press **R** to reload if history.json was updated externally
+- Filtering is instant even with hundreds of entries
+- Last 15 entries displayed at a time with smooth scrolling
+
+**Troubleshooting:**
+
+**"No export history found":**
+- No exports have been completed yet
+- History file doesn't exist at `~/.hyperexport/history.json`
+- Perform an export first to populate history
+
+**History not updating:**
+- Press **R** to refresh from disk
+- Check that exports are completing successfully
+- Verify `~/.hyperexport/history.json` exists and is writable
+
+**Filters showing no results:**
+- Press **F** and **D** to cycle back to "all" filters
+- Check that you have exports matching the filter criteria
+- For date filters, ensure exports exist in the time range
+
 ## Dry-Run Mode
 
 Press `r` to toggle dry-run mode.
@@ -361,6 +476,7 @@ The migration proceeds in stages:
 | v | Toggle split-screen mode |
 | Tab | Switch pane (in split-screen) |
 | Q | Open export queue manager |
+| H | Open export history |
 | r | Toggle dry-run mode |
 
 ### Queue Management (in queue view)
@@ -371,6 +487,16 @@ The migration proceeds in stages:
 | p | Change priority |
 | Enter | Confirm queue |
 | Esc | Cancel and return |
+
+### History View (in history)
+| Key | Action |
+|-----|--------|
+| ↑ / k | Navigate up |
+| ↓ / j | Navigate down |
+| F | Cycle status filter |
+| D | Cycle date filter |
+| R | Refresh history |
+| Esc | Return to selection |
 
 ## Examples
 
