@@ -763,6 +763,8 @@ type exportProgressMsg struct {
 	currentFileIdx int
 	totalFiles     int
 	fileName       string
+	progressChan   <-chan exportProgressMsg // For recursive listening
+	doneChan       <-chan exportDoneMsg     // For completion
 }
 
 type validationCompleteMsg struct {
@@ -914,6 +916,13 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.exportProgress.lastUpdateTime = now
 		m.exportProgress.lastBytes = msg.currentBytes
+
+		// Continue listening for more progress updates
+		if msg.progressChan != nil && msg.doneChan != nil {
+			return m, func() tea.Msg {
+				return m.waitForExport(msg.progressChan, msg.doneChan)
+			}
+		}
 
 		return m, nil
 
@@ -4367,6 +4376,9 @@ func (m tuiModel) exportNext() tea.Cmd {
 		for _, item := range m.vms {
 			if item.selected {
 				if exportIndex == m.currentExport {
+					vmName := item.vm.Name
+					vmPath := item.vm.Path
+
 					// Build export options
 					opts := &vsphere.ExportOptions{
 						OutputPath:         m.outputDir,
@@ -4394,20 +4406,64 @@ func (m tuiModel) exportNext() tea.Cmd {
 						m.log.Info("Bandwidth limit: %d MB/s", m.featureConfig.bandwidthLimitMBps)
 					}
 
-					// Perform the actual export
-					result, err := m.client.ExportOVF(m.ctx, item.vm.Path, *opts)
-					if err != nil {
-						m.log.Error("Export failed for %s: %v", item.vm.Name, err)
-						return exportDoneMsg{vmName: item.vm.Name, err: err}
+					// Create progress callback channel
+					progressChan := make(chan exportProgressMsg, 100)
+					doneChan := make(chan exportDoneMsg, 1)
+
+					// Set up progress callback
+					opts.ProgressCallback = func(current, total int64, fileName string, fileIndex, totalFiles int) {
+						// Send progress update (non-blocking)
+						select {
+						case progressChan <- exportProgressMsg{
+							vmName:         vmName,
+							currentBytes:   current,
+							totalBytes:     total,
+							currentFileIdx: fileIndex,
+							totalFiles:     totalFiles,
+							fileName:       fileName,
+							progressChan:   progressChan,
+							doneChan:       doneChan,
+						}:
+						default:
+							// Skip if channel is full (throttle updates)
+						}
 					}
 
-					m.log.Info("Export completed for %s: %s", item.vm.Name, result.OVFPath)
-					return exportDoneMsg{vmName: item.vm.Name, err: nil}
+					// Start export in background
+					go func() {
+						result, err := m.client.ExportOVF(m.ctx, vmPath, *opts)
+						if err != nil {
+							m.log.Error("Export failed for %s: %v", vmName, err)
+							doneChan <- exportDoneMsg{vmName: vmName, err: err}
+						} else {
+							m.log.Info("Export completed for %s: %s", vmName, result.OVFPath)
+							doneChan <- exportDoneMsg{vmName: vmName, err: nil}
+						}
+						close(progressChan)
+						close(doneChan)
+					}()
+
+					// Return a command that listens for progress and done messages
+					return m.waitForExport(progressChan, doneChan)
 				}
 				exportIndex++
 			}
 		}
 		return exportDoneMsg{vmName: "", err: fmt.Errorf("no more VMs to export")}
+	}
+}
+
+// waitForExport returns the first message from either progress or done channels
+func (m tuiModel) waitForExport(progressChan <-chan exportProgressMsg, doneChan <-chan exportDoneMsg) tea.Msg {
+	select {
+	case msg, ok := <-progressChan:
+		if ok {
+			return msg
+		}
+		// If progress channel is closed, wait for done
+		return <-doneChan
+	case msg := <-doneChan:
+		return msg
 	}
 }
 

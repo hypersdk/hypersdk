@@ -31,6 +31,9 @@ type ExportOptions struct {
 	Hyper2KVMBinary        string        // Path to hyper2kvm binary (auto-detect if empty)
 	ConversionTimeout      time.Duration // Timeout for conversion process
 	StreamConversionOutput bool          // Stream hyper2kvm output to console
+
+	// Progress callback for TUI/API integration
+	ProgressCallback func(current, total int64, fileName string, fileIndex, totalFiles int)
 }
 
 func DefaultExportOptions() ExportOptions {

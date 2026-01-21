@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/vmware/govmomi/nfc"
@@ -73,6 +74,65 @@ func (pw *progressWriter) Write(p []byte) (int, error) {
 	n := len(p)
 	pw.progressBar.Add(int64(n))
 	return n, nil
+}
+
+// callbackProgressReporter wraps a progress reporter and calls a callback function
+type callbackProgressReporter struct {
+	inner      progress.ProgressReporter
+	callback   func(current, total int64, fileName string, fileIndex, totalFiles int)
+	totalBytes *int64 // pointer to shared atomic counter
+	totalSize  int64
+	fileName   string
+	fileIndex  int
+	totalFiles int
+}
+
+func (cpr *callbackProgressReporter) Start(total int64, description string) {
+	if cpr.inner != nil {
+		cpr.inner.Start(total, description)
+	}
+}
+
+func (cpr *callbackProgressReporter) Add(delta int64) {
+	if cpr.inner != nil {
+		cpr.inner.Add(delta)
+	}
+	// Atomically update total bytes and call callback
+	current := atomic.AddInt64(cpr.totalBytes, delta)
+	if cpr.callback != nil {
+		cpr.callback(current, cpr.totalSize, cpr.fileName, cpr.fileIndex, cpr.totalFiles)
+	}
+}
+
+func (cpr *callbackProgressReporter) Update(current int64) {
+	if cpr.inner != nil {
+		cpr.inner.Update(current)
+	}
+}
+
+func (cpr *callbackProgressReporter) SetTotal(total int64) {
+	if cpr.inner != nil {
+		cpr.inner.SetTotal(total)
+	}
+}
+
+func (cpr *callbackProgressReporter) Finish() {
+	if cpr.inner != nil {
+		cpr.inner.Finish()
+	}
+}
+
+func (cpr *callbackProgressReporter) Close() error {
+	if cpr.inner != nil {
+		return cpr.inner.Close()
+	}
+	return nil
+}
+
+func (cpr *callbackProgressReporter) Describe(description string) {
+	if cpr.inner != nil {
+		cpr.inner.Describe(description)
+	}
 }
 
 // ExportOVF exports a VM as OVF format with progress tracking
@@ -211,6 +271,8 @@ func (c *VSphereClient) ExportOVF(ctx context.Context, vmPath string, opts Expor
 		opts.ParallelDownloads,
 		overallBar,
 		fileBars,
+		opts.ProgressCallback,
+		totalSize,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("download files: %w", err)
@@ -417,17 +479,20 @@ func (c *VSphereClient) downloadFilesParallel(
 	concurrency int,
 	overallBar progress.ProgressReporter,
 	fileBars []*progress.BarProgress,
+	progressCallback func(current, total int64, fileName string, fileIndex, totalFiles int),
+	totalSize int64,
 ) ([]string, error) {
 	if concurrency < 1 {
 		concurrency = 1
 	}
 
 	var (
-		wg         sync.WaitGroup
-		sem        = make(chan struct{}, concurrency)
-		errCh      = make(chan error, len(items))
-		results    = make([]string, len(items))
-		resultsMux sync.Mutex
+		wg                sync.WaitGroup
+		sem               = make(chan struct{}, concurrency)
+		errCh             = make(chan error, len(items))
+		results           = make([]string, len(items))
+		resultsMux        sync.Mutex
+		totalBytesDownloaded int64 // Track cumulative progress
 	)
 
 	// Download files
@@ -451,6 +516,19 @@ func (c *VSphereClient) downloadFilesParallel(
 			var fileBar progress.ProgressReporter
 			if fileBars != nil && idx < len(fileBars) {
 				fileBar = fileBars[idx]
+			}
+
+			// Wrap progress bar with callback if provided
+			if progressCallback != nil {
+				fileBar = &callbackProgressReporter{
+					inner:            fileBar,
+					callback:         progressCallback,
+					totalBytes:       &totalBytesDownloaded,
+					totalSize:        totalSize,
+					fileName:         filepath.Base(item.Path),
+					fileIndex:        idx,
+					totalFiles:       len(items),
+				}
 			}
 
 			// Download with retry
