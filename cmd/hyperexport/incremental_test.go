@@ -6,12 +6,14 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	"hypersdk/logger"
 )
 
 func TestNewIncrementalExportManager(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	manager, err := NewIncrementalExportManager(tmpDir, nil)
+	manager, err := NewIncrementalExportManager(tmpDir, logger.NewTestLogger(t))
 	if err != nil {
 		t.Fatalf("NewIncrementalExportManager failed: %v", err)
 	}
@@ -22,7 +24,7 @@ func TestNewIncrementalExportManager(t *testing.T) {
 
 func TestIncrementalExportManager_SaveExportState(t *testing.T) {
 	tmpDir := t.TempDir()
-	manager, err := NewIncrementalExportManager(tmpDir, nil)
+	manager, err := NewIncrementalExportManager(tmpDir, logger.NewTestLogger(t))
 	if err != nil {
 		t.Fatalf("NewIncrementalExportManager failed: %v", err)
 	}
@@ -58,7 +60,7 @@ func TestIncrementalExportManager_SaveExportState(t *testing.T) {
 
 func TestIncrementalExportManager_LoadExportState(t *testing.T) {
 	tmpDir := t.TempDir()
-	manager, err := NewIncrementalExportManager(tmpDir, nil)
+	manager, err := NewIncrementalExportManager(tmpDir, logger.NewTestLogger(t))
 	if err != nil {
 		t.Fatalf("NewIncrementalExportManager failed: %v", err)
 	}
@@ -95,7 +97,7 @@ func TestIncrementalExportManager_LoadExportState(t *testing.T) {
 
 func TestIncrementalExportManager_LoadExportState_NotFound(t *testing.T) {
 	tmpDir := t.TempDir()
-	manager, err := NewIncrementalExportManager(tmpDir, nil)
+	manager, err := NewIncrementalExportManager(tmpDir, logger.NewTestLogger(t))
 	if err != nil {
 		t.Fatalf("NewIncrementalExportManager failed: %v", err)
 	}
@@ -154,7 +156,7 @@ func TestExportState_Fields(t *testing.T) {
 
 func TestIncrementalExportManager_AnalyzeChanges(t *testing.T) {
 	tmpDir := t.TempDir()
-	manager, err := NewIncrementalExportManager(tmpDir, nil)
+	manager, err := NewIncrementalExportManager(tmpDir, logger.NewTestLogger(t))
 	if err != nil {
 		t.Fatalf("NewIncrementalExportManager failed: %v", err)
 	}
@@ -172,7 +174,7 @@ func TestIncrementalExportManager_AnalyzeChanges(t *testing.T) {
 
 func TestIncrementalExportManager_CreateExportState(t *testing.T) {
 	tmpDir := t.TempDir()
-	manager, err := NewIncrementalExportManager(tmpDir, nil)
+	manager, err := NewIncrementalExportManager(tmpDir, logger.NewTestLogger(t))
 	if err != nil {
 		t.Fatalf("NewIncrementalExportManager failed: %v", err)
 	}
@@ -196,7 +198,7 @@ func TestIncrementalExportManager_CreateExportState(t *testing.T) {
 
 func TestIncrementalExportManager_CleanupOldStates(t *testing.T) {
 	tmpDir := t.TempDir()
-	manager, err := NewIncrementalExportManager(tmpDir, nil)
+	manager, err := NewIncrementalExportManager(tmpDir, logger.NewTestLogger(t))
 	if err != nil {
 		t.Fatalf("NewIncrementalExportManager failed: %v", err)
 	}
@@ -239,7 +241,7 @@ func TestIncrementalResult_Fields(t *testing.T) {
 
 func TestIncrementalExportManager_GetIncrementalSavings(t *testing.T) {
 	tmpDir := t.TempDir()
-	manager, err := NewIncrementalExportManager(tmpDir, nil)
+	manager, err := NewIncrementalExportManager(tmpDir, logger.NewTestLogger(t))
 	if err != nil {
 		t.Fatalf("NewIncrementalExportManager failed: %v", err)
 	}
@@ -259,7 +261,7 @@ func TestIncrementalExportManager_GetIncrementalSavings(t *testing.T) {
 
 func TestIncrementalExportManager_RoundTrip(t *testing.T) {
 	tmpDir := t.TempDir()
-	manager, err := NewIncrementalExportManager(tmpDir, nil)
+	manager, err := NewIncrementalExportManager(tmpDir, logger.NewTestLogger(t))
 	if err != nil {
 		t.Fatalf("NewIncrementalExportManager failed: %v", err)
 	}
@@ -299,7 +301,7 @@ func TestIncrementalExportManager_RoundTrip(t *testing.T) {
 
 func TestIncrementalExportManager_GetStateFile(t *testing.T) {
 	tmpDir := t.TempDir()
-	manager, err := NewIncrementalExportManager(tmpDir, nil)
+	manager, err := NewIncrementalExportManager(tmpDir, logger.NewTestLogger(t))
 	if err != nil {
 		t.Fatalf("NewIncrementalExportManager failed: %v", err)
 	}

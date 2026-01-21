@@ -27,7 +27,7 @@ func newTestLogger() logger.Logger {
 
 // Test successful operation (no retry needed)
 func TestRetrySuccessFirstAttempt(t *testing.T) {
-	log := newTestLogger()
+	log := logger.NewTestLogger(t)
 	config := &RetryConfig{
 		MaxAttempts:  3,
 		InitialDelay: 10 * time.Millisecond,
@@ -56,7 +56,7 @@ func TestRetrySuccessFirstAttempt(t *testing.T) {
 
 // Test retry on transient error then success
 func TestRetrySuccessAfterRetry(t *testing.T) {
-	log := newTestLogger()
+	log := logger.NewTestLogger(t)
 	config := &RetryConfig{
 		MaxAttempts:  3,
 		InitialDelay: 10 * time.Millisecond,
@@ -97,7 +97,7 @@ func TestRetrySuccessAfterRetry(t *testing.T) {
 
 // Test max attempts exceeded
 func TestRetryMaxAttemptsExceeded(t *testing.T) {
-	log := newTestLogger()
+	log := logger.NewTestLogger(t)
 	config := &RetryConfig{
 		MaxAttempts:  3,
 		InitialDelay: 10 * time.Millisecond,
@@ -130,7 +130,7 @@ func TestRetryMaxAttemptsExceeded(t *testing.T) {
 
 // Test non-retryable error
 func TestRetryNonRetryableError(t *testing.T) {
-	log := newTestLogger()
+	log := logger.NewTestLogger(t)
 	config := &RetryConfig{
 		MaxAttempts:  3,
 		InitialDelay: 10 * time.Millisecond,
@@ -157,7 +157,7 @@ func TestRetryNonRetryableError(t *testing.T) {
 
 // Test context cancellation
 func TestRetryContextCancellation(t *testing.T) {
-	log := newTestLogger()
+	log := logger.NewTestLogger(t)
 	config := &RetryConfig{
 		MaxAttempts:  5,
 		InitialDelay: 100 * time.Millisecond,
@@ -188,7 +188,7 @@ func TestRetryContextCancellation(t *testing.T) {
 
 // Test exponential backoff
 func TestRetryExponentialBackoff(t *testing.T) {
-	log := newTestLogger()
+	log := logger.NewTestLogger(t)
 	config := &RetryConfig{
 		MaxAttempts:  4,
 		InitialDelay: 10 * time.Millisecond,
@@ -236,7 +236,7 @@ func TestRetryExponentialBackoff(t *testing.T) {
 
 // Test max delay cap
 func TestRetryMaxDelayCap(t *testing.T) {
-	log := newTestLogger()
+	log := logger.NewTestLogger(t)
 	config := &RetryConfig{
 		MaxAttempts:  10,
 		InitialDelay: 100 * time.Millisecond,
@@ -263,7 +263,7 @@ func TestRetryMaxDelayCap(t *testing.T) {
 
 // Test retryable error detection
 func TestIsRetryableError(t *testing.T) {
-	log := newTestLogger()
+	log := logger.NewTestLogger(t)
 	retryer := NewRetryer(DefaultRetryConfig(), log)
 
 	tests := []struct {
@@ -298,7 +298,7 @@ func TestIsRetryableError(t *testing.T) {
 
 // Test DoWithResult
 func TestRetryDoWithResult(t *testing.T) {
-	log := newTestLogger()
+	log := logger.NewTestLogger(t)
 	config := &RetryConfig{
 		MaxAttempts:  3,
 		InitialDelay: 10 * time.Millisecond,
@@ -332,7 +332,7 @@ func TestRetryDoWithResult(t *testing.T) {
 
 // Test WithRetry helper
 func TestWithRetry(t *testing.T) {
-	log := newTestLogger()
+	log := logger.NewTestLogger(t)
 
 	attempts := 0
 	operation := func(ctx context.Context, attempt int) error {
@@ -355,7 +355,7 @@ func TestWithRetry(t *testing.T) {
 
 // Test custom retryable errors
 func TestCustomRetryableErrors(t *testing.T) {
-	log := newTestLogger()
+	log := logger.NewTestLogger(t)
 
 	customErr := errors.New("custom retryable error")
 
@@ -388,7 +388,7 @@ func TestCustomRetryableErrors(t *testing.T) {
 
 // Test default config validation
 func TestDefaultConfigValidation(t *testing.T) {
-	log := newTestLogger()
+	log := logger.NewTestLogger(t)
 
 	// Test with nil config
 	retryer := NewRetryer(nil, log)
@@ -422,7 +422,7 @@ func TestDefaultConfigValidation(t *testing.T) {
 
 // Test jitter
 func TestRetryWithJitter(t *testing.T) {
-	log := newTestLogger()
+	log := logger.NewTestLogger(t)
 	config := &RetryConfig{
 		MaxAttempts:  3,
 		InitialDelay: 100 * time.Millisecond,
@@ -466,7 +466,7 @@ func TestRetryWithJitter(t *testing.T) {
 
 // Benchmark retry overhead
 func BenchmarkRetrySuccess(b *testing.B) {
-	log := newTestLogger()
+	log := logger.NewTestLogger(b)
 	config := DefaultRetryConfig()
 	retryer := NewRetryer(config, log)
 
@@ -482,7 +482,7 @@ func BenchmarkRetrySuccess(b *testing.B) {
 
 // Benchmark retry with failures
 func BenchmarkRetryWithFailures(b *testing.B) {
-	log := newTestLogger()
+	log := logger.NewTestLogger(b)
 	config := &RetryConfig{
 		MaxAttempts:  3,
 		InitialDelay: 1 * time.Millisecond,

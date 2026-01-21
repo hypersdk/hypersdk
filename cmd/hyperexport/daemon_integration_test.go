@@ -9,11 +9,12 @@ import (
 	"time"
 
 	"hypersdk/daemon/models"
+	"hypersdk/logger"
 )
 
 func TestNewDaemonClient(t *testing.T) {
 	url := "http://localhost:8080"
-	client := NewDaemonClient(url, nil)
+	client := NewDaemonClient(url, logger.NewTestLogger(t))
 
 	if client == nil {
 		t.Fatal("NewDaemonClient returned nil")
@@ -52,7 +53,7 @@ func TestDaemonClient_SubmitExportJob(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewDaemonClient(server.URL, nil)
+	client := NewDaemonClient(server.URL, logger.NewTestLogger(t))
 	ctx := context.Background()
 
 	jobID, err := client.SubmitExportJob(ctx, "/datacenter/vm/test", "/exports", "ova", true)
@@ -73,7 +74,7 @@ func TestDaemonClient_SubmitExportJob_Error(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewDaemonClient(server.URL, nil)
+	client := NewDaemonClient(server.URL, logger.NewTestLogger(t))
 	ctx := context.Background()
 
 	_, err := client.SubmitExportJob(ctx, "/datacenter/vm/test", "/exports", "ova", true)
@@ -105,7 +106,7 @@ func TestDaemonClient_GetJobStatus(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewDaemonClient(server.URL, nil)
+	client := NewDaemonClient(server.URL, logger.NewTestLogger(t))
 	ctx := context.Background()
 
 	job, err := client.GetJobStatus(ctx, "job-123")
@@ -132,7 +133,7 @@ func TestDaemonClient_GetJobStatus_NotFound(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewDaemonClient(server.URL, nil)
+	client := NewDaemonClient(server.URL, logger.NewTestLogger(t))
 	ctx := context.Background()
 
 	_, err := client.GetJobStatus(ctx, "nonexistent")
@@ -178,7 +179,7 @@ func TestDaemonClient_ListJobs(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewDaemonClient(server.URL, nil)
+	client := NewDaemonClient(server.URL, logger.NewTestLogger(t))
 	ctx := context.Background()
 
 	jobs, err := client.ListJobs(ctx, "")
@@ -219,7 +220,7 @@ func TestDaemonClient_ListJobs_WithStatusFilter(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewDaemonClient(server.URL, nil)
+	client := NewDaemonClient(server.URL, logger.NewTestLogger(t))
 	ctx := context.Background()
 
 	jobs, err := client.ListJobs(ctx, "running")
@@ -256,7 +257,7 @@ func TestDaemonClient_CreateSchedule(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewDaemonClient(server.URL, nil)
+	client := NewDaemonClient(server.URL, logger.NewTestLogger(t))
 	ctx := context.Background()
 
 	err := client.CreateSchedule(ctx, "daily-backup", "0 2 * * *", "/datacenter/vm/test", "/exports")
@@ -273,7 +274,7 @@ func TestDaemonClient_CreateSchedule_Error(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewDaemonClient(server.URL, nil)
+	client := NewDaemonClient(server.URL, logger.NewTestLogger(t))
 	ctx := context.Background()
 
 	err := client.CreateSchedule(ctx, "daily-backup", "invalid", "/vm", "/exports")
@@ -292,7 +293,7 @@ func TestDaemonClient_GetDaemonHealth(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewDaemonClient(server.URL, nil)
+	client := NewDaemonClient(server.URL, logger.NewTestLogger(t))
 	ctx := context.Background()
 
 	healthy, err := client.GetDaemonHealth(ctx)
@@ -312,7 +313,7 @@ func TestDaemonClient_GetDaemonHealth_Unhealthy(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewDaemonClient(server.URL, nil)
+	client := NewDaemonClient(server.URL, logger.NewTestLogger(t))
 	ctx := context.Background()
 
 	healthy, err := client.GetDaemonHealth(ctx)
@@ -343,7 +344,7 @@ func TestDaemonClient_GetDaemonStatus(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewDaemonClient(server.URL, nil)
+	client := NewDaemonClient(server.URL, logger.NewTestLogger(t))
 	ctx := context.Background()
 
 	status, err := client.GetDaemonStatus(ctx)
@@ -370,7 +371,7 @@ func TestDaemonClient_GetDaemonStatus_Error(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewDaemonClient(server.URL, nil)
+	client := NewDaemonClient(server.URL, logger.NewTestLogger(t))
 	ctx := context.Background()
 
 	_, err := client.GetDaemonStatus(ctx)
@@ -387,7 +388,7 @@ func TestDaemonClient_ContextCancellation(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewDaemonClient(server.URL, nil)
+	client := NewDaemonClient(server.URL, logger.NewTestLogger(t))
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
 
@@ -405,7 +406,7 @@ func TestDaemonClient_InvalidJSON(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewDaemonClient(server.URL, nil)
+	client := NewDaemonClient(server.URL, logger.NewTestLogger(t))
 	ctx := context.Background()
 
 	_, err := client.GetJobStatus(ctx, "job-123")
@@ -427,7 +428,7 @@ func TestDaemonClient_EmptyJobsList(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewDaemonClient(server.URL, nil)
+	client := NewDaemonClient(server.URL, logger.NewTestLogger(t))
 	ctx := context.Background()
 
 	jobs, err := client.ListJobs(ctx, "")
@@ -459,7 +460,7 @@ func TestDaemonClient_BaseURL(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			client := NewDaemonClient(tt.url, nil)
+			client := NewDaemonClient(tt.url, logger.NewTestLogger(t))
 			if client.baseURL != tt.wantURL {
 				t.Errorf("Expected baseURL %s, got %s", tt.wantURL, client.baseURL)
 			}
@@ -468,7 +469,7 @@ func TestDaemonClient_BaseURL(t *testing.T) {
 }
 
 func TestDaemonClient_HTTPClientTimeout(t *testing.T) {
-	client := NewDaemonClient("http://localhost:8080", nil)
+	client := NewDaemonClient("http://localhost:8080", logger.NewTestLogger(t))
 
 	if client.httpClient.Timeout != 30*time.Second {
 		t.Errorf("Expected timeout 30s, got %v", client.httpClient.Timeout)

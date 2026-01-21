@@ -6,11 +6,13 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"hypersdk/logger"
 )
 
 func TestNewExportHistory(t *testing.T) {
 	historyFile := "/tmp/history.json"
-	history := NewExportHistory(historyFile, nil)
+	history := NewExportHistory(historyFile, logger.NewTestLogger(t))
 
 	if history == nil {
 		t.Fatal("NewExportHistory returned nil")
@@ -44,7 +46,7 @@ func TestGetDefaultHistoryFile(t *testing.T) {
 func TestExportHistory_RecordExport(t *testing.T) {
 	tmpDir := t.TempDir()
 	historyFile := filepath.Join(tmpDir, "history.json")
-	history := NewExportHistory(historyFile, nil)
+	history := NewExportHistory(historyFile, logger.NewTestLogger(t))
 
 	entry := ExportHistoryEntry{
 		Timestamp:  time.Now(),
@@ -75,7 +77,7 @@ func TestExportHistory_RecordExport(t *testing.T) {
 func TestExportHistory_GetHistory(t *testing.T) {
 	tmpDir := t.TempDir()
 	historyFile := filepath.Join(tmpDir, "history.json")
-	history := NewExportHistory(historyFile, nil)
+	history := NewExportHistory(historyFile, logger.NewTestLogger(t))
 
 	// Record multiple entries
 	for i := 0; i < 5; i++ {
@@ -105,7 +107,7 @@ func TestExportHistory_GetHistory(t *testing.T) {
 func TestExportHistory_GetHistory_Empty(t *testing.T) {
 	tmpDir := t.TempDir()
 	historyFile := filepath.Join(tmpDir, "nonexistent.json")
-	history := NewExportHistory(historyFile, nil)
+	history := NewExportHistory(historyFile, logger.NewTestLogger(t))
 
 	entries, err := history.GetHistory()
 	if err != nil {
@@ -120,7 +122,7 @@ func TestExportHistory_GetHistory_Empty(t *testing.T) {
 func TestExportHistory_GetRecentExports(t *testing.T) {
 	tmpDir := t.TempDir()
 	historyFile := filepath.Join(tmpDir, "history.json")
-	history := NewExportHistory(historyFile, nil)
+	history := NewExportHistory(historyFile, logger.NewTestLogger(t))
 
 	// Record 10 entries with different timestamps
 	for i := 0; i < 10; i++ {
@@ -157,7 +159,7 @@ func TestExportHistory_GetRecentExports(t *testing.T) {
 func TestExportHistory_GetExportsByVM(t *testing.T) {
 	tmpDir := t.TempDir()
 	historyFile := filepath.Join(tmpDir, "history.json")
-	history := NewExportHistory(historyFile, nil)
+	history := NewExportHistory(historyFile, logger.NewTestLogger(t))
 
 	// Record entries for different VMs
 	vms := []string{"vm-a", "vm-b", "vm-a", "vm-c", "vm-a"}
@@ -195,7 +197,7 @@ func TestExportHistory_GetExportsByVM(t *testing.T) {
 func TestExportHistory_GetExportsByVM_NoMatches(t *testing.T) {
 	tmpDir := t.TempDir()
 	historyFile := filepath.Join(tmpDir, "history.json")
-	history := NewExportHistory(historyFile, nil)
+	history := NewExportHistory(historyFile, logger.NewTestLogger(t))
 
 	// Record entry for different VM
 	entry := ExportHistoryEntry{
@@ -221,7 +223,7 @@ func TestExportHistory_GetExportsByVM_NoMatches(t *testing.T) {
 func TestExportHistory_GetStatistics(t *testing.T) {
 	tmpDir := t.TempDir()
 	historyFile := filepath.Join(tmpDir, "history.json")
-	history := NewExportHistory(historyFile, nil)
+	history := NewExportHistory(historyFile, logger.NewTestLogger(t))
 
 	// Record mix of successful and failed exports
 	entries := []ExportHistoryEntry{
@@ -284,7 +286,7 @@ func TestExportHistory_GetStatistics(t *testing.T) {
 func TestExportHistory_GetStatistics_Empty(t *testing.T) {
 	tmpDir := t.TempDir()
 	historyFile := filepath.Join(tmpDir, "history.json")
-	history := NewExportHistory(historyFile, nil)
+	history := NewExportHistory(historyFile, logger.NewTestLogger(t))
 
 	stats, err := history.GetStatistics()
 	if err != nil {
@@ -302,7 +304,7 @@ func TestExportHistory_GetStatistics_Empty(t *testing.T) {
 func TestExportHistory_ClearHistory(t *testing.T) {
 	tmpDir := t.TempDir()
 	historyFile := filepath.Join(tmpDir, "history.json")
-	history := NewExportHistory(historyFile, nil)
+	history := NewExportHistory(historyFile, logger.NewTestLogger(t))
 
 	// Record some entries
 	entry := ExportHistoryEntry{
@@ -338,7 +340,7 @@ func TestExportHistory_ClearHistory(t *testing.T) {
 func TestExportHistory_ClearHistory_NonExistent(t *testing.T) {
 	tmpDir := t.TempDir()
 	historyFile := filepath.Join(tmpDir, "nonexistent.json")
-	history := NewExportHistory(historyFile, nil)
+	history := NewExportHistory(historyFile, logger.NewTestLogger(t))
 
 	// Should not error when clearing non-existent file
 	err := history.ClearHistory()
@@ -350,7 +352,7 @@ func TestExportHistory_ClearHistory_NonExistent(t *testing.T) {
 func TestExportHistory_MaxEntriesLimit(t *testing.T) {
 	tmpDir := t.TempDir()
 	historyFile := filepath.Join(tmpDir, "history.json")
-	history := NewExportHistory(historyFile, nil)
+	history := NewExportHistory(historyFile, logger.NewTestLogger(t))
 
 	// Record 1100 entries (more than 1000 limit)
 	for i := 0; i < 1100; i++ {
@@ -427,7 +429,7 @@ func TestExportHistoryEntry_Fields(t *testing.T) {
 func TestNewExportReport(t *testing.T) {
 	tmpDir := t.TempDir()
 	historyFile := filepath.Join(tmpDir, "history.json")
-	history := NewExportHistory(historyFile, nil)
+	history := NewExportHistory(historyFile, logger.NewTestLogger(t))
 	report := NewExportReport(history)
 
 	if report == nil {
@@ -441,7 +443,7 @@ func TestNewExportReport(t *testing.T) {
 func TestExportReport_GenerateReport(t *testing.T) {
 	tmpDir := t.TempDir()
 	historyFile := filepath.Join(tmpDir, "history.json")
-	history := NewExportHistory(historyFile, nil)
+	history := NewExportHistory(historyFile, logger.NewTestLogger(t))
 
 	// Record some entries
 	entries := []ExportHistoryEntry{
@@ -481,7 +483,7 @@ func TestExportReport_GenerateReport(t *testing.T) {
 func TestExportReport_GenerateReport_WithHistory(t *testing.T) {
 	tmpDir := t.TempDir()
 	historyFile := filepath.Join(tmpDir, "history.json")
-	history := NewExportHistory(historyFile, nil)
+	history := NewExportHistory(historyFile, logger.NewTestLogger(t))
 
 	// Record entries
 	entry := ExportHistoryEntry{
@@ -514,7 +516,7 @@ func TestExportReport_GenerateReport_WithHistory(t *testing.T) {
 func TestExportReport_SaveReportToFile(t *testing.T) {
 	tmpDir := t.TempDir()
 	historyFile := filepath.Join(tmpDir, "history.json")
-	history := NewExportHistory(historyFile, nil)
+	history := NewExportHistory(historyFile, logger.NewTestLogger(t))
 
 	// Record entry
 	entry := ExportHistoryEntry{
@@ -591,7 +593,7 @@ func TestExportStatistics_Fields(t *testing.T) {
 func TestExportHistory_RoundTrip(t *testing.T) {
 	tmpDir := t.TempDir()
 	historyFile := filepath.Join(tmpDir, "history.json")
-	history := NewExportHistory(historyFile, nil)
+	history := NewExportHistory(historyFile, logger.NewTestLogger(t))
 
 	// Record entry
 	originalEntry := ExportHistoryEntry{
