@@ -83,11 +83,30 @@ type folderNode struct {
 	level    int
 }
 
+// exportPreview holds estimated export information
+type exportPreview struct {
+	vmName            string
+	totalSize         int64
+	diskCount         int
+	fileBreakdown     map[string]int64 // file type -> size
+	estimatedDuration time.Duration
+	diskSpaceNeeded   int64
+	diskSpaceAvail    int64
+	files             []previewFile
+}
+
+// previewFile represents a file in the export preview
+type previewFile struct {
+	name     string
+	fileType string // "vmdk", "ovf", "mf", "cert"
+	size     int64
+}
+
 type tuiModel struct {
 	vms              []tuiVMItem
 	filteredVMs      []tuiVMItem
 	cursor           int
-	phase            string // "select", "confirm", "template", "regex", "cloud", "features", "export", "cloudupload", "done", "search", "details", "validation", "config", "stats", "queue", "history", "logs", "tree"
+	phase            string // "select", "confirm", "template", "regex", "cloud", "features", "export", "cloudupload", "done", "search", "details", "validation", "config", "stats", "queue", "history", "logs", "tree", "preview"
 	detailsVM        *vsphere.VMInfo // VM to show details for
 	validationReport *ValidationReport // Pre-export validation results
 	configPanel      *configPanelState // Interactive config panel state
@@ -160,6 +179,11 @@ type tuiModel struct {
 	viewMode        string // "list" or "tree"
 	treeItems       []interface{} // flattened tree for rendering (mix of *folderNode and tuiVMItem)
 	treeCursor      int
+
+	// Export preview
+	exportPreviews  []exportPreview
+	previewCursor   int
+	showPreview     bool
 
 	// Configuration
 	client    *vsphere.VSphereClient
@@ -275,6 +299,7 @@ type tuiKeyMap struct {
 	ToggleAutoScroll key.Binding
 	Tree        key.Binding
 	ExpandFolder key.Binding
+	Preview     key.Binding
 }
 
 func (k tuiKeyMap) ShortHelp() []key.Binding {
@@ -575,6 +600,8 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.handleLogsKeys(msg)
 		case "tree":
 			return m.handleTreeKeys(msg)
+		case "preview":
+			return m.handlePreviewKeys(msg)
 		case "cloud":
 			// Cloud phase is handled by cloudSelectionModel
 			return m, nil
@@ -884,6 +911,14 @@ func (m tuiModel) handleConfirmKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		// Open interactive configuration panel
 		m.phase = "config"
 		m.configPanel = m.newConfigPanel()
+		return m, nil
+	case "p", "P":
+		// Show export preview
+		m.phase = "preview"
+		m.previewCursor = 0
+		m.showPreview = true
+		// Generate preview data for selected VMs
+		m.exportPreviews = m.generateExportPreviews()
 		return m, nil
 	}
 	return m, nil
@@ -1365,6 +1400,8 @@ func (m tuiModel) View() string {
 		return m.renderLogs()
 	case "tree":
 		return m.renderTree()
+	case "preview":
+		return m.renderPreview()
 	case "export":
 		return m.renderExport()
 	case "cloudupload":
@@ -1967,7 +2004,7 @@ func (m tuiModel) renderConfirm() string {
 	}
 
 	b.WriteString("\n\n")
-	b.WriteString(helpStyleTUI.Render("y/Enter: Validate & export | v: Validation only | c: Config | u: Cloud | f: Features | n/Esc: Back | q: Quit"))
+	b.WriteString(helpStyleTUI.Render("y/Enter: Validate & export | p: Preview | v: Validation only | c: Config | u: Cloud | f: Features | n/Esc: Back | q: Quit"))
 
 	return b.String()
 }
@@ -3160,6 +3197,17 @@ func (m tuiModel) countSelected() int {
 		}
 	}
 	return count
+}
+
+// getSelectedVMs returns a list of selected VMs
+func (m tuiModel) getSelectedVMs() []tuiVMItem {
+	selectedVMs := make([]tuiVMItem, 0)
+	for _, item := range m.vms {
+		if item.selected {
+			selectedVMs = append(selectedVMs, item)
+		}
+	}
+	return selectedVMs
 }
 
 // buildExportQueue creates export queue from selected VMs
@@ -4427,6 +4475,143 @@ func (m tuiModel) renderTree() string {
 	return b.String()
 }
 
+// renderPreview renders the export preview screen
+func (m tuiModel) renderPreview() string {
+	var b strings.Builder
+
+	header := lipgloss.NewStyle().
+		Foreground(deepOrange).
+		Bold(true).
+		Render("📊 EXPORT PREVIEW  (Esc/P: Back | Enter: Continue | ↑↓: Navigate)")
+	b.WriteString(header)
+	b.WriteString("\n\n")
+
+	if len(m.exportPreviews) == 0 {
+		b.WriteString(errorStyleTUI.Render("No VMs selected for export"))
+		b.WriteString("\n")
+		return b.String()
+	}
+
+	// Summary section
+	summaryTitle := lipgloss.NewStyle().
+		Foreground(tealInfo).
+		Bold(true).
+		Render("Export Summary")
+	b.WriteString(summaryTitle)
+	b.WriteString("\n")
+
+	totalSize := int64(0)
+	totalDuration := time.Duration(0)
+	totalDisks := 0
+	totalFiles := 0
+	for _, preview := range m.exportPreviews {
+		totalSize += preview.totalSize
+		totalDuration += preview.estimatedDuration
+		totalDisks += preview.diskCount
+		totalFiles += len(preview.files)
+	}
+
+	summaryBox := panelStyleTUI.Render(
+		fmt.Sprintf(
+			"  VMs: %s\n"+
+				"  Total Size: %s\n"+
+				"  Total Disks: %s\n"+
+				"  Total Files: %s\n"+
+				"  Estimated Duration: %s",
+			statsStyleTUI.Render(fmt.Sprintf("%d", len(m.exportPreviews))),
+			statsStyleTUI.Render(formatBytes(totalSize)),
+			statsStyleTUI.Render(fmt.Sprintf("%d", totalDisks)),
+			statsStyleTUI.Render(fmt.Sprintf("%d", totalFiles)),
+			statsStyleTUI.Render(totalDuration.Round(time.Second).String()),
+		),
+	)
+	b.WriteString(summaryBox)
+	b.WriteString("\n\n")
+
+	// Individual VM previews
+	previewTitle := lipgloss.NewStyle().
+		Foreground(tealInfo).
+		Bold(true).
+		Render("VM Details")
+	b.WriteString(previewTitle)
+	b.WriteString("\n\n")
+
+	for i, preview := range m.exportPreviews {
+		cursor := "  "
+		vmStyle := lipgloss.NewStyle()
+		if i == m.previewCursor {
+			cursor = "❯ "
+			vmStyle = vmStyle.Foreground(deepOrange).Bold(true)
+		}
+
+		vmName := vmStyle.Render(preview.vmName)
+		b.WriteString(fmt.Sprintf("%s%s\n", cursor, vmName))
+
+		// VM details
+		detailStyle := lipgloss.NewStyle().Foreground(mutedGray)
+		b.WriteString(detailStyle.Render(fmt.Sprintf("    Size: %s | Disks: %d | Duration: ~%s\n",
+			formatBytes(preview.totalSize),
+			preview.diskCount,
+			preview.estimatedDuration.Round(time.Second),
+		)))
+
+		// Disk space check
+		if preview.diskSpaceAvail > 0 {
+			spaceStatus := "✓"
+			spaceStyle := successStyleTUI
+			spaceMsg := "Sufficient space"
+
+			if preview.diskSpaceNeeded > preview.diskSpaceAvail {
+				spaceStatus = "✗"
+				spaceStyle = errorStyleTUI
+				spaceMsg = "INSUFFICIENT SPACE"
+			} else if preview.diskSpaceAvail-preview.diskSpaceNeeded < preview.diskSpaceAvail/5 {
+				spaceStatus = "⚠"
+				spaceStyle = lipgloss.NewStyle().Foreground(warningColor).Bold(true)
+				spaceMsg = "Low space warning"
+			}
+
+			b.WriteString(fmt.Sprintf("    %s Disk Space: %s (Available: %s, Needed: %s)\n",
+				spaceStatus,
+				spaceStyle.Render(spaceMsg),
+				formatBytes(preview.diskSpaceAvail),
+				formatBytes(preview.diskSpaceNeeded),
+			))
+		}
+
+		// File breakdown (only for selected VM)
+		if i == m.previewCursor {
+			b.WriteString(detailStyle.Render("    Files:\n"))
+			for _, file := range preview.files {
+				fileTypeIcon := "📄"
+				switch file.fileType {
+				case "vmdk":
+					fileTypeIcon = "💾"
+				case "ovf":
+					fileTypeIcon = "📋"
+				case "mf":
+					fileTypeIcon = "📝"
+				}
+				b.WriteString(detailStyle.Render(fmt.Sprintf("      %s %s (%s)\n",
+					fileTypeIcon,
+					file.name,
+					formatBytes(file.size),
+				)))
+			}
+		}
+
+		b.WriteString("\n")
+	}
+
+	// Help footer
+	helpText := helpStyleTUI.Render("Press Enter to continue with export, Esc/P to go back")
+	b.WriteString("\n")
+	b.WriteString(helpText)
+	b.WriteString("\n")
+
+	return b.String()
+}
+
 // handleTreeKeys handles keyboard input in tree view
 func (m tuiModel) handleTreeKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
@@ -4473,4 +4658,119 @@ func (m tuiModel) handleTreeKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 
 	return m, nil
+}
+
+// handlePreviewKeys handles keyboard input in export preview mode
+func (m tuiModel) handlePreviewKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "ctrl+c", "q":
+		return m, tea.Quit
+
+	case "escape", "p", "P", "b":
+		// Return to confirm phase
+		m.phase = "confirm"
+		m.showPreview = false
+		return m, nil
+
+	case "up", "k":
+		if m.previewCursor > 0 {
+			m.previewCursor--
+		}
+
+	case "down", "j":
+		if m.previewCursor < len(m.exportPreviews)-1 {
+			m.previewCursor++
+		}
+
+	case "enter", "y":
+		// Return to confirm and proceed
+		m.phase = "confirm"
+		m.showPreview = false
+		return m, nil
+	}
+
+	return m, nil
+}
+
+// generateExportPreviews creates export preview data for all selected VMs
+func (m tuiModel) generateExportPreviews() []exportPreview {
+	previews := make([]exportPreview, 0)
+	selectedVMs := m.getSelectedVMs()
+
+	for _, vmItem := range selectedVMs {
+		vm := vmItem.vm
+
+		// Calculate estimated values
+		// Estimate number of disks based on storage size (most VMs have 1-2 disks)
+		estimatedDisks := 1
+		if vm.Storage > 500*1024*1024*1024 { // > 500GB probably has multiple disks
+			estimatedDisks = 2
+		}
+
+		preview := exportPreview{
+			vmName:    vm.Name,
+			totalSize: vm.Storage,
+			diskCount: estimatedDisks,
+			fileBreakdown: make(map[string]int64),
+			files:     make([]previewFile, 0),
+		}
+
+		// Estimate file breakdown
+		// VMDKs are typically the largest files
+		vmdkSize := vm.Storage
+		ovfSize := int64(1024 * 100) // ~100KB for OVF descriptor
+		mfSize := int64(1024)         // ~1KB for manifest
+
+		preview.fileBreakdown["vmdk"] = vmdkSize
+		preview.fileBreakdown["ovf"] = ovfSize
+		preview.fileBreakdown["mf"] = mfSize
+
+		// Generate file list (estimate disk files based on storage)
+		diskSize := vm.Storage / int64(estimatedDisks)
+		for i := 0; i < estimatedDisks; i++ {
+			preview.files = append(preview.files, previewFile{
+				name:     fmt.Sprintf("%s-disk%d.vmdk", sanitizeForPath(vm.Name), i+1),
+				fileType: "vmdk",
+				size:     diskSize,
+			})
+		}
+		preview.files = append(preview.files, previewFile{
+			name:     fmt.Sprintf("%s.ovf", sanitizeForPath(vm.Name)),
+			fileType: "ovf",
+			size:     ovfSize,
+		})
+		preview.files = append(preview.files, previewFile{
+			name:     fmt.Sprintf("%s.mf", sanitizeForPath(vm.Name)),
+			fileType: "mf",
+			size:     mfSize,
+		})
+
+		// Estimate duration (assume 50 MB/s average transfer speed)
+		averageSpeedMBps := float64(50)
+		totalSizeMB := float64(vm.Storage) / (1024 * 1024)
+		estimatedSeconds := totalSizeMB / averageSpeedMBps
+		preview.estimatedDuration = time.Duration(estimatedSeconds) * time.Second
+
+		// Check disk space availability
+		var stat syscall.Statfs_t
+		outputPath := m.outputDir
+		if outputPath == "" {
+			outputPath = "./exports"
+		}
+
+		// Create directory if it doesn't exist
+		os.MkdirAll(outputPath, 0755)
+
+		err := syscall.Statfs(outputPath, &stat)
+		if err == nil {
+			preview.diskSpaceAvail = int64(stat.Bavail) * int64(stat.Bsize)
+		}
+
+		// Calculate disk space needed (with 10% overhead)
+		preview.diskSpaceNeeded = vm.Storage + (vm.Storage / 10)
+
+		previews = append(previews, preview)
+	}
+
+	return previews
 }
