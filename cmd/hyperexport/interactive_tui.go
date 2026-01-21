@@ -102,11 +102,21 @@ type previewFile struct {
 	size     int64
 }
 
+// quickAction represents an action that can be performed on a VM
+type quickAction struct {
+	name        string
+	description string
+	icon        string
+	category    string // "power", "snapshot", "export", "info"
+	handler     func(*tuiModel, *vsphere.VMInfo) (tea.Model, tea.Cmd)
+	enabled     func(*vsphere.VMInfo) bool
+}
+
 type tuiModel struct {
 	vms              []tuiVMItem
 	filteredVMs      []tuiVMItem
 	cursor           int
-	phase            string // "select", "confirm", "template", "regex", "cloud", "features", "export", "cloudupload", "done", "search", "details", "validation", "config", "stats", "queue", "history", "logs", "tree", "preview"
+	phase            string // "select", "confirm", "template", "regex", "cloud", "features", "export", "cloudupload", "done", "search", "details", "validation", "config", "stats", "queue", "history", "logs", "tree", "preview", "actions"
 	detailsVM        *vsphere.VMInfo // VM to show details for
 	validationReport *ValidationReport // Pre-export validation results
 	configPanel      *configPanelState // Interactive config panel state
@@ -184,6 +194,11 @@ type tuiModel struct {
 	exportPreviews  []exportPreview
 	previewCursor   int
 	showPreview     bool
+
+	// Quick actions menu
+	showActionsMenu bool
+	actionsCursor   int
+	actionsForVM    *vsphere.VMInfo
 
 	// Configuration
 	client    *vsphere.VSphereClient
@@ -300,6 +315,7 @@ type tuiKeyMap struct {
 	Tree        key.Binding
 	ExpandFolder key.Binding
 	Preview     key.Binding
+	Actions     key.Binding
 }
 
 func (k tuiKeyMap) ShortHelp() []key.Binding {
@@ -602,6 +618,8 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.handleTreeKeys(msg)
 		case "preview":
 			return m.handlePreviewKeys(msg)
+		case "actions":
+			return m.handleActionsKeys(msg)
 		case "cloud":
 			// Cloud phase is handled by cloudSelectionModel
 			return m, nil
@@ -874,6 +892,17 @@ func (m tuiModel) handleSelectionKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.cursor < len(vms) {
 			m.detailsVM = &vms[m.cursor].vm
 			m.phase = "details"
+		}
+		return m, nil
+
+	case "x", "X":
+		// Show quick actions menu
+		vms := m.getVisibleVMs()
+		if m.cursor < len(vms) {
+			m.actionsForVM = &vms[m.cursor].vm
+			m.actionsCursor = 0
+			m.showActionsMenu = true
+			m.phase = "actions"
 		}
 		return m, nil
 	}
@@ -1402,6 +1431,8 @@ func (m tuiModel) View() string {
 		return m.renderTree()
 	case "preview":
 		return m.renderPreview()
+	case "actions":
+		return m.renderActions()
 	case "export":
 		return m.renderExport()
 	case "cloudupload":
@@ -3168,11 +3199,20 @@ Filters:
   7         Large Storage (500GB+)
 
 Actions:
+  i         Show VM details
+  x         Quick actions menu (power, snapshot, export)
   u         Cloud upload (S3/Azure/GCS/SFTP)
   t         Export templates
   f         Advanced features
   s         Cycle sort
   c         Clear filters
+
+Views:
+  v         Toggle split-screen
+  ]         Folder tree view
+  H         Export history
+  L         Live logs viewer
+  Q         Queue manager
 
 Other:
   h/?       Toggle help
@@ -4610,6 +4650,346 @@ func (m tuiModel) renderPreview() string {
 	b.WriteString("\n")
 
 	return b.String()
+}
+
+// renderActions renders the quick actions menu
+func (m tuiModel) renderActions() string {
+	var b strings.Builder
+
+	header := lipgloss.NewStyle().
+		Foreground(deepOrange).
+		Bold(true).
+		Render("⚡ QUICK ACTIONS  (Esc/X: Back | Enter: Execute | ↑↓: Navigate)")
+	b.WriteString(header)
+	b.WriteString("\n\n")
+
+	if m.actionsForVM == nil {
+		b.WriteString(errorStyleTUI.Render("No VM selected"))
+		return b.String()
+	}
+
+	// VM info header
+	vmHeader := lipgloss.NewStyle().
+		Foreground(tealInfo).
+		Bold(true).
+		Render(fmt.Sprintf("VM: %s", m.actionsForVM.Name))
+	b.WriteString(vmHeader)
+	b.WriteString("\n")
+
+	vmDetails := lipgloss.NewStyle().
+		Foreground(mutedGray).
+		Render(fmt.Sprintf("    Power: %s | CPU: %d | Memory: %d MB | Storage: %s",
+			m.actionsForVM.PowerState,
+			m.actionsForVM.NumCPU,
+			m.actionsForVM.MemoryMB,
+			formatBytes(m.actionsForVM.Storage),
+		))
+	b.WriteString(vmDetails)
+	b.WriteString("\n\n")
+
+	// Get available actions for this VM
+	actions := m.getAvailableActions(m.actionsForVM)
+
+	// Group actions by category
+	categories := map[string][]quickAction{
+		"power":    {},
+		"snapshot": {},
+		"export":   {},
+		"info":     {},
+	}
+
+	for _, action := range actions {
+		categories[action.category] = append(categories[action.category], action)
+	}
+
+	// Render actions by category
+	categoryOrder := []string{"power", "snapshot", "export", "info"}
+	categoryTitles := map[string]string{
+		"power":    "⚡ Power Management",
+		"snapshot": "📸 Snapshot Operations",
+		"export":   "📦 Export Operations",
+		"info":     "ℹ️  Information",
+	}
+
+	actionIndex := 0
+	for _, catKey := range categoryOrder {
+		catActions := categories[catKey]
+		if len(catActions) == 0 {
+			continue
+		}
+
+		categoryTitle := lipgloss.NewStyle().
+			Foreground(amberYellow).
+			Bold(true).
+			Render(categoryTitles[catKey])
+		b.WriteString(categoryTitle)
+		b.WriteString("\n")
+
+		for _, action := range catActions {
+			cursor := "  "
+			actionStyle := lipgloss.NewStyle()
+
+			if actionIndex == m.actionsCursor {
+				cursor = "❯ "
+				actionStyle = actionStyle.
+					Foreground(deepOrange).
+					Bold(true).
+					Background(lightBg)
+			} else {
+				actionStyle = actionStyle.Foreground(offWhite)
+			}
+
+			enabled := action.enabled(m.actionsForVM)
+			disabledIndicator := ""
+			if !enabled {
+				actionStyle = actionStyle.Foreground(mutedGray)
+				disabledIndicator = " (disabled)"
+			}
+
+			line := fmt.Sprintf("%s%s %s%s", cursor, action.icon, action.name, disabledIndicator)
+			b.WriteString(actionStyle.Render(line))
+			b.WriteString("\n")
+
+			if actionIndex == m.actionsCursor {
+				desc := lipgloss.NewStyle().
+					Foreground(mutedGray).
+					Italic(true).
+					Render(fmt.Sprintf("    %s", action.description))
+				b.WriteString(desc)
+				b.WriteString("\n")
+			}
+
+			actionIndex++
+		}
+		b.WriteString("\n")
+	}
+
+	// Help footer
+	helpText := helpStyleTUI.Render("Press Enter to execute action, Esc/X to go back")
+	b.WriteString("\n")
+	b.WriteString(helpText)
+	b.WriteString("\n")
+
+	return b.String()
+}
+
+// handleActionsKeys handles keyboard input in actions menu
+func (m tuiModel) handleActionsKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	actions := m.getAvailableActions(m.actionsForVM)
+	totalActions := len(actions)
+
+	switch msg.String() {
+	case "ctrl+c", "q":
+		return m, tea.Quit
+
+	case "escape", "x", "X":
+		// Return to select phase
+		m.phase = "select"
+		m.showActionsMenu = false
+		m.actionsForVM = nil
+		return m, nil
+
+	case "up", "k":
+		if m.actionsCursor > 0 {
+			m.actionsCursor--
+		}
+
+	case "down", "j":
+		if m.actionsCursor < totalActions-1 {
+			m.actionsCursor++
+		}
+
+	case "enter":
+		// Execute the selected action
+		if m.actionsCursor < len(actions) {
+			action := actions[m.actionsCursor]
+			if action.enabled(m.actionsForVM) {
+				m.phase = "select"
+				m.showActionsMenu = false
+				return action.handler(&m, m.actionsForVM)
+			} else {
+				m.message = "This action is not available for the current VM state"
+			}
+		}
+	}
+
+	return m, nil
+}
+
+// getAvailableActions returns list of available actions for a VM
+func (m tuiModel) getAvailableActions(vm *vsphere.VMInfo) []quickAction {
+	if vm == nil {
+		return []quickAction{}
+	}
+
+	actions := []quickAction{
+		// Power actions
+		{
+			name:        "Power On",
+			description: "Power on the virtual machine",
+			icon:        "▶️",
+			category:    "power",
+			enabled: func(v *vsphere.VMInfo) bool {
+				return v.PowerState == "poweredOff"
+			},
+			handler: func(m *tuiModel, v *vsphere.VMInfo) (tea.Model, tea.Cmd) {
+				m.message = fmt.Sprintf("Power on operation not yet implemented for %s", v.Name)
+				return *m, nil
+			},
+		},
+		{
+			name:        "Power Off",
+			description: "Power off the virtual machine (graceful shutdown)",
+			icon:        "⏹️",
+			category:    "power",
+			enabled: func(v *vsphere.VMInfo) bool {
+				return v.PowerState == "poweredOn"
+			},
+			handler: func(m *tuiModel, v *vsphere.VMInfo) (tea.Model, tea.Cmd) {
+				m.message = fmt.Sprintf("Power off operation not yet implemented for %s", v.Name)
+				return *m, nil
+			},
+		},
+		{
+			name:        "Reset (Hard Reboot)",
+			description: "Force reset the virtual machine (equivalent to power cycle)",
+			icon:        "🔄",
+			category:    "power",
+			enabled: func(v *vsphere.VMInfo) bool {
+				return v.PowerState == "poweredOn"
+			},
+			handler: func(m *tuiModel, v *vsphere.VMInfo) (tea.Model, tea.Cmd) {
+				m.message = fmt.Sprintf("Reset operation not yet implemented for %s", v.Name)
+				return *m, nil
+			},
+		},
+		{
+			name:        "Suspend",
+			description: "Suspend the virtual machine to save its current state",
+			icon:        "⏸️",
+			category:    "power",
+			enabled: func(v *vsphere.VMInfo) bool {
+				return v.PowerState == "poweredOn"
+			},
+			handler: func(m *tuiModel, v *vsphere.VMInfo) (tea.Model, tea.Cmd) {
+				m.message = fmt.Sprintf("Suspend operation not yet implemented for %s", v.Name)
+				return *m, nil
+			},
+		},
+
+		// Snapshot actions
+		{
+			name:        "Create Snapshot",
+			description: "Create a point-in-time snapshot of the VM",
+			icon:        "📸",
+			category:    "snapshot",
+			enabled: func(v *vsphere.VMInfo) bool {
+				return true // Always available
+			},
+			handler: func(m *tuiModel, v *vsphere.VMInfo) (tea.Model, tea.Cmd) {
+				m.message = fmt.Sprintf("Snapshot creation not yet implemented for %s", v.Name)
+				return *m, nil
+			},
+		},
+		{
+			name:        "Delete All Snapshots",
+			description: "Remove all snapshots and reclaim disk space",
+			icon:        "🗑️",
+			category:    "snapshot",
+			enabled: func(v *vsphere.VMInfo) bool {
+				return true // Would need to check if snapshots exist
+			},
+			handler: func(m *tuiModel, v *vsphere.VMInfo) (tea.Model, tea.Cmd) {
+				m.message = fmt.Sprintf("Snapshot deletion not yet implemented for %s", v.Name)
+				return *m, nil
+			},
+		},
+		{
+			name:        "Consolidate Snapshots",
+			description: "Consolidate snapshot disks and commit changes",
+			icon:        "📊",
+			category:    "snapshot",
+			enabled: func(v *vsphere.VMInfo) bool {
+				return true
+			},
+			handler: func(m *tuiModel, v *vsphere.VMInfo) (tea.Model, tea.Cmd) {
+				m.message = fmt.Sprintf("Snapshot consolidation not yet implemented for %s", v.Name)
+				return *m, nil
+			},
+		},
+
+		// Export actions
+		{
+			name:        "Quick Export (OVF)",
+			description: "Fast export without compression",
+			icon:        "📤",
+			category:    "export",
+			enabled: func(v *vsphere.VMInfo) bool {
+				return true
+			},
+			handler: func(m *tuiModel, v *vsphere.VMInfo) (tea.Model, tea.Cmd) {
+				// Select this VM and proceed to export
+				for i := range m.vms {
+					m.vms[i].selected = (m.vms[i].vm.Path == v.Path)
+				}
+				m.phase = "confirm"
+				return *m, nil
+			},
+		},
+		{
+			name:        "Production Export (OVA)",
+			description: "Compressed OVA with verification",
+			icon:        "📦",
+			category:    "export",
+			enabled: func(v *vsphere.VMInfo) bool {
+				return true
+			},
+			handler: func(m *tuiModel, v *vsphere.VMInfo) (tea.Model, tea.Cmd) {
+				// Select this VM and proceed to export with template
+				for i := range m.vms {
+					m.vms[i].selected = (m.vms[i].vm.Path == v.Path)
+				}
+				m.selectedTemplate = &exportTemplates[1] // Production template
+				m.phase = "confirm"
+				return *m, nil
+			},
+		},
+
+		// Info actions
+		{
+			name:        "Show Detailed Info",
+			description: "Display comprehensive VM information",
+			icon:        "ℹ️",
+			category:    "info",
+			enabled: func(v *vsphere.VMInfo) bool {
+				return true
+			},
+			handler: func(m *tuiModel, v *vsphere.VMInfo) (tea.Model, tea.Cmd) {
+				m.detailsVM = v
+				m.phase = "details"
+				return *m, nil
+			},
+		},
+		{
+			name:        "Run Pre-Export Validation",
+			description: "Check if VM is ready for export",
+			icon:        "✅",
+			category:    "info",
+			enabled: func(v *vsphere.VMInfo) bool {
+				return true
+			},
+			handler: func(m *tuiModel, v *vsphere.VMInfo) (tea.Model, tea.Cmd) {
+				// Select this VM and show validation
+				for i := range m.vms {
+					m.vms[i].selected = (m.vms[i].vm.Path == v.Path)
+				}
+				m.phase = "validation"
+				return *m, m.runValidation()
+			},
+		},
+	}
+
+	return actions
 }
 
 // handleTreeKeys handles keyboard input in tree view

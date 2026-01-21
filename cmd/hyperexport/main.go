@@ -1938,6 +1938,14 @@ func runInteractiveTUI(ctx context.Context, client *vsphere.VSphereClient, cfg *
 			key.WithKeys("enter", "space"),
 			key.WithHelp("enter/space", "expand/collapse folder"),
 		),
+		Preview: key.NewBinding(
+			key.WithKeys("p"),
+			key.WithHelp("p", "preview export"),
+		),
+		Actions: key.NewBinding(
+			key.WithKeys("x"),
+			key.WithHelp("x", "quick actions"),
+		),
 	}
 
 	// Create initial model
@@ -1964,6 +1972,9 @@ func runInteractiveTUI(ctx context.Context, client *vsphere.VSphereClient, cfg *
 		viewMode:        "list",
 		treeItems:       []interface{}{},
 		treeCursor:      0,
+		exportPreviews:  []exportPreview{},
+		previewCursor:   0,
+		showPreview:     false,
 	}
 
 	// Run the TUI program
