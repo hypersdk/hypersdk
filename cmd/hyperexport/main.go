@@ -1966,6 +1966,10 @@ func runInteractiveTUI(ctx context.Context, client *vsphere.VSphereClient, cfg *
 			key.WithKeys("G"),
 			key.WithHelp("G", "filter builder"),
 		),
+		Snapshots: key.NewBinding(
+			key.WithKeys("S"),
+			key.WithHelp("S", "snapshot manager"),
+		),
 	}
 
 	// Create initial model

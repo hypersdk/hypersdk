@@ -187,11 +187,47 @@ type filterBuilderField struct {
 	choices     []string
 }
 
+// vmSnapshot represents a VM snapshot
+type vmSnapshot struct {
+	id          string
+	name        string
+	description string
+	created     time.Time
+	size        int64
+	state       string // "poweredOn", "poweredOff"
+	parent      string // parent snapshot ID
+	children    []string // child snapshot IDs
+	isCurrent   bool
+}
+
+// snapshotManagerState manages the snapshot interface
+type snapshotManagerState struct {
+	vm              *vsphere.VMInfo
+	snapshots       []vmSnapshot
+	cursor          int
+	mode            string // "list", "create", "details", "tree"
+	selectedSnap    *vmSnapshot
+	createName      string
+	createDesc      string
+	createMemory    bool
+	createQuiesce   bool
+	treeView        []snapshotTreeNode
+	treeCursor      int
+}
+
+// snapshotTreeNode represents a node in the snapshot tree
+type snapshotTreeNode struct {
+	snapshot *vmSnapshot
+	level    int
+	isLast   bool
+	expanded bool
+}
+
 type tuiModel struct {
 	vms              []tuiVMItem
 	filteredVMs      []tuiVMItem
 	cursor           int
-	phase            string // "select", "confirm", "template", "regex", "cloud", "features", "export", "cloudupload", "done", "search", "details", "validation", "config", "stats", "queue", "history", "logs", "tree", "preview", "actions", "bulkops", "compare", "bookmarks", "metrics", "filterbuilder"
+	phase            string // "select", "confirm", "template", "regex", "cloud", "features", "export", "cloudupload", "done", "search", "details", "validation", "config", "stats", "queue", "history", "logs", "tree", "preview", "actions", "bulkops", "compare", "bookmarks", "metrics", "filterbuilder", "snapshots"
 	detailsVM        *vsphere.VMInfo // VM to show details for
 	validationReport *ValidationReport // Pre-export validation results
 	configPanel      *configPanelState // Interactive config panel state
@@ -302,6 +338,10 @@ type tuiModel struct {
 	showFilterBuilder bool
 	filterBuilder     *filterBuilderState
 	filterPreviewCount int
+
+	// Snapshot manager
+	showSnapshotManager bool
+	snapshotManager     *snapshotManagerState
 
 	// Configuration
 	client    *vsphere.VSphereClient
@@ -424,6 +464,7 @@ type tuiKeyMap struct {
 	Bookmarks   key.Binding
 	Metrics     key.Binding
 	FilterBuilder key.Binding
+	Snapshots   key.Binding
 }
 
 func (k tuiKeyMap) ShortHelp() []key.Binding {
@@ -738,6 +779,8 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.handleMetricsKeys(msg)
 		case "filterbuilder":
 			return m.handleFilterBuilderKeys(msg)
+		case "snapshots":
+			return m.handleSnapshotManagerKeys(msg)
 		case "cloud":
 			// Cloud phase is handled by cloudSelectionModel
 			return m, nil
@@ -1091,6 +1134,22 @@ func (m tuiModel) handleSelectionKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		m.filterPreviewCount = len(m.vms)
 		m.phase = "filterbuilder"
+		return m, nil
+
+	case "S":
+		// Show snapshot manager for current VM
+		vms := m.getVisibleVMs()
+		if m.cursor < len(vms) {
+			vm := &vms[m.cursor].vm
+			m.showSnapshotManager = true
+			m.snapshotManager = &snapshotManagerState{
+				vm:        vm,
+				snapshots: m.loadSnapshotsForVM(vm),
+				cursor:    0,
+				mode:      "list",
+			}
+			m.phase = "snapshots"
+		}
 		return m, nil
 	}
 
@@ -1630,6 +1689,8 @@ func (m tuiModel) View() string {
 		return m.renderMetrics()
 	case "filterbuilder":
 		return m.renderFilterBuilder()
+	case "snapshots":
+		return m.renderSnapshotManager()
 	case "export":
 		return m.renderExport()
 	case "cloudupload":
@@ -7182,6 +7243,472 @@ func matchesPattern(str, pattern string, caseSensitive, useRegex bool) bool {
 
 	// Simple substring match
 	return strings.Contains(str, pattern)
+}
+
+// renderSnapshotManager renders the snapshot management interface
+func (m tuiModel) renderSnapshotManager() string {
+	if m.snapshotManager == nil {
+		return "Snapshot manager not initialized"
+	}
+
+	sm := m.snapshotManager
+	var b strings.Builder
+
+	// Title
+	titleStyle := lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.Color("39")).
+		Background(lipgloss.Color("235")).
+		Padding(0, 2)
+
+	vmName := "Unknown VM"
+	if sm.vm != nil {
+		vmName = sm.vm.Name
+	}
+	b.WriteString(titleStyle.Render(fmt.Sprintf("📸 SNAPSHOT MANAGER - %s", vmName)))
+	b.WriteString("\n\n")
+
+	// Mode indicator
+	modeStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("208"))
+	switch sm.mode {
+	case "list":
+		b.WriteString(modeStyle.Render("Mode: Snapshot List"))
+	case "create":
+		b.WriteString(modeStyle.Render("Mode: Create Snapshot"))
+	case "details":
+		b.WriteString(modeStyle.Render("Mode: Snapshot Details"))
+	case "tree":
+		b.WriteString(modeStyle.Render("Mode: Snapshot Tree"))
+	}
+	b.WriteString("\n\n")
+
+	if sm.mode == "list" {
+		// Render snapshot list
+		if len(sm.snapshots) == 0 {
+			b.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("243")).Render(
+				"No snapshots found for this VM\n"))
+			b.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("46")).Render(
+				"\nPress 'C' to create a new snapshot"))
+		} else {
+			// Header
+			headerStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("255"))
+			b.WriteString(headerStyle.Render(fmt.Sprintf("%-40s %-12s %-20s %s\n",
+				"Name", "Size", "Created", "State")))
+			b.WriteString(strings.Repeat("─", 90) + "\n")
+
+			// List snapshots
+			for i, snap := range sm.snapshots {
+				prefix := "  "
+				if i == sm.cursor {
+					prefix = "▶ "
+				}
+
+				currentMarker := ""
+				if snap.isCurrent {
+					currentMarker = " [CURRENT]"
+				}
+
+				style := lipgloss.NewStyle().Foreground(lipgloss.Color("255"))
+				if i == sm.cursor {
+					style = lipgloss.NewStyle().
+						Foreground(lipgloss.Color("39")).
+						Bold(true).
+						Background(lipgloss.Color("237"))
+				}
+
+				stateIcon := "●"
+				stateColor := lipgloss.Color("243")
+				if snap.state == "poweredOn" {
+					stateColor = lipgloss.Color("46")
+				}
+
+				line := fmt.Sprintf("%s%-40s %-12s %-20s %s%s",
+					prefix,
+					truncateString(snap.name, 40),
+					formatBytes(snap.size),
+					snap.created.Format("2006-01-02 15:04"),
+					lipgloss.NewStyle().Foreground(stateColor).Render(stateIcon)+" "+snap.state,
+					currentMarker)
+
+				b.WriteString(style.Render(line) + "\n")
+			}
+
+			b.WriteString(fmt.Sprintf("\nTotal: %d snapshots", len(sm.snapshots)))
+		}
+
+	} else if sm.mode == "create" {
+		// Create snapshot form
+		b.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("226")).Render("Create New Snapshot\n\n"))
+
+		fields := []struct {
+			label string
+			value string
+		}{
+			{"Snapshot Name:", sm.createName},
+			{"Description:", sm.createDesc},
+			{"Include Memory:", fmt.Sprintf("%t", sm.createMemory)},
+			{"Quiesce Filesystem:", fmt.Sprintf("%t", sm.createQuiesce)},
+		}
+
+		labelStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("243"))
+		valueStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("255"))
+
+		for i, field := range fields {
+			prefix := "  "
+			if i == sm.cursor {
+				prefix = "▶ "
+			}
+
+			fieldLine := prefix + labelStyle.Render(fmt.Sprintf("%-25s", field.label))
+			if i == sm.cursor {
+				fieldLine += " " + lipgloss.NewStyle().
+					Foreground(lipgloss.Color("39")).
+					Bold(true).
+					Background(lipgloss.Color("237")).
+					Render(field.value)
+			} else {
+				fieldLine += " " + valueStyle.Render(field.value)
+			}
+			b.WriteString(fieldLine + "\n")
+		}
+
+		b.WriteString("\n")
+		hintStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Italic(true)
+		b.WriteString(hintStyle.Render("Memory snapshots capture RAM state (slower, larger)"))
+		b.WriteString("\n")
+		b.WriteString(hintStyle.Render("Quiescing ensures filesystem consistency"))
+
+	} else if sm.mode == "details" {
+		// Show detailed snapshot info
+		if sm.selectedSnap == nil {
+			b.WriteString("No snapshot selected")
+		} else {
+			snap := sm.selectedSnap
+			detailStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("255"))
+			labelStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("243"))
+
+			details := []struct {
+				label string
+				value string
+			}{
+				{"Snapshot ID:", snap.id},
+				{"Name:", snap.name},
+				{"Description:", snap.description},
+				{"Created:", snap.created.Format("2006-01-02 15:04:05")},
+				{"Size:", formatBytes(snap.size)},
+				{"Power State:", snap.state},
+				{"Is Current:", fmt.Sprintf("%t", snap.isCurrent)},
+				{"Parent:", snap.parent},
+				{"Children:", fmt.Sprintf("%d", len(snap.children))},
+			}
+
+			for _, detail := range details {
+				b.WriteString(labelStyle.Render(fmt.Sprintf("%-20s", detail.label)))
+				b.WriteString(" " + detailStyle.Render(detail.value) + "\n")
+			}
+
+			// Actions
+			b.WriteString("\n")
+			actionStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("46"))
+			b.WriteString(actionStyle.Render("Available Actions:\n"))
+			b.WriteString("  R - Revert to this snapshot\n")
+			b.WriteString("  D - Delete this snapshot\n")
+			b.WriteString("  Esc - Back to list\n")
+		}
+
+	} else if sm.mode == "tree" {
+		// Show snapshot tree view
+		b.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("46")).Render(
+			"Snapshot Hierarchy Tree\n\n"))
+
+		if len(sm.treeView) == 0 {
+			b.WriteString("No snapshots to display")
+		} else {
+			for i, node := range sm.treeView {
+				prefix := strings.Repeat("  ", node.level)
+
+				// Tree branch characters
+				if node.level > 0 {
+					if node.isLast {
+						prefix += "└─ "
+					} else {
+						prefix += "├─ "
+					}
+				}
+
+				// Cursor indicator
+				cursor := "  "
+				if i == sm.treeCursor {
+					cursor = "▶ "
+				}
+
+				style := lipgloss.NewStyle().Foreground(lipgloss.Color("255"))
+				if i == sm.treeCursor {
+					style = lipgloss.NewStyle().
+						Foreground(lipgloss.Color("39")).
+						Bold(true)
+				}
+
+				currentMarker := ""
+				if node.snapshot != nil && node.snapshot.isCurrent {
+					currentMarker = " [CURRENT]"
+				}
+
+				snapName := "Root"
+				if node.snapshot != nil {
+					snapName = node.snapshot.name
+				}
+
+				line := cursor + prefix + snapName + currentMarker
+				b.WriteString(style.Render(line) + "\n")
+			}
+		}
+	}
+
+	// Help footer
+	b.WriteString("\n\n")
+	helpStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
+
+	switch sm.mode {
+	case "list":
+		b.WriteString(helpStyle.Render("↑↓/k/j: Navigate | Enter: Details | C: Create | D: Delete | T: Tree View | R: Revert | Esc: Back"))
+	case "create":
+		b.WriteString(helpStyle.Render("↑↓/k/j: Navigate | T: Toggle | Enter: Create | Esc: Cancel"))
+	case "details":
+		b.WriteString(helpStyle.Render("R: Revert | D: Delete | Esc: Back to list"))
+	case "tree":
+		b.WriteString(helpStyle.Render("↑↓/k/j: Navigate | Enter: Expand/Collapse | L: Switch to list | Esc: Back"))
+	}
+
+	return b.String()
+}
+
+// handleSnapshotManagerKeys handles keyboard input in snapshot manager mode
+func (m tuiModel) handleSnapshotManagerKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	if m.snapshotManager == nil {
+		m.phase = "select"
+		return m, nil
+	}
+
+	sm := m.snapshotManager
+
+	switch msg.String() {
+	case "ctrl+c", "q":
+		return m, tea.Quit
+
+	case "escape", "esc":
+		if sm.mode == "list" {
+			// Exit snapshot manager
+			m.phase = "select"
+			m.showSnapshotManager = false
+			m.snapshotManager = nil
+			return m, nil
+		} else {
+			// Go back to list mode
+			sm.mode = "list"
+			sm.cursor = 0
+		}
+
+	case "up", "k":
+		if sm.mode == "list" || sm.mode == "tree" {
+			if sm.mode == "list" && sm.cursor > 0 {
+				sm.cursor--
+			} else if sm.mode == "tree" && sm.treeCursor > 0 {
+				sm.treeCursor--
+			}
+		} else if sm.mode == "create" {
+			if sm.cursor > 0 {
+				sm.cursor--
+			}
+		}
+
+	case "down", "j":
+		if sm.mode == "list" {
+			if sm.cursor < len(sm.snapshots)-1 {
+				sm.cursor++
+			}
+		} else if sm.mode == "tree" {
+			if sm.treeCursor < len(sm.treeView)-1 {
+				sm.treeCursor++
+			}
+		} else if sm.mode == "create" {
+			if sm.cursor < 3 { // 4 fields (0-3)
+				sm.cursor++
+			}
+		}
+
+	case "enter":
+		if sm.mode == "list" {
+			// Show details for selected snapshot
+			if sm.cursor < len(sm.snapshots) {
+				sm.selectedSnap = &sm.snapshots[sm.cursor]
+				sm.mode = "details"
+			}
+		} else if sm.mode == "create" {
+			// Create the snapshot (simulated)
+			if sm.createName == "" {
+				sm.createName = "Snapshot-" + time.Now().Format("20060102-150405")
+			}
+			m.message = fmt.Sprintf("Creating snapshot '%s'...", sm.createName)
+
+			// Add new snapshot to list (simulated)
+			newSnap := vmSnapshot{
+				id:          fmt.Sprintf("snap-%d", len(sm.snapshots)+1),
+				name:        sm.createName,
+				description: sm.createDesc,
+				created:     time.Now(),
+				size:        sm.vm.Storage / 10, // Estimate 10% of VM size
+				state:       sm.vm.PowerState,
+				isCurrent:   true,
+			}
+			sm.snapshots = append(sm.snapshots, newSnap)
+
+			sm.mode = "list"
+			sm.cursor = len(sm.snapshots) - 1
+			m.message = "Snapshot created successfully"
+			return m, nil
+		} else if sm.mode == "tree" {
+			// Toggle expand/collapse (future enhancement)
+			if sm.treeCursor < len(sm.treeView) {
+				sm.treeView[sm.treeCursor].expanded = !sm.treeView[sm.treeCursor].expanded
+			}
+		}
+
+	case "c", "C":
+		if sm.mode == "list" {
+			// Switch to create mode
+			sm.mode = "create"
+			sm.cursor = 0
+			sm.createName = ""
+			sm.createDesc = ""
+			sm.createMemory = false
+			sm.createQuiesce = true
+		}
+
+	case "t", "T":
+		if sm.mode == "list" {
+			// Switch to tree view
+			sm.mode = "tree"
+			sm.treeCursor = 0
+			sm.buildSnapshotTree()
+		} else if sm.mode == "tree" {
+			// Switch back to list
+			sm.mode = "list"
+			sm.cursor = 0
+		} else if sm.mode == "create" {
+			// Toggle boolean fields
+			if sm.cursor == 2 {
+				sm.createMemory = !sm.createMemory
+			} else if sm.cursor == 3 {
+				sm.createQuiesce = !sm.createQuiesce
+			}
+		}
+
+	case "l", "L":
+		if sm.mode == "tree" {
+			sm.mode = "list"
+			sm.cursor = 0
+		}
+
+	case "d", "D":
+		if sm.mode == "list" && len(sm.snapshots) > 0 {
+			// Delete selected snapshot (simulated)
+			if sm.cursor < len(sm.snapshots) {
+				deletedName := sm.snapshots[sm.cursor].name
+				sm.snapshots = append(sm.snapshots[:sm.cursor], sm.snapshots[sm.cursor+1:]...)
+				if sm.cursor > 0 && sm.cursor >= len(sm.snapshots) {
+					sm.cursor--
+				}
+				m.message = fmt.Sprintf("Deleted snapshot '%s'", deletedName)
+			}
+		} else if sm.mode == "details" && sm.selectedSnap != nil {
+			// Delete from details view
+			deletedName := sm.selectedSnap.name
+			for i, snap := range sm.snapshots {
+				if snap.id == sm.selectedSnap.id {
+					sm.snapshots = append(sm.snapshots[:i], sm.snapshots[i+1:]...)
+					break
+				}
+			}
+			sm.mode = "list"
+			sm.cursor = 0
+			m.message = fmt.Sprintf("Deleted snapshot '%s'", deletedName)
+		}
+
+	case "r", "R":
+		if sm.mode == "list" && len(sm.snapshots) > 0 {
+			// Revert to selected snapshot (simulated)
+			if sm.cursor < len(sm.snapshots) {
+				snapName := sm.snapshots[sm.cursor].name
+				// Mark as current
+				for i := range sm.snapshots {
+					sm.snapshots[i].isCurrent = false
+				}
+				sm.snapshots[sm.cursor].isCurrent = true
+				m.message = fmt.Sprintf("Reverted to snapshot '%s'", snapName)
+			}
+		} else if sm.mode == "details" && sm.selectedSnap != nil {
+			// Revert from details view
+			for i := range sm.snapshots {
+				sm.snapshots[i].isCurrent = false
+				if sm.snapshots[i].id == sm.selectedSnap.id {
+					sm.snapshots[i].isCurrent = true
+				}
+			}
+			m.message = fmt.Sprintf("Reverted to snapshot '%s'", sm.selectedSnap.name)
+			sm.mode = "list"
+		}
+	}
+
+	return m, nil
+}
+
+// buildSnapshotTree builds the tree view of snapshots
+func (sm *snapshotManagerState) buildSnapshotTree() {
+	sm.treeView = make([]snapshotTreeNode, 0)
+
+	// Simple flat list for now (hierarchical tree could be added later)
+	for i := range sm.snapshots {
+		node := snapshotTreeNode{
+			snapshot: &sm.snapshots[i],
+			level:    0,
+			isLast:   i == len(sm.snapshots)-1,
+			expanded: true,
+		}
+		sm.treeView = append(sm.treeView, node)
+	}
+}
+
+// loadSnapshotsForVM loads snapshots for a given VM (simulated)
+func (m *tuiModel) loadSnapshotsForVM(vm *vsphere.VMInfo) []vmSnapshot {
+	// Simulate loading snapshots
+	// In real implementation, this would call vSphere API
+	snapshots := []vmSnapshot{
+		{
+			id:          "snap-1",
+			name:        "Before Update",
+			description: "Snapshot before system update",
+			created:     time.Now().Add(-48 * time.Hour),
+			size:        vm.Storage / 10,
+			state:       "poweredOff",
+			parent:      "",
+			children:    []string{"snap-2"},
+			isCurrent:   false,
+		},
+		{
+			id:          "snap-2",
+			name:        "Production Baseline",
+			description: "Clean production configuration",
+			created:     time.Now().Add(-24 * time.Hour),
+			size:        vm.Storage / 8,
+			state:       "poweredOn",
+			parent:      "snap-1",
+			children:    []string{},
+			isCurrent:   true,
+		},
+	}
+
+	return snapshots
 }
 
 // handleTreeKeys handles keyboard input in tree view
