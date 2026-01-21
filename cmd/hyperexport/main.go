@@ -1894,6 +1894,22 @@ func runInteractiveTUI(ctx context.Context, client *vsphere.VSphereClient, cfg *
 			key.WithKeys("tab"),
 			key.WithHelp("tab", "switch pane"),
 		),
+		Queue: key.NewBinding(
+			key.WithKeys("Q"),
+			key.WithHelp("Q", "queue manager"),
+		),
+		MoveUp: key.NewBinding(
+			key.WithKeys("K", "shift+up"),
+			key.WithHelp("K", "move up in queue"),
+		),
+		MoveDown: key.NewBinding(
+			key.WithKeys("J", "shift+down"),
+			key.WithHelp("J", "move down in queue"),
+		),
+		Priority: key.NewBinding(
+			key.WithKeys("p"),
+			key.WithHelp("p", "change priority"),
+		),
 	}
 
 	// Create initial model

@@ -67,7 +67,7 @@ type tuiModel struct {
 	vms              []tuiVMItem
 	filteredVMs      []tuiVMItem
 	cursor           int
-	phase            string // "select", "confirm", "template", "regex", "cloud", "features", "export", "cloudupload", "done", "search", "details", "validation", "config", "stats"
+	phase            string // "select", "confirm", "template", "regex", "cloud", "features", "export", "cloudupload", "done", "search", "details", "validation", "config", "stats", "queue"
 	detailsVM        *vsphere.VMInfo // VM to show details for
 	validationReport *ValidationReport // Pre-export validation results
 	configPanel      *configPanelState // Interactive config panel state
@@ -113,11 +113,26 @@ type tuiModel struct {
 	splitScreenMode bool
 	focusedPane     string // "list" or "details"
 
+	// Export queue management
+	exportQueue     []queuedExport
+	queueCursor     int
+	showQueueEditor bool
+
 	// Configuration
 	client    *vsphere.VSphereClient
 	outputDir string
 	log       logger.Logger
 	ctx       context.Context
+}
+
+// queuedExport represents a VM in the export queue
+type queuedExport struct {
+	vm       vsphere.VMInfo
+	priority int    // 1=high, 2=normal, 3=low
+	status   string // "pending", "running", "completed", "failed"
+	eta      time.Duration
+	startedAt time.Time
+	error    error
 }
 
 // featureConfiguration holds advanced export features
@@ -206,6 +221,10 @@ type tuiKeyMap struct {
 	Cloud       key.Binding
 	SplitScreen key.Binding
 	SwitchPane  key.Binding
+	Queue       key.Binding
+	MoveUp      key.Binding
+	MoveDown    key.Binding
+	Priority    key.Binding
 }
 
 func (k tuiKeyMap) ShortHelp() []key.Binding {
@@ -498,6 +517,8 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.handleConfigPanelKeys(msg)
 		case "stats":
 			return m.handleStatsKeys(msg)
+		case "queue":
+			return m.handleQueueKeys(msg)
 		case "cloud":
 			// Cloud phase is handled by cloudSelectionModel
 			return m, nil
@@ -660,6 +681,19 @@ func (m tuiModel) handleSelectionKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "D":
 		// Show statistics dashboard
 		m.phase = "stats"
+		return m, nil
+
+	case "Q":
+		// Show export queue manager
+		if m.countSelected() == 0 {
+			m.message = "No VMs selected!"
+			return m, nil
+		}
+		// Build queue from selected VMs
+		m.exportQueue = m.buildExportQueue()
+		m.queueCursor = 0
+		m.showQueueEditor = true
+		m.phase = "queue"
 		return m, nil
 
 	case "c":
@@ -1232,6 +1266,8 @@ func (m tuiModel) View() string {
 		return m.renderConfigPanel()
 	case "stats":
 		return m.renderStats()
+	case "queue":
+		return m.renderQueue()
 	case "export":
 		return m.renderExport()
 	case "cloudupload":
@@ -3027,6 +3063,214 @@ func (m tuiModel) countSelected() int {
 		}
 	}
 	return count
+}
+
+// buildExportQueue creates export queue from selected VMs
+func (m tuiModel) buildExportQueue() []queuedExport {
+	queue := make([]queuedExport, 0)
+	for _, item := range m.vms {
+		if item.selected {
+			queue = append(queue, queuedExport{
+				vm:       item.vm,
+				priority: 2, // Normal priority by default
+				status:   "pending",
+				eta:      0,
+			})
+		}
+	}
+	return queue
+}
+
+// handleQueueKeys handles keyboard input in queue management phase
+func (m tuiModel) handleQueueKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "ctrl+c", "esc":
+		// Return to selection
+		m.phase = "select"
+		m.showQueueEditor = false
+		return m, nil
+
+	case "up", "k":
+		if m.queueCursor > 0 {
+			m.queueCursor--
+		}
+
+	case "down", "j":
+		if m.queueCursor < len(m.exportQueue)-1 {
+			m.queueCursor++
+		}
+
+	case "K", "shift+up":
+		// Move current item up in queue
+		if m.queueCursor > 0 {
+			m.exportQueue[m.queueCursor], m.exportQueue[m.queueCursor-1] =
+				m.exportQueue[m.queueCursor-1], m.exportQueue[m.queueCursor]
+			m.queueCursor--
+		}
+
+	case "J", "shift+down":
+		// Move current item down in queue
+		if m.queueCursor < len(m.exportQueue)-1 {
+			m.exportQueue[m.queueCursor], m.exportQueue[m.queueCursor+1] =
+				m.exportQueue[m.queueCursor+1], m.exportQueue[m.queueCursor]
+			m.queueCursor++
+		}
+
+	case "p", "P":
+		// Cycle priority: normal -> high -> low -> normal
+		current := &m.exportQueue[m.queueCursor]
+		switch current.priority {
+		case 1: // high -> low
+			current.priority = 3
+		case 2: // normal -> high
+			current.priority = 1
+		case 3: // low -> normal
+			current.priority = 2
+		}
+
+	case "enter":
+		// Confirm and proceed to export
+		m.phase = "confirm"
+		m.showQueueEditor = false
+		return m, nil
+	}
+
+	return m, nil
+}
+
+// renderQueue renders the export queue management interface
+func (m tuiModel) renderQueue() string {
+	var b strings.Builder
+
+	// Header
+	header := lipgloss.NewStyle().
+		Foreground(tealInfo).
+		Background(darkBg).
+		Bold(true).
+		Padding(0, 2).
+		Border(lipgloss.DoubleBorder()).
+		BorderForeground(deepOrange).
+		Width(m.getResponsiveWidth() - 4).
+		Render("╔═══ EXPORT QUEUE MANAGER ═══╗  Reorder & Prioritize Exports")
+
+	b.WriteString(header)
+	b.WriteString("\n\n")
+
+	// Instructions
+	instructions := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#9CA3AF")).
+		Italic(true).
+		Render("K/Shift+↑: Move Up  |  J/Shift+↓: Move Down  |  P: Change Priority  |  Enter: Confirm  |  Esc: Cancel")
+
+	b.WriteString(instructions)
+	b.WriteString("\n\n")
+
+	// Queue header
+	queueHeader := lipgloss.NewStyle().
+		Foreground(tealInfo).
+		Bold(true).
+		Render(fmt.Sprintf("📋 Export Queue (%d VMs)", len(m.exportQueue)))
+
+	b.WriteString(queueHeader)
+	b.WriteString("\n")
+	b.WriteString(strings.Repeat("─", m.getResponsiveWidth()-4))
+	b.WriteString("\n\n")
+
+	// Queue items
+	for i, item := range m.exportQueue {
+		cursor := "  "
+		if i == m.queueCursor {
+			cursor = "❯ "
+		}
+
+		// Priority indicator
+		priorityIndicator := ""
+		priorityColor := lipgloss.Color("#9CA3AF")
+		switch item.priority {
+		case 1:
+			priorityIndicator = "[HIGH]"
+			priorityColor = warmRed
+		case 2:
+			priorityIndicator = "[NORM]"
+			priorityColor = lipgloss.Color("#60A5FA")
+		case 3:
+			priorityIndicator = "[LOW]"
+			priorityColor = lipgloss.Color("#6B7280")
+		}
+
+		priority := lipgloss.NewStyle().
+			Foreground(priorityColor).
+			Bold(true).
+			Width(8).
+			Render(priorityIndicator)
+
+		// Position indicator
+		position := lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#9CA3AF")).
+			Width(5).
+			Render(fmt.Sprintf("#%d", i+1))
+
+		// VM name
+		name := item.vm.Name
+		maxNameLen := m.getResponsiveWidth() - 30
+		if len(name) > maxNameLen {
+			name = name[:maxNameLen-3] + "..."
+		}
+
+		nameStyle := lipgloss.NewStyle()
+		if i == m.queueCursor {
+			nameStyle = nameStyle.Foreground(tealInfo).Bold(true)
+		}
+
+		vmName := nameStyle.Render(name)
+
+		// VM specs (size indicator)
+		specs := lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#6B7280")).
+			Render(fmt.Sprintf("%.1f GB", float64(item.vm.Storage)/(1024*1024*1024)))
+
+		line := fmt.Sprintf("%s%s %s  %s  %s", cursor, position, priority, vmName, specs)
+		b.WriteString(line)
+		b.WriteString("\n")
+	}
+
+	b.WriteString("\n")
+
+	// Summary
+	highCount := 0
+	normalCount := 0
+	lowCount := 0
+	for _, item := range m.exportQueue {
+		switch item.priority {
+		case 1:
+			highCount++
+		case 2:
+			normalCount++
+		case 3:
+			lowCount++
+		}
+	}
+
+	summary := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#9CA3AF")).
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(tealInfo).
+		Padding(0, 2).
+		Render(fmt.Sprintf("Summary: %d High  |  %d Normal  |  %d Low  |  Total: %d VMs",
+			highCount, normalCount, lowCount, len(m.exportQueue)))
+
+	b.WriteString(summary)
+	b.WriteString("\n\n")
+
+	// Footer help
+	footer := lipgloss.NewStyle().
+		Foreground(successGreen).
+		Bold(true).
+		Render("Press Enter to proceed with export in this order")
+
+	b.WriteString(footer)
+
+	return b.String()
 }
 
 func (m *tuiModel) applyFiltersAndSort() {

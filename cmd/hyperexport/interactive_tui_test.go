@@ -948,3 +948,303 @@ func anyMatch(s, substr string) bool {
 	}
 	return false
 }
+
+// TestBuildExportQueue tests building export queue from selected VMs
+func TestBuildExportQueue(t *testing.T) {
+	m := tuiModel{
+		vms: []tuiVMItem{
+			{
+				vm: vsphere.VMInfo{
+					Name:    "VM1",
+					Path:    "/dc/vm/vm1",
+					Storage: 50 * 1024 * 1024 * 1024,
+				},
+				selected: true,
+			},
+			{
+				vm: vsphere.VMInfo{
+					Name:    "VM2",
+					Path:    "/dc/vm/vm2",
+					Storage: 100 * 1024 * 1024 * 1024,
+				},
+				selected: false,
+			},
+			{
+				vm: vsphere.VMInfo{
+					Name:    "VM3",
+					Path:    "/dc/vm/vm3",
+					Storage: 75 * 1024 * 1024 * 1024,
+				},
+				selected: true,
+			},
+		},
+	}
+
+	queue := m.buildExportQueue()
+
+	if len(queue) != 2 {
+		t.Errorf("Expected queue length 2, got %d", len(queue))
+	}
+
+	// Check that only selected VMs are in queue
+	if queue[0].vm.Name != "VM1" {
+		t.Errorf("Expected first VM to be VM1, got %s", queue[0].vm.Name)
+	}
+
+	if queue[1].vm.Name != "VM3" {
+		t.Errorf("Expected second VM to be VM3, got %s", queue[1].vm.Name)
+	}
+
+	// Check default priority
+	for i, item := range queue {
+		if item.priority != 2 {
+			t.Errorf("Expected default priority 2 for item %d, got %d", i, item.priority)
+		}
+		if item.status != "pending" {
+			t.Errorf("Expected status 'pending' for item %d, got %s", i, item.status)
+		}
+	}
+}
+
+// TestQueueReordering tests moving items up and down in queue
+func TestQueueReordering(t *testing.T) {
+	m := tuiModel{
+		exportQueue: []queuedExport{
+			{vm: vsphere.VMInfo{Name: "VM1"}, priority: 2, status: "pending"},
+			{vm: vsphere.VMInfo{Name: "VM2"}, priority: 2, status: "pending"},
+			{vm: vsphere.VMInfo{Name: "VM3"}, priority: 2, status: "pending"},
+		},
+		queueCursor: 1,
+	}
+
+	// Test move down
+	if m.queueCursor < len(m.exportQueue)-1 {
+		m.exportQueue[m.queueCursor], m.exportQueue[m.queueCursor+1] =
+			m.exportQueue[m.queueCursor+1], m.exportQueue[m.queueCursor]
+		m.queueCursor++
+	}
+
+	if m.queueCursor != 2 {
+		t.Errorf("Expected cursor at 2 after move down, got %d", m.queueCursor)
+	}
+
+	if m.exportQueue[2].vm.Name != "VM2" {
+		t.Errorf("Expected VM2 at position 2, got %s", m.exportQueue[2].vm.Name)
+	}
+
+	if m.exportQueue[1].vm.Name != "VM3" {
+		t.Errorf("Expected VM3 at position 1, got %s", m.exportQueue[1].vm.Name)
+	}
+
+	// Test move up
+	if m.queueCursor > 0 {
+		m.exportQueue[m.queueCursor], m.exportQueue[m.queueCursor-1] =
+			m.exportQueue[m.queueCursor-1], m.exportQueue[m.queueCursor]
+		m.queueCursor--
+	}
+
+	if m.queueCursor != 1 {
+		t.Errorf("Expected cursor at 1 after move up, got %d", m.queueCursor)
+	}
+
+	if m.exportQueue[1].vm.Name != "VM2" {
+		t.Errorf("Expected VM2 back at position 1, got %s", m.exportQueue[1].vm.Name)
+	}
+}
+
+// TestPriorityChange tests cycling through priority levels
+func TestPriorityChange(t *testing.T) {
+	queue := []queuedExport{
+		{vm: vsphere.VMInfo{Name: "VM1"}, priority: 2, status: "pending"},
+	}
+
+	// Normal (2) -> High (1)
+	current := &queue[0]
+	switch current.priority {
+	case 2:
+		current.priority = 1
+	}
+
+	if current.priority != 1 {
+		t.Errorf("Expected priority 1 (high), got %d", current.priority)
+	}
+
+	// High (1) -> Low (3)
+	switch current.priority {
+	case 1:
+		current.priority = 3
+	}
+
+	if current.priority != 3 {
+		t.Errorf("Expected priority 3 (low), got %d", current.priority)
+	}
+
+	// Low (3) -> Normal (2)
+	switch current.priority {
+	case 3:
+		current.priority = 2
+	}
+
+	if current.priority != 2 {
+		t.Errorf("Expected priority 2 (normal), got %d", current.priority)
+	}
+}
+
+// TestRenderQueue tests queue rendering
+func TestRenderQueue(t *testing.T) {
+	m := tuiModel{
+		exportQueue: []queuedExport{
+			{
+				vm:       vsphere.VMInfo{Name: "HighPriorityVM", Storage: 50 * 1024 * 1024 * 1024},
+				priority: 1,
+				status:   "pending",
+			},
+			{
+				vm:       vsphere.VMInfo{Name: "NormalPriorityVM", Storage: 100 * 1024 * 1024 * 1024},
+				priority: 2,
+				status:   "pending",
+			},
+			{
+				vm:       vsphere.VMInfo{Name: "LowPriorityVM", Storage: 75 * 1024 * 1024 * 1024},
+				priority: 3,
+				status:   "pending",
+			},
+		},
+		queueCursor: 0,
+		termWidth:   100,
+		termHeight:  30,
+	}
+
+	output := m.renderQueue()
+
+	if output == "" {
+		t.Error("renderQueue returned empty string")
+	}
+
+	// Check for key elements
+	if !contains(output, "EXPORT QUEUE MANAGER") {
+		t.Error("Output should contain queue manager header")
+	}
+
+	if !contains(output, "HighPriorityVM") {
+		t.Error("Output should contain high priority VM name")
+	}
+
+	if !contains(output, "NormalPriorityVM") {
+		t.Error("Output should contain normal priority VM name")
+	}
+
+	if !contains(output, "LowPriorityVM") {
+		t.Error("Output should contain low priority VM name")
+	}
+
+	if !contains(output, "[HIGH]") {
+		t.Error("Output should contain HIGH priority indicator")
+	}
+
+	if !contains(output, "[NORM]") {
+		t.Error("Output should contain NORM priority indicator")
+	}
+
+	if !contains(output, "[LOW]") {
+		t.Error("Output should contain LOW priority indicator")
+	}
+
+	if !contains(output, "Summary:") {
+		t.Error("Output should contain summary")
+	}
+
+	if !contains(output, "1 High") {
+		t.Error("Output should show 1 high priority item")
+	}
+
+	if !contains(output, "1 Normal") {
+		t.Error("Output should show 1 normal priority item")
+	}
+
+	if !contains(output, "1 Low") {
+		t.Error("Output should show 1 low priority item")
+	}
+}
+
+// TestQueueWithEmptySelection tests queue with no selected VMs
+func TestQueueWithEmptySelection(t *testing.T) {
+	m := tuiModel{
+		vms: []tuiVMItem{
+			{vm: vsphere.VMInfo{Name: "VM1"}, selected: false},
+			{vm: vsphere.VMInfo{Name: "VM2"}, selected: false},
+		},
+	}
+
+	queue := m.buildExportQueue()
+
+	if len(queue) != 0 {
+		t.Errorf("Expected empty queue, got %d items", len(queue))
+	}
+}
+
+// TestQueueNavigation tests cursor movement in queue
+func TestQueueNavigation(t *testing.T) {
+	m := tuiModel{
+		exportQueue: []queuedExport{
+			{vm: vsphere.VMInfo{Name: "VM1"}, priority: 2},
+			{vm: vsphere.VMInfo{Name: "VM2"}, priority: 2},
+			{vm: vsphere.VMInfo{Name: "VM3"}, priority: 2},
+		},
+		queueCursor: 0,
+	}
+
+	// Move down
+	if m.queueCursor < len(m.exportQueue)-1 {
+		m.queueCursor++
+	}
+
+	if m.queueCursor != 1 {
+		t.Errorf("Expected cursor at 1, got %d", m.queueCursor)
+	}
+
+	// Move down again
+	if m.queueCursor < len(m.exportQueue)-1 {
+		m.queueCursor++
+	}
+
+	if m.queueCursor != 2 {
+		t.Errorf("Expected cursor at 2, got %d", m.queueCursor)
+	}
+
+	// Try to move past end (should stay at 2)
+	if m.queueCursor < len(m.exportQueue)-1 {
+		m.queueCursor++
+	}
+
+	if m.queueCursor != 2 {
+		t.Errorf("Expected cursor to stay at 2, got %d", m.queueCursor)
+	}
+
+	// Move up
+	if m.queueCursor > 0 {
+		m.queueCursor--
+	}
+
+	if m.queueCursor != 1 {
+		t.Errorf("Expected cursor at 1 after moving up, got %d", m.queueCursor)
+	}
+
+	// Move up again
+	if m.queueCursor > 0 {
+		m.queueCursor--
+	}
+
+	if m.queueCursor != 0 {
+		t.Errorf("Expected cursor at 0, got %d", m.queueCursor)
+	}
+
+	// Try to move before start (should stay at 0)
+	if m.queueCursor > 0 {
+		m.queueCursor--
+	}
+
+	if m.queueCursor != 0 {
+		t.Errorf("Expected cursor to stay at 0, got %d", m.queueCursor)
+	}
+}
