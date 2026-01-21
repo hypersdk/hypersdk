@@ -5,6 +5,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"os"
 	"sort"
 	"strings"
 	"syscall"
@@ -67,7 +68,7 @@ type tuiModel struct {
 	vms              []tuiVMItem
 	filteredVMs      []tuiVMItem
 	cursor           int
-	phase            string // "select", "confirm", "template", "regex", "cloud", "features", "export", "cloudupload", "done", "search", "details", "validation", "config", "stats", "queue"
+	phase            string // "select", "confirm", "template", "regex", "cloud", "features", "export", "cloudupload", "done", "search", "details", "validation", "config", "stats", "queue", "history"
 	detailsVM        *vsphere.VMInfo // VM to show details for
 	validationReport *ValidationReport // Pre-export validation results
 	configPanel      *configPanelState // Interactive config panel state
@@ -117,6 +118,14 @@ type tuiModel struct {
 	exportQueue     []queuedExport
 	queueCursor     int
 	showQueueEditor bool
+
+	// Export history view
+	historyEntries       []ExportHistoryEntry
+	historyCursor        int
+	historyFilter        string // "all", "success", "failed"
+	historySearchQuery   string
+	historyDateFilter    string // "all", "today", "week", "month"
+	historyProviderFilter string // "all", "vsphere", etc.
 
 	// Configuration
 	client    *vsphere.VSphereClient
@@ -225,6 +234,8 @@ type tuiKeyMap struct {
 	MoveUp      key.Binding
 	MoveDown    key.Binding
 	Priority    key.Binding
+	History     key.Binding
+	FilterHistory key.Binding
 }
 
 func (k tuiKeyMap) ShortHelp() []key.Binding {
@@ -519,6 +530,8 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.handleStatsKeys(msg)
 		case "queue":
 			return m.handleQueueKeys(msg)
+		case "history":
+			return m.handleHistoryKeys(msg)
 		case "cloud":
 			// Cloud phase is handled by cloudSelectionModel
 			return m, nil
@@ -694,6 +707,20 @@ func (m tuiModel) handleSelectionKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.queueCursor = 0
 		m.showQueueEditor = true
 		m.phase = "queue"
+		return m, nil
+
+	case "H":
+		// Show export history
+		m.phase = "history"
+		m.historyCursor = 0
+		m.historyFilter = "all"
+		m.historyDateFilter = "all"
+		m.historySearchQuery = ""
+		m.historyProviderFilter = "all"
+		// Load history entries
+		if err := m.loadHistoryEntries(); err != nil {
+			m.message = fmt.Sprintf("Failed to load history: %v", err)
+		}
 		return m, nil
 
 	case "c":
@@ -1268,6 +1295,8 @@ func (m tuiModel) View() string {
 		return m.renderStats()
 	case "queue":
 		return m.renderQueue()
+	case "history":
+		return m.renderHistory()
 	case "export":
 		return m.renderExport()
 	case "cloudupload":
@@ -3269,6 +3298,371 @@ func (m tuiModel) renderQueue() string {
 		Render("Press Enter to proceed with export in this order")
 
 	b.WriteString(footer)
+
+	return b.String()
+}
+
+// loadHistoryEntries loads export history from disk
+func (m *tuiModel) loadHistoryEntries() error {
+	historyFile, err := GetDefaultHistoryFile()
+	if err != nil {
+		return fmt.Errorf("get history file: %w", err)
+	}
+
+	history := NewExportHistory(historyFile, m.log)
+	entries, err := history.GetHistory()
+	if err != nil {
+		// If file doesn't exist, that's OK - just no history yet
+		if os.IsNotExist(err) {
+			m.historyEntries = []ExportHistoryEntry{}
+			return nil
+		}
+		return fmt.Errorf("load history: %w", err)
+	}
+
+	m.historyEntries = entries
+	return nil
+}
+
+// getFilteredHistory returns history entries matching current filters
+func (m tuiModel) getFilteredHistory() []ExportHistoryEntry {
+	filtered := make([]ExportHistoryEntry, 0)
+	now := time.Now()
+
+	for _, entry := range m.historyEntries {
+		// Apply success/failure filter
+		if m.historyFilter == "success" && !entry.Success {
+			continue
+		}
+		if m.historyFilter == "failed" && entry.Success {
+			continue
+		}
+
+		// Apply date filter
+		switch m.historyDateFilter {
+		case "today":
+			if entry.Timestamp.Before(now.Add(-24 * time.Hour)) {
+				continue
+			}
+		case "week":
+			if entry.Timestamp.Before(now.Add(-7 * 24 * time.Hour)) {
+				continue
+			}
+		case "month":
+			if entry.Timestamp.Before(now.Add(-30 * 24 * time.Hour)) {
+				continue
+			}
+		}
+
+		// Apply search query
+		if m.historySearchQuery != "" {
+			query := strings.ToLower(m.historySearchQuery)
+			if !strings.Contains(strings.ToLower(entry.VMName), query) &&
+				!strings.Contains(strings.ToLower(entry.VMPath), query) {
+				continue
+			}
+		}
+
+		// Apply provider filter
+		if m.historyProviderFilter != "all" && entry.Provider != m.historyProviderFilter {
+			continue
+		}
+
+		filtered = append(filtered, entry)
+	}
+
+	return filtered
+}
+
+// handleHistoryKeys handles keyboard input in history view
+func (m tuiModel) handleHistoryKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	entries := m.getFilteredHistory()
+
+	switch msg.String() {
+	case "ctrl+c", "q", "esc":
+		// Return to selection
+		m.phase = "select"
+		return m, nil
+
+	case "up", "k":
+		if m.historyCursor > 0 {
+			m.historyCursor--
+		}
+
+	case "down", "j":
+		if m.historyCursor < len(entries)-1 {
+			m.historyCursor++
+		}
+
+	case "f", "F":
+		// Cycle through filters
+		switch m.historyFilter {
+		case "all":
+			m.historyFilter = "success"
+		case "success":
+			m.historyFilter = "failed"
+		case "failed":
+			m.historyFilter = "all"
+		}
+		m.historyCursor = 0
+
+	case "d", "D":
+		// Cycle through date filters
+		switch m.historyDateFilter {
+		case "all":
+			m.historyDateFilter = "today"
+		case "today":
+			m.historyDateFilter = "week"
+		case "week":
+			m.historyDateFilter = "month"
+		case "month":
+			m.historyDateFilter = "all"
+		}
+		m.historyCursor = 0
+
+	case "r", "R":
+		// Refresh history
+		if err := m.loadHistoryEntries(); err != nil {
+			m.message = fmt.Sprintf("Failed to reload history: %v", err)
+		}
+	}
+
+	return m, nil
+}
+
+// renderHistory renders the export history view
+func (m tuiModel) renderHistory() string {
+	var b strings.Builder
+
+	// Header
+	header := lipgloss.NewStyle().
+		Foreground(tealInfo).
+		Background(darkBg).
+		Bold(true).
+		Padding(0, 2).
+		Border(lipgloss.DoubleBorder()).
+		BorderForeground(deepOrange).
+		Width(m.getResponsiveWidth() - 4).
+		Render("╔═══ EXPORT HISTORY ═══╗  View Past Exports")
+
+	b.WriteString(header)
+	b.WriteString("\n\n")
+
+	// Active filters indicator
+	filterParts := []string{}
+	if m.historyFilter != "all" {
+		filterParts = append(filterParts, fmt.Sprintf("Status: %s", m.historyFilter))
+	}
+	if m.historyDateFilter != "all" {
+		filterParts = append(filterParts, fmt.Sprintf("Time: %s", m.historyDateFilter))
+	}
+	if m.historySearchQuery != "" {
+		filterParts = append(filterParts, fmt.Sprintf("Search: %s", m.historySearchQuery))
+	}
+
+	if len(filterParts) > 0 {
+		filters := lipgloss.NewStyle().
+			Foreground(amberYellow).
+			Italic(true).
+			Render("Active Filters: " + strings.Join(filterParts, " | "))
+		b.WriteString(filters)
+		b.WriteString("\n\n")
+	}
+
+	// Instructions
+	instructions := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#9CA3AF")).
+		Italic(true).
+		Render("F: Filter Status  |  D: Date Range  |  R: Refresh  |  Esc: Back")
+
+	b.WriteString(instructions)
+	b.WriteString("\n\n")
+
+	// Get filtered entries
+	entries := m.getFilteredHistory()
+
+	if len(entries) == 0 {
+		noHistory := lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#9CA3AF")).
+			Italic(true).
+			Render("No export history found")
+		b.WriteString(noHistory)
+		return b.String()
+	}
+
+	// Summary stats
+	totalExports := len(entries)
+	successCount := 0
+	failedCount := 0
+	var totalSize int64
+	var totalDuration time.Duration
+
+	for _, entry := range entries {
+		if entry.Success {
+			successCount++
+		} else {
+			failedCount++
+		}
+		totalSize += entry.TotalSize
+		totalDuration += entry.Duration
+	}
+
+	summary := lipgloss.NewStyle().
+		Foreground(tealInfo).
+		Bold(true).
+		Render(fmt.Sprintf("📊 %d Total | ✓ %d Success | ✗ %d Failed | 💾 %.2f GB | ⏱ %s avg",
+			totalExports, successCount, failedCount,
+			float64(totalSize)/(1024*1024*1024),
+			(totalDuration / time.Duration(totalExports)).Round(time.Second)))
+
+	b.WriteString(summary)
+	b.WriteString("\n")
+	b.WriteString(strings.Repeat("─", m.getResponsiveWidth()-4))
+	b.WriteString("\n\n")
+
+	// History entries (show last 15)
+	maxVisible := 15
+	start := 0
+	if len(entries) > maxVisible {
+		start = len(entries) - maxVisible
+		if m.historyCursor < start {
+			start = m.historyCursor
+		}
+		if m.historyCursor >= start+maxVisible {
+			start = m.historyCursor - maxVisible + 1
+		}
+	}
+
+	end := start + maxVisible
+	if end > len(entries) {
+		end = len(entries)
+	}
+
+	// Reverse order (most recent first)
+	for i := end - 1; i >= start; i-- {
+		entry := entries[i]
+
+		cursor := "  "
+		if i == m.historyCursor {
+			cursor = "❯ "
+		}
+
+		// Status indicator
+		statusIcon := "✓"
+		statusColor := successGreen
+		if !entry.Success {
+			statusIcon = "✗"
+			statusColor = warmRed
+		}
+
+		status := lipgloss.NewStyle().
+			Foreground(statusColor).
+			Bold(true).
+			Width(3).
+			Render(statusIcon)
+
+		// Timestamp
+		timestamp := entry.Timestamp.Format("01/02 15:04")
+		timeStyle := lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#9CA3AF")).
+			Width(12)
+		timeStr := timeStyle.Render(timestamp)
+
+		// VM name
+		name := entry.VMName
+		maxNameLen := m.getResponsiveWidth() - 50
+		if len(name) > maxNameLen {
+			name = name[:maxNameLen-3] + "..."
+		}
+
+		nameStyle := lipgloss.NewStyle()
+		if i == m.historyCursor {
+			nameStyle = nameStyle.Foreground(tealInfo).Bold(true)
+		}
+		vmName := nameStyle.Render(name)
+
+		// Format & size
+		details := lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#6B7280")).
+			Render(fmt.Sprintf("%s | %.1f GB | %s",
+				entry.Format,
+				float64(entry.TotalSize)/(1024*1024*1024),
+				entry.Duration.Round(time.Second)))
+
+		line := fmt.Sprintf("%s%s %s  %s  %s", cursor, status, timeStr, vmName, details)
+		b.WriteString(line)
+		b.WriteString("\n")
+	}
+
+	// Show details of selected entry if cursor is valid
+	if m.historyCursor < len(entries) && m.historyCursor >= 0 {
+		b.WriteString("\n")
+		b.WriteString(strings.Repeat("─", m.getResponsiveWidth()-4))
+		b.WriteString("\n")
+
+		selectedEntry := entries[m.historyCursor]
+		b.WriteString(m.renderHistoryDetails(selectedEntry))
+	}
+
+	return b.String()
+}
+
+// renderHistoryDetails renders detailed information about a history entry
+func (m tuiModel) renderHistoryDetails(entry ExportHistoryEntry) string {
+	var b strings.Builder
+
+	detailsTitle := lipgloss.NewStyle().
+		Foreground(tealInfo).
+		Bold(true).
+		Render("📝 Export Details")
+
+	b.WriteString(detailsTitle)
+	b.WriteString("\n\n")
+
+	details := []struct {
+		label string
+		value string
+		color lipgloss.Color
+	}{
+		{"VM Name", entry.VMName, tealInfo},
+		{"VM Path", entry.VMPath, lipgloss.Color("#6B7280")},
+		{"Provider", entry.Provider, lipgloss.Color("#9CA3AF")},
+		{"Format", entry.Format, lipgloss.Color("#60A5FA")},
+		{"Size", fmt.Sprintf("%.2f GB", float64(entry.TotalSize)/(1024*1024*1024)), lipgloss.Color("#34D399")},
+		{"Duration", entry.Duration.Round(time.Second).String(), lipgloss.Color("#F59E0B")},
+		{"Files", fmt.Sprintf("%d", entry.FilesCount), lipgloss.Color("#9CA3AF")},
+		{"Timestamp", entry.Timestamp.Format("2006-01-02 15:04:05"), lipgloss.Color("#6B7280")},
+		{"Output Dir", entry.OutputDir, lipgloss.Color("#6B7280")},
+	}
+
+	for _, detail := range details {
+		label := lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#9CA3AF")).
+			Width(14).
+			Render(detail.label + ":")
+
+		value := lipgloss.NewStyle().
+			Foreground(detail.color).
+			Render(detail.value)
+
+		b.WriteString(label + " " + value)
+		b.WriteString("\n")
+	}
+
+	// Show error if failed
+	if !entry.Success && entry.ErrorMessage != "" {
+		b.WriteString("\n")
+		errorLabel := lipgloss.NewStyle().
+			Foreground(warmRed).
+			Bold(true).
+			Render("Error:")
+
+		errorMsg := lipgloss.NewStyle().
+			Foreground(warmRed).
+			Render(" " + entry.ErrorMessage)
+
+		b.WriteString(errorLabel + errorMsg)
+	}
 
 	return b.String()
 }

@@ -3,6 +3,7 @@
 package main
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -1246,5 +1247,291 @@ func TestQueueNavigation(t *testing.T) {
 
 	if m.queueCursor != 0 {
 		t.Errorf("Expected cursor to stay at 0, got %d", m.queueCursor)
+	}
+}
+
+// TestFilterHistoryByStatus tests filtering history by success/failed status
+func TestFilterHistoryByStatus(t *testing.T) {
+	now := time.Now()
+	m := tuiModel{
+		historyEntries: []ExportHistoryEntry{
+			{Timestamp: now, VMName: "VM1", Success: true},
+			{Timestamp: now, VMName: "VM2", Success: false},
+			{Timestamp: now, VMName: "VM3", Success: true},
+			{Timestamp: now, VMName: "VM4", Success: false},
+		},
+		historyFilter: "all",
+	}
+
+	// Test "all" filter
+	filtered := m.getFilteredHistory()
+	if len(filtered) != 4 {
+		t.Errorf("Expected 4 entries with 'all' filter, got %d", len(filtered))
+	}
+
+	// Test "success" filter
+	m.historyFilter = "success"
+	filtered = m.getFilteredHistory()
+	if len(filtered) != 2 {
+		t.Errorf("Expected 2 entries with 'success' filter, got %d", len(filtered))
+	}
+	for _, entry := range filtered {
+		if !entry.Success {
+			t.Errorf("Expected only successful entries, got failed entry: %s", entry.VMName)
+		}
+	}
+
+	// Test "failed" filter
+	m.historyFilter = "failed"
+	filtered = m.getFilteredHistory()
+	if len(filtered) != 2 {
+		t.Errorf("Expected 2 entries with 'failed' filter, got %d", len(filtered))
+	}
+	for _, entry := range filtered {
+		if entry.Success {
+			t.Errorf("Expected only failed entries, got successful entry: %s", entry.VMName)
+		}
+	}
+}
+
+// TestFilterHistoryByDate tests filtering history by date ranges
+func TestFilterHistoryByDate(t *testing.T) {
+	now := time.Now()
+	yesterday := now.Add(-25 * time.Hour)
+	lastWeek := now.Add(-8 * 24 * time.Hour)
+	lastMonth := now.Add(-31 * 24 * time.Hour)
+
+	m := tuiModel{
+		historyEntries: []ExportHistoryEntry{
+			{Timestamp: now, VMName: "VM1", Success: true},
+			{Timestamp: yesterday, VMName: "VM2", Success: true},
+			{Timestamp: lastWeek, VMName: "VM3", Success: true},
+			{Timestamp: lastMonth, VMName: "VM4", Success: true},
+		},
+		historyDateFilter: "all",
+	}
+
+	// Test "all" filter
+	filtered := m.getFilteredHistory()
+	if len(filtered) != 4 {
+		t.Errorf("Expected 4 entries with 'all' date filter, got %d", len(filtered))
+	}
+
+	// Test "today" filter (last 24 hours)
+	m.historyDateFilter = "today"
+	filtered = m.getFilteredHistory()
+	if len(filtered) != 1 {
+		t.Errorf("Expected 1 entry with 'today' filter, got %d", len(filtered))
+	}
+
+	// Test "week" filter (last 7 days)
+	m.historyDateFilter = "week"
+	filtered = m.getFilteredHistory()
+	if len(filtered) != 2 {
+		t.Errorf("Expected 2 entries with 'week' filter, got %d", len(filtered))
+	}
+
+	// Test "month" filter (last 30 days)
+	m.historyDateFilter = "month"
+	filtered = m.getFilteredHistory()
+	if len(filtered) != 3 {
+		t.Errorf("Expected 3 entries with 'month' filter, got %d", len(filtered))
+	}
+}
+
+// TestRenderHistory tests rendering the history view
+func TestRenderHistory(t *testing.T) {
+	now := time.Now()
+	m := tuiModel{
+		historyEntries: []ExportHistoryEntry{
+			{
+				Timestamp:  now,
+				VMName:     "TestVM1",
+				Success:    true,
+				TotalSize:  1024 * 1024 * 1024, // 1 GB
+				Duration:   30 * time.Minute,
+				Provider:   "vsphere",
+				OutputDir:  "/tmp/exports",
+				FilesCount: 5,
+			},
+			{
+				Timestamp:    now.Add(-1 * time.Hour),
+				VMName:       "TestVM2",
+				Success:      false,
+				ErrorMessage: "Connection timeout",
+				TotalSize:    512 * 1024 * 1024,
+				Duration:     15 * time.Minute,
+				Provider:     "vsphere",
+			},
+		},
+		historyFilter:         "all",
+		historyDateFilter:     "all",
+		historyProviderFilter: "all",
+		historyCursor:         0,
+		termWidth:             100,
+	}
+
+	output := m.renderHistory()
+
+	// Verify output contains expected elements
+	if !strings.Contains(output, "EXPORT HISTORY") {
+		t.Error("Expected history view to contain 'EXPORT HISTORY' header")
+	}
+
+	if !strings.Contains(output, "TestVM1") {
+		t.Error("Expected history view to contain VM name")
+	}
+
+	if !strings.Contains(output, "✓") {
+		t.Error("Expected history view to contain success indicator")
+	}
+
+	if !strings.Contains(output, "F: Filter Status") {
+		t.Error("Expected history view to contain filter instructions")
+	}
+
+	// Verify summary stats (format: "📊 2 Total | ✓ 1 Success | ✗ 1 Failed")
+	if !strings.Contains(output, "Total") {
+		t.Error("Expected history view to contain total count")
+	}
+
+	if !strings.Contains(output, "Success") {
+		t.Error("Expected history view to contain success count")
+	}
+
+	if !strings.Contains(output, "Failed") {
+		t.Error("Expected history view to contain failed count")
+	}
+}
+
+// TestHistoryNavigation tests cursor navigation in history view
+func TestHistoryNavigation(t *testing.T) {
+	now := time.Now()
+	m := tuiModel{
+		historyEntries: []ExportHistoryEntry{
+			{Timestamp: now, VMName: "VM1", Success: true},
+			{Timestamp: now.Add(-1 * time.Hour), VMName: "VM2", Success: true},
+			{Timestamp: now.Add(-2 * time.Hour), VMName: "VM3", Success: true},
+		},
+		historyCursor: 0,
+	}
+
+	// Test moving down
+	if m.historyCursor < len(m.getFilteredHistory())-1 {
+		m.historyCursor++
+	}
+
+	if m.historyCursor != 1 {
+		t.Errorf("Expected cursor at 1, got %d", m.historyCursor)
+	}
+
+	// Move down again
+	if m.historyCursor < len(m.getFilteredHistory())-1 {
+		m.historyCursor++
+	}
+
+	if m.historyCursor != 2 {
+		t.Errorf("Expected cursor at 2, got %d", m.historyCursor)
+	}
+
+	// Try to move past end (should stay at 2)
+	if m.historyCursor < len(m.getFilteredHistory())-1 {
+		m.historyCursor++
+	}
+
+	if m.historyCursor != 2 {
+		t.Errorf("Expected cursor to stay at 2, got %d", m.historyCursor)
+	}
+
+	// Move up
+	if m.historyCursor > 0 {
+		m.historyCursor--
+	}
+
+	if m.historyCursor != 1 {
+		t.Errorf("Expected cursor at 1 after moving up, got %d", m.historyCursor)
+	}
+}
+
+// TestHistoryWithEmptyEntries tests history view with no entries
+func TestHistoryWithEmptyEntries(t *testing.T) {
+	m := tuiModel{
+		historyEntries:    []ExportHistoryEntry{},
+		historyFilter:     "all",
+		historyDateFilter: "all",
+		historyCursor:     0,
+		termWidth:         100,
+	}
+
+	output := m.renderHistory()
+
+	// Should render without error
+	if !strings.Contains(output, "EXPORT HISTORY") {
+		t.Error("Expected history view header even with no entries")
+	}
+
+	// Should show "No export history found" message
+	if !strings.Contains(output, "No export history found") {
+		t.Error("Expected 'No export history found' message in empty history")
+	}
+
+	filtered := m.getFilteredHistory()
+	if len(filtered) != 0 {
+		t.Errorf("Expected 0 filtered entries, got %d", len(filtered))
+	}
+}
+
+// TestHistoryFilterCycling tests cycling through status and date filters
+func TestHistoryFilterCycling(t *testing.T) {
+	m := tuiModel{
+		historyFilter:     "all",
+		historyDateFilter: "all",
+	}
+
+	// Test status filter cycling: all -> success -> failed -> all
+	m.historyFilter = "all"
+	if m.historyFilter != "all" {
+		t.Errorf("Expected initial filter 'all', got %s", m.historyFilter)
+	}
+
+	m.historyFilter = "success"
+	if m.historyFilter != "success" {
+		t.Errorf("Expected filter 'success', got %s", m.historyFilter)
+	}
+
+	m.historyFilter = "failed"
+	if m.historyFilter != "failed" {
+		t.Errorf("Expected filter 'failed', got %s", m.historyFilter)
+	}
+
+	m.historyFilter = "all"
+	if m.historyFilter != "all" {
+		t.Errorf("Expected filter back to 'all', got %s", m.historyFilter)
+	}
+
+	// Test date filter cycling: all -> today -> week -> month -> all
+	m.historyDateFilter = "all"
+	if m.historyDateFilter != "all" {
+		t.Errorf("Expected initial date filter 'all', got %s", m.historyDateFilter)
+	}
+
+	m.historyDateFilter = "today"
+	if m.historyDateFilter != "today" {
+		t.Errorf("Expected date filter 'today', got %s", m.historyDateFilter)
+	}
+
+	m.historyDateFilter = "week"
+	if m.historyDateFilter != "week" {
+		t.Errorf("Expected date filter 'week', got %s", m.historyDateFilter)
+	}
+
+	m.historyDateFilter = "month"
+	if m.historyDateFilter != "month" {
+		t.Errorf("Expected date filter 'month', got %s", m.historyDateFilter)
+	}
+
+	m.historyDateFilter = "all"
+	if m.historyDateFilter != "all" {
+		t.Errorf("Expected date filter back to 'all', got %s", m.historyDateFilter)
 	}
 }
