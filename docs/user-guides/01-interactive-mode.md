@@ -13,6 +13,7 @@ The interactive mode provides a powerful Terminal User Interface (TUI) for disco
 - [Split-Screen Mode](#split-screen-mode)
 - [Export Queue Management](#export-queue-management)
 - [Export History View](#export-history-view)
+- [Live Logs Viewer](#live-logs-viewer)
 - [Dry-Run Mode](#dry-run-mode)
 - [Migration Workflow](#migration-workflow)
 - [Keyboard Reference](#keyboard-reference)
@@ -358,6 +359,138 @@ When you select a history entry, detailed information appears at the bottom:
 - Check that you have exports matching the filter criteria
 - For date filters, ensure exports exist in the time range
 
+## Live Logs Viewer
+
+Press `L` (capital L) to open the live logs viewer, which displays real-time export logs with filtering and scrolling capabilities.
+
+**Opening the Logs Viewer:**
+- Press **L** from the main VM selection screen or during exports
+- Logs viewer shows all log messages in chronological order
+- Maximum of 1000 log entries kept in memory (oldest pruned automatically)
+
+**Log Display:**
+The logs viewer shows:
+- **Level indicator:** ℹ (info-teal), ⚠ (warn-yellow), ✗ (error-red), 🐛 (debug-gray)
+- **Timestamp:** Time of log entry in HH:MM:SS format
+- **VM name:** Associated VM name (if applicable) in orange brackets
+- **Message:** Log message (truncated if too long for terminal width)
+
+**Summary Statistics:**
+At the top of the logs view, you'll see:
+```
+📊 50 Total | ℹ 35 Info | ⚠ 10 Warn | ✗ 3 Error | 🐛 2 Debug
+```
+- **Total:** Number of log entries matching current filter
+- **Info/Warn/Error/Debug:** Count by log level
+- Real-time updates as new logs are added
+
+**Filtering Options:**
+
+1. **Log Level Filter (L key):**
+   - Press **L** to cycle through: all → info → warn → error → debug → all
+   - Filter by log severity level
+   - Active filter shown at top: `Level: INFO` or `Level: ERROR`
+
+2. **Auto-Scroll (A key):**
+   - Press **A** to toggle auto-scroll on/off
+   - **ON:** Automatically jumps to newest log when added (default)
+   - **OFF:** Stays at current position for manual review
+   - Status shown at top: `[AUTO-SCROLL ON]` or `[AUTO-SCROLL OFF]`
+
+**Logs Controls:**
+- **↑ / k** - Navigate up in logs
+- **↓ / j** - Navigate down in logs
+- **g** - Jump to top (oldest log)
+- **G** - Jump to bottom (newest log) and enable auto-scroll
+- **L** - Cycle log level filter (all/info/warn/error/debug)
+- **A** - Toggle auto-scroll on/off
+- **C** - Clear all logs
+- **Esc / b** - Return to previous view
+- **q** - Quit application
+
+**Log Scrolling:**
+- Shows last 20 log entries at a time
+- Scroll up/down to view older/newer logs
+- Indicators show "X more above" or "X more below" when applicable
+- Selected log highlighted with cursor (❯)
+
+**Color Coding:**
+Log levels are color-coded for quick identification:
+- **INFO** (ℹ teal): Normal informational messages
+- **WARN** (⚠ yellow): Warnings that don't stop execution
+- **ERROR** (✗ red): Errors requiring attention
+- **DEBUG** (🐛 gray): Detailed debugging information
+
+**Use Cases:**
+
+1. **Real-time monitoring:** Watch export progress live during migrations
+2. **Error diagnosis:** Filter to ERROR level to see only failures
+3. **Performance analysis:** Review timestamps to identify slow operations
+4. **Debugging:** Enable DEBUG level for detailed troubleshooting
+5. **VM tracking:** See which logs belong to which VM
+
+**Example Workflow:**
+1. Start an export operation
+2. Press **L** to open logs viewer
+3. Watch real-time logs with auto-scroll ON
+4. If error occurs, logs continue scrolling
+5. Press **A** to disable auto-scroll
+6. Press **L** twice to filter ERROR only
+7. Navigate through errors with ↑/↓
+8. Press **g** to jump to first error
+9. Review error details
+10. Press **Esc** to return to export view
+
+**Example: Debugging Failed Export**
+1. Export fails
+2. Press **L** to open logs
+3. Press **L** twice to filter ERROR level only
+4. Review error messages
+5. Note VM name and timestamp
+6. Press **G** to see most recent error
+7. Press **C** to clear logs
+8. Retry export and monitor new logs
+
+**Example: Monitoring Multiple Exports**
+1. Select multiple VMs for export
+2. Press **L** before starting
+3. Auto-scroll ON to follow progress
+4. See each VM's logs tagged with [VMName]
+5. Watch for any warnings or errors
+6. Jump to top (g) to review start
+7. Jump to bottom (G) to see latest
+
+**Performance Notes:**
+- Logs limited to 1000 entries (oldest auto-pruned)
+- Filtering is instant even with full log buffer
+- Last 20 entries displayed at a time for performance
+- Auto-scroll updates cursor only when enabled
+
+**Integration with Exports:**
+- Logs automatically populate during export operations
+- Export progress messages appear in logs
+- File download progress logged
+- Errors and warnings captured automatically
+- VM-specific logs tagged with VM name
+
+**Troubleshooting:**
+
+**"No log entries found":**
+- No exports have been run yet in this session
+- Logs were cleared with **C** key
+- All logs filtered out by current level filter
+- Press **L** to cycle back to "all" level filter
+
+**Logs not updating:**
+- Auto-scroll may be disabled - press **A** to enable
+- Check that export operations are running
+- Some operations may not generate logs
+
+**Can't see recent logs:**
+- Press **G** to jump to bottom
+- Enable auto-scroll with **A** key
+- Check log level filter - may be filtering out info logs
+
 ## Dry-Run Mode
 
 Press `r` to toggle dry-run mode.
@@ -477,6 +610,7 @@ The migration proceeds in stages:
 | Tab | Switch pane (in split-screen) |
 | Q | Open export queue manager |
 | H | Open export history |
+| L | Open live logs viewer |
 | r | Toggle dry-run mode |
 
 ### Queue Management (in queue view)
@@ -497,6 +631,18 @@ The migration proceeds in stages:
 | D | Cycle date filter |
 | R | Refresh history |
 | Esc | Return to selection |
+
+### Logs View (in logs)
+| Key | Action |
+|-----|--------|
+| ↑ / k | Navigate up |
+| ↓ / j | Navigate down |
+| g | Jump to top (oldest) |
+| G | Jump to bottom (newest) |
+| L | Cycle log level filter |
+| A | Toggle auto-scroll |
+| C | Clear all logs |
+| Esc | Return to previous view |
 
 ## Examples
 
