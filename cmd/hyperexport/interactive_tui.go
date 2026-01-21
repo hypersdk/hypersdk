@@ -4367,9 +4367,41 @@ func (m tuiModel) exportNext() tea.Cmd {
 		for _, item := range m.vms {
 			if item.selected {
 				if exportIndex == m.currentExport {
-					// Export this VM
-					// TODO: Implement actual export with parallel downloads
-					time.Sleep(2 * time.Second) // Simulate export
+					// Build export options
+					opts := &vsphere.ExportOptions{
+						OutputPath:         m.outputDir,
+						Format:             "ovf", // Default to OVF
+						Compress:           false,
+						ValidateChecksum:   false,
+						ParallelDownloads:  1,
+						ShowIndividualProgress: true,
+						ShowOverallProgress:    true,
+					}
+
+					// Apply selected template if available
+					if m.selectedTemplate != nil {
+						opts.Format = m.selectedTemplate.format
+						opts.Compress = m.selectedTemplate.compress
+						opts.ValidateChecksum = m.selectedTemplate.verify
+						if m.selectedTemplate.format == "ova" {
+							opts.CleanupOVF = true
+						}
+					}
+
+					// Apply feature configuration
+					if m.featureConfig.enableBandwidthLimit {
+						// Note: bandwidth limiting would need to be implemented in the ExportOVF function
+						m.log.Info("Bandwidth limit: %d MB/s", m.featureConfig.bandwidthLimitMBps)
+					}
+
+					// Perform the actual export
+					result, err := m.client.ExportOVF(m.ctx, item.vm.Path, *opts)
+					if err != nil {
+						m.log.Error("Export failed for %s: %v", item.vm.Name, err)
+						return exportDoneMsg{vmName: item.vm.Name, err: err}
+					}
+
+					m.log.Info("Export completed for %s: %s", item.vm.Name, result.OVFPath)
 					return exportDoneMsg{vmName: item.vm.Name, err: nil}
 				}
 				exportIndex++
