@@ -4,6 +4,9 @@ bin/
 /hyperexport
 /hypervisord
 /hyperctl
+cmd/hyperexport/hyperexport
+cmd/hypervisord/hypervisord
+cmd/hyperctl/hyperctl
 *.exe
 *.dll
 *.so
