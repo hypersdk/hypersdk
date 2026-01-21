@@ -1946,6 +1946,10 @@ func runInteractiveTUI(ctx context.Context, client *vsphere.VSphereClient, cfg *
 			key.WithKeys("x"),
 			key.WithHelp("x", "quick actions"),
 		),
+		BulkOps: key.NewBinding(
+			key.WithKeys("b"),
+			key.WithHelp("b", "bulk operations"),
+		),
 	}
 
 	// Create initial model

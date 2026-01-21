@@ -112,11 +112,32 @@ type quickAction struct {
 	enabled     func(*vsphere.VMInfo) bool
 }
 
+// bulkOperation represents an operation that can be performed on multiple VMs
+type bulkOperation struct {
+	name        string
+	description string
+	icon        string
+	category    string // "power", "snapshot", "maintenance"
+	confirmText string // Confirmation message before executing
+	handler     func(*tuiModel, []vsphere.VMInfo) tea.Cmd
+	enabled     func([]vsphere.VMInfo) bool
+}
+
+// bulkOpStatus tracks the status of a bulk operation on a VM
+type bulkOpStatus struct {
+	vmName    string
+	status    string // "pending", "running", "completed", "failed"
+	message   string
+	startTime time.Time
+	endTime   time.Time
+	error     error
+}
+
 type tuiModel struct {
 	vms              []tuiVMItem
 	filteredVMs      []tuiVMItem
 	cursor           int
-	phase            string // "select", "confirm", "template", "regex", "cloud", "features", "export", "cloudupload", "done", "search", "details", "validation", "config", "stats", "queue", "history", "logs", "tree", "preview", "actions"
+	phase            string // "select", "confirm", "template", "regex", "cloud", "features", "export", "cloudupload", "done", "search", "details", "validation", "config", "stats", "queue", "history", "logs", "tree", "preview", "actions", "bulkops"
 	detailsVM        *vsphere.VMInfo // VM to show details for
 	validationReport *ValidationReport // Pre-export validation results
 	configPanel      *configPanelState // Interactive config panel state
@@ -199,6 +220,11 @@ type tuiModel struct {
 	showActionsMenu bool
 	actionsCursor   int
 	actionsForVM    *vsphere.VMInfo
+
+	// Bulk operations manager
+	showBulkOps     bool
+	bulkOpsCursor   int
+	bulkOpsProgress map[string]bulkOpStatus // VM path -> status
 
 	// Configuration
 	client    *vsphere.VSphereClient
@@ -316,6 +342,7 @@ type tuiKeyMap struct {
 	ExpandFolder key.Binding
 	Preview     key.Binding
 	Actions     key.Binding
+	BulkOps     key.Binding
 }
 
 func (k tuiKeyMap) ShortHelp() []key.Binding {
@@ -620,6 +647,8 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.handlePreviewKeys(msg)
 		case "actions":
 			return m.handleActionsKeys(msg)
+		case "bulkops":
+			return m.handleBulkOpsKeys(msg)
 		case "cloud":
 			// Cloud phase is handled by cloudSelectionModel
 			return m, nil
@@ -904,6 +933,18 @@ func (m tuiModel) handleSelectionKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.showActionsMenu = true
 			m.phase = "actions"
 		}
+		return m, nil
+
+	case "b", "B":
+		// Show bulk operations menu
+		if m.countSelected() == 0 {
+			m.message = "No VMs selected! Select VMs with SPACE first."
+			return m, nil
+		}
+		m.bulkOpsCursor = 0
+		m.showBulkOps = true
+		m.bulkOpsProgress = make(map[string]bulkOpStatus)
+		m.phase = "bulkops"
 		return m, nil
 	}
 
@@ -1433,6 +1474,8 @@ func (m tuiModel) View() string {
 		return m.renderPreview()
 	case "actions":
 		return m.renderActions()
+	case "bulkops":
+		return m.renderBulkOps()
 	case "export":
 		return m.renderExport()
 	case "cloudupload":
@@ -3201,6 +3244,7 @@ Filters:
 Actions:
   i         Show VM details
   x         Quick actions menu (power, snapshot, export)
+  b         Bulk operations (perform actions on multiple VMs)
   u         Cloud upload (S3/Azure/GCS/SFTP)
   t         Export templates
   f         Advanced features
@@ -4990,6 +5034,364 @@ func (m tuiModel) getAvailableActions(vm *vsphere.VMInfo) []quickAction {
 	}
 
 	return actions
+}
+
+// renderBulkOps renders the bulk operations menu
+func (m tuiModel) renderBulkOps() string {
+	var b strings.Builder
+
+	header := lipgloss.NewStyle().
+		Foreground(deepOrange).
+		Bold(true).
+		Render("⚙️  BULK OPERATIONS  (Esc/B: Back | Enter: Execute | ↑↓: Navigate)")
+	b.WriteString(header)
+	b.WriteString("\n\n")
+
+	selectedVMs := m.getSelectedVMs()
+	if len(selectedVMs) == 0 {
+		b.WriteString(errorStyleTUI.Render("No VMs selected"))
+		return b.String()
+	}
+
+	// Summary of selected VMs
+	summaryHeader := lipgloss.NewStyle().
+		Foreground(tealInfo).
+		Bold(true).
+		Render(fmt.Sprintf("Selected VMs: %d", len(selectedVMs)))
+	b.WriteString(summaryHeader)
+	b.WriteString("\n")
+
+	// Show first few VM names
+	maxShow := 5
+	for i, vmItem := range selectedVMs {
+		if i >= maxShow {
+			b.WriteString(lipgloss.NewStyle().
+				Foreground(mutedGray).
+				Render(fmt.Sprintf("    ... and %d more\n", len(selectedVMs)-maxShow)))
+			break
+		}
+		vmLine := lipgloss.NewStyle().
+			Foreground(mutedGray).
+			Render(fmt.Sprintf("    • %s (%s)\n", vmItem.vm.Name, vmItem.vm.PowerState))
+		b.WriteString(vmLine)
+	}
+	b.WriteString("\n")
+
+	// Get available bulk operations
+	operations := m.getBulkOperations(selectedVMs)
+
+	// Group operations by category
+	categories := map[string][]bulkOperation{
+		"power":       {},
+		"snapshot":    {},
+		"maintenance": {},
+	}
+
+	for _, op := range operations {
+		categories[op.category] = append(categories[op.category], op)
+	}
+
+	// Render operations by category
+	categoryOrder := []string{"power", "snapshot", "maintenance"}
+	categoryTitles := map[string]string{
+		"power":       "⚡ Power Management",
+		"snapshot":    "📸 Snapshot Operations",
+		"maintenance": "🔧 Maintenance",
+	}
+
+	opIndex := 0
+	for _, catKey := range categoryOrder {
+		catOps := categories[catKey]
+		if len(catOps) == 0 {
+			continue
+		}
+
+		categoryTitle := lipgloss.NewStyle().
+			Foreground(amberYellow).
+			Bold(true).
+			Render(categoryTitles[catKey])
+		b.WriteString(categoryTitle)
+		b.WriteString("\n")
+
+		for _, op := range catOps {
+			cursor := "  "
+			opStyle := lipgloss.NewStyle()
+
+			if opIndex == m.bulkOpsCursor {
+				cursor = "❯ "
+				opStyle = opStyle.
+					Foreground(deepOrange).
+					Bold(true).
+					Background(lightBg)
+			} else {
+				opStyle = opStyle.Foreground(offWhite)
+			}
+
+			vmInfos := make([]vsphere.VMInfo, len(selectedVMs))
+			for i, vm := range selectedVMs {
+				vmInfos[i] = vm.vm
+			}
+
+			enabled := op.enabled(vmInfos)
+			disabledIndicator := ""
+			if !enabled {
+				opStyle = opStyle.Foreground(mutedGray)
+				disabledIndicator = " (not available)"
+			}
+
+			line := fmt.Sprintf("%s%s %s%s", cursor, op.icon, op.name, disabledIndicator)
+			b.WriteString(opStyle.Render(line))
+			b.WriteString("\n")
+
+			if opIndex == m.bulkOpsCursor {
+				desc := lipgloss.NewStyle().
+					Foreground(mutedGray).
+					Italic(true).
+					Render(fmt.Sprintf("    %s", op.description))
+				b.WriteString(desc)
+				b.WriteString("\n")
+
+				// Show warning for destructive operations
+				if strings.Contains(op.name, "Power Off") || strings.Contains(op.name, "Delete") || strings.Contains(op.name, "Reset") {
+					warning := lipgloss.NewStyle().
+						Foreground(warningColor).
+						Bold(true).
+						Render(fmt.Sprintf("    ⚠️  Warning: This will affect %d VMs!", len(selectedVMs)))
+					b.WriteString(warning)
+					b.WriteString("\n")
+				}
+			}
+
+			opIndex++
+		}
+		b.WriteString("\n")
+	}
+
+	// Help footer
+	helpText := helpStyleTUI.Render("Press Enter to execute operation on all selected VMs, Esc/B to go back")
+	b.WriteString("\n")
+	b.WriteString(helpText)
+	b.WriteString("\n")
+
+	return b.String()
+}
+
+// handleBulkOpsKeys handles keyboard input in bulk operations menu
+func (m tuiModel) handleBulkOpsKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	selectedVMs := m.getSelectedVMs()
+	vmInfos := make([]vsphere.VMInfo, len(selectedVMs))
+	for i, vm := range selectedVMs {
+		vmInfos[i] = vm.vm
+	}
+
+	operations := m.getBulkOperations(selectedVMs)
+	totalOps := len(operations)
+
+	switch msg.String() {
+	case "ctrl+c", "q":
+		return m, tea.Quit
+
+	case "escape", "b", "B":
+		// Return to select phase
+		m.phase = "select"
+		m.showBulkOps = false
+		return m, nil
+
+	case "up", "k":
+		if m.bulkOpsCursor > 0 {
+			m.bulkOpsCursor--
+		}
+
+	case "down", "j":
+		if m.bulkOpsCursor < totalOps-1 {
+			m.bulkOpsCursor++
+		}
+
+	case "enter":
+		// Execute the selected bulk operation
+		if m.bulkOpsCursor < len(operations) {
+			op := operations[m.bulkOpsCursor]
+			if op.enabled(vmInfos) {
+				// Show confirmation message
+				m.message = fmt.Sprintf("Executing '%s' on %d VMs... (not yet implemented)", op.name, len(selectedVMs))
+				m.phase = "select"
+				m.showBulkOps = false
+				// In a real implementation, would execute: return op.handler(&m, vmInfos)
+				return m, nil
+			} else {
+				m.message = "This operation is not available for the current VM selection"
+			}
+		}
+	}
+
+	return m, nil
+}
+
+// getBulkOperations returns list of available bulk operations
+func (m tuiModel) getBulkOperations(selectedVMs []tuiVMItem) []bulkOperation {
+	if len(selectedVMs) == 0 {
+		return []bulkOperation{}
+	}
+
+	operations := []bulkOperation{
+		// Power operations
+		{
+			name:        "Power On All",
+			description: "Power on all selected virtual machines",
+			icon:        "▶️",
+			category:    "power",
+			confirmText: "Are you sure you want to power on all selected VMs?",
+			enabled: func(vms []vsphere.VMInfo) bool {
+				// Check if at least one VM is powered off
+				for _, vm := range vms {
+					if vm.PowerState == "poweredOff" {
+						return true
+					}
+				}
+				return false
+			},
+			handler: func(m *tuiModel, vms []vsphere.VMInfo) tea.Cmd {
+				// Placeholder for bulk power on
+				return nil
+			},
+		},
+		{
+			name:        "Power Off All",
+			description: "Gracefully shutdown all selected virtual machines",
+			icon:        "⏹️",
+			category:    "power",
+			confirmText: "Are you sure you want to power off all selected VMs?",
+			enabled: func(vms []vsphere.VMInfo) bool {
+				// Check if at least one VM is powered on
+				for _, vm := range vms {
+					if vm.PowerState == "poweredOn" {
+						return true
+					}
+				}
+				return false
+			},
+			handler: func(m *tuiModel, vms []vsphere.VMInfo) tea.Cmd {
+				// Placeholder for bulk power off
+				return nil
+			},
+		},
+		{
+			name:        "Reset All",
+			description: "Force reset all selected virtual machines (hard reboot)",
+			icon:        "🔄",
+			category:    "power",
+			confirmText: "Are you sure you want to reset all selected VMs? This is a hard reboot!",
+			enabled: func(vms []vsphere.VMInfo) bool {
+				// Check if at least one VM is powered on
+				for _, vm := range vms {
+					if vm.PowerState == "poweredOn" {
+						return true
+					}
+				}
+				return false
+			},
+			handler: func(m *tuiModel, vms []vsphere.VMInfo) tea.Cmd {
+				// Placeholder for bulk reset
+				return nil
+			},
+		},
+
+		// Snapshot operations
+		{
+			name:        "Create Snapshots",
+			description: "Create a point-in-time snapshot for all selected VMs",
+			icon:        "📸",
+			category:    "snapshot",
+			confirmText: "Create snapshots for all selected VMs?",
+			enabled: func(vms []vsphere.VMInfo) bool {
+				return true // Always available
+			},
+			handler: func(m *tuiModel, vms []vsphere.VMInfo) tea.Cmd {
+				// Placeholder for bulk snapshot creation
+				return nil
+			},
+		},
+		{
+			name:        "Delete All Snapshots",
+			description: "Remove all snapshots from selected VMs and reclaim disk space",
+			icon:        "🗑️",
+			category:    "snapshot",
+			confirmText: "Delete all snapshots from selected VMs? This cannot be undone!",
+			enabled: func(vms []vsphere.VMInfo) bool {
+				return true // Would need to check if snapshots exist
+			},
+			handler: func(m *tuiModel, vms []vsphere.VMInfo) tea.Cmd {
+				// Placeholder for bulk snapshot deletion
+				return nil
+			},
+		},
+		{
+			name:        "Consolidate Snapshots",
+			description: "Consolidate snapshot disks for all selected VMs",
+			icon:        "📊",
+			category:    "snapshot",
+			confirmText: "Consolidate snapshots for all selected VMs?",
+			enabled: func(vms []vsphere.VMInfo) bool {
+				return true
+			},
+			handler: func(m *tuiModel, vms []vsphere.VMInfo) tea.Cmd {
+				// Placeholder for bulk snapshot consolidation
+				return nil
+			},
+		},
+
+		// Maintenance operations
+		{
+			name:        "Tag All VMs",
+			description: "Apply tags to all selected VMs",
+			icon:        "🏷️",
+			category:    "maintenance",
+			confirmText: "Tag all selected VMs?",
+			enabled: func(vms []vsphere.VMInfo) bool {
+				return true
+			},
+			handler: func(m *tuiModel, vms []vsphere.VMInfo) tea.Cmd {
+				// Placeholder for bulk tagging
+				return nil
+			},
+		},
+		{
+			name:        "Update VMware Tools",
+			description: "Update VMware Tools on all selected VMs",
+			icon:        "🔧",
+			category:    "maintenance",
+			confirmText: "Update VMware Tools on all selected VMs?",
+			enabled: func(vms []vsphere.VMInfo) bool {
+				// Check if at least one VM is powered on
+				for _, vm := range vms {
+					if vm.PowerState == "poweredOn" {
+						return true
+					}
+				}
+				return false
+			},
+			handler: func(m *tuiModel, vms []vsphere.VMInfo) tea.Cmd {
+				// Placeholder for VMware Tools update
+				return nil
+			},
+		},
+		{
+			name:        "Change Resource Allocation",
+			description: "Modify CPU/memory allocation for all selected VMs",
+			icon:        "⚙️",
+			category:    "maintenance",
+			confirmText: "Change resource allocation for all selected VMs?",
+			enabled: func(vms []vsphere.VMInfo) bool {
+				return true
+			},
+			handler: func(m *tuiModel, vms []vsphere.VMInfo) tea.Cmd {
+				// Placeholder for resource allocation change
+				return nil
+			},
+		},
+	}
+
+	return operations
 }
 
 // handleTreeKeys handles keyboard input in tree view
