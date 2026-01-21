@@ -223,11 +223,50 @@ type snapshotTreeNode struct {
 	expanded bool
 }
 
+// resourceAllocation represents a resource allocation scenario
+type resourceAllocation struct {
+	name             string
+	description      string
+	targetHost       string
+	vms              []vsphere.VMInfo
+	totalCPU         int32
+	totalMemory      int64
+	totalStorage     int64
+	cpuUtilization   float64
+	memoryUtilization float64
+	storageUtilization float64
+	warnings         []string
+	recommendations  []string
+}
+
+// resourcePlannerState manages the resource allocation planner
+type resourcePlannerState struct {
+	mode            string // "overview", "hosts", "plan", "optimize", "recommendations"
+	scenarios       []resourceAllocation
+	selectedScenario int
+	cursor          int
+	hostCapacity    map[string]hostResources
+	optimizationGoal string // "balanced", "cpu", "memory", "storage", "cost"
+}
+
+// hostResources represents available resources on a host
+type hostResources struct {
+	name            string
+	totalCPU        int32
+	totalMemory     int64
+	totalStorage    int64
+	availableCPU    int32
+	availableMemory int64
+	availableStorage int64
+	vmCount         int
+	status          string // "healthy", "overcommitted", "underutilized"
+}
+
 type tuiModel struct {
 	vms              []tuiVMItem
 	filteredVMs      []tuiVMItem
 	cursor           int
-	phase            string // "select", "confirm", "template", "regex", "cloud", "features", "export", "cloudupload", "done", "search", "details", "validation", "config", "stats", "queue", "history", "logs", "tree", "preview", "actions", "bulkops", "compare", "bookmarks", "metrics", "filterbuilder", "snapshots"
+	phase            string // "select", "confirm", "template", "regex", "cloud", "features", "export", "cloudupload", "done", "search", "details", "validation", "config", "stats", "queue", "history", "logs", "tree", "preview", "actions", "bulkops", "compare", "bookmarks", "metrics", "filterbuilder", "snapshots", "resources"
 	detailsVM        *vsphere.VMInfo // VM to show details for
 	validationReport *ValidationReport // Pre-export validation results
 	configPanel      *configPanelState // Interactive config panel state
@@ -342,6 +381,10 @@ type tuiModel struct {
 	// Snapshot manager
 	showSnapshotManager bool
 	snapshotManager     *snapshotManagerState
+
+	// Resource allocation planner
+	showResourcePlanner bool
+	resourcePlanner     *resourcePlannerState
 
 	// Configuration
 	client    *vsphere.VSphereClient
@@ -465,6 +508,7 @@ type tuiKeyMap struct {
 	Metrics     key.Binding
 	FilterBuilder key.Binding
 	Snapshots   key.Binding
+	Resources   key.Binding
 }
 
 func (k tuiKeyMap) ShortHelp() []key.Binding {
@@ -781,6 +825,8 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.handleFilterBuilderKeys(msg)
 		case "snapshots":
 			return m.handleSnapshotManagerKeys(msg)
+		case "resources":
+			return m.handleResourcePlannerKeys(msg)
 		case "cloud":
 			// Cloud phase is handled by cloudSelectionModel
 			return m, nil
@@ -1150,6 +1196,13 @@ func (m tuiModel) handleSelectionKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			}
 			m.phase = "snapshots"
 		}
+		return m, nil
+
+	case "R":
+		// Show resource allocation planner
+		m.showResourcePlanner = true
+		m.resourcePlanner = m.initializeResourcePlanner()
+		m.phase = "resources"
 		return m, nil
 	}
 
@@ -1691,6 +1744,8 @@ func (m tuiModel) View() string {
 		return m.renderFilterBuilder()
 	case "snapshots":
 		return m.renderSnapshotManager()
+	case "resources":
+		return m.renderResourcePlanner()
 	case "export":
 		return m.renderExport()
 	case "cloudupload":
@@ -7709,6 +7764,497 @@ func (m *tuiModel) loadSnapshotsForVM(vm *vsphere.VMInfo) []vmSnapshot {
 	}
 
 	return snapshots
+}
+
+// renderResourcePlanner renders the resource allocation planner interface
+func (m tuiModel) renderResourcePlanner() string {
+	if m.resourcePlanner == nil {
+		return "Resource planner not initialized"
+	}
+
+	rp := m.resourcePlanner
+	var b strings.Builder
+
+	// Title
+	titleStyle := lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.Color("39")).
+		Background(lipgloss.Color("235")).
+		Padding(0, 2)
+
+	b.WriteString(titleStyle.Render("📊 RESOURCE ALLOCATION PLANNER"))
+	b.WriteString("\n\n")
+
+	// Mode indicator
+	modeStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("208"))
+	switch rp.mode {
+	case "overview":
+		b.WriteString(modeStyle.Render("Mode: Cluster Overview"))
+	case "hosts":
+		b.WriteString(modeStyle.Render("Mode: Host Resources"))
+	case "plan":
+		b.WriteString(modeStyle.Render("Mode: Allocation Planning"))
+	case "optimize":
+		b.WriteString(modeStyle.Render("Mode: Resource Optimization"))
+	case "recommendations":
+		b.WriteString(modeStyle.Render("Mode: Recommendations"))
+	}
+	b.WriteString("\n\n")
+
+	if rp.mode == "overview" {
+		// Cluster-wide resource overview
+		var totalCPU, availableCPU int32
+		var totalMemory, availableMemory, totalStorage, availableStorage int64
+		totalVMs := 0
+
+		for _, host := range rp.hostCapacity {
+			totalCPU += host.totalCPU
+			availableCPU += host.availableCPU
+			totalMemory += host.totalMemory
+			availableMemory += host.availableMemory
+			totalStorage += host.totalStorage
+			availableStorage += host.availableStorage
+			totalVMs += host.vmCount
+		}
+
+		headerStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("255"))
+		b.WriteString(headerStyle.Render("Cluster Resource Summary\n\n"))
+
+		labelStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("243"))
+		valueStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("255"))
+
+		// CPU stats
+		cpuUsed := totalCPU - availableCPU
+		cpuPercent := float64(0)
+		if totalCPU > 0 {
+			cpuPercent = float64(cpuUsed) * 100.0 / float64(totalCPU)
+		}
+		b.WriteString(labelStyle.Render("CPU Resources:        "))
+		b.WriteString(valueStyle.Render(fmt.Sprintf("%d / %d cores (%.1f%% used)\n", cpuUsed, totalCPU, cpuPercent)))
+		b.WriteString(m.renderResourceBar(cpuPercent, 50))
+		b.WriteString("\n\n")
+
+		// Memory stats
+		memUsed := totalMemory - availableMemory
+		memPercent := float64(0)
+		if totalMemory > 0 {
+			memPercent = float64(memUsed) * 100.0 / float64(totalMemory)
+		}
+		b.WriteString(labelStyle.Render("Memory Resources:     "))
+		b.WriteString(valueStyle.Render(fmt.Sprintf("%s / %s (%.1f%% used)\n",
+			formatBytes(memUsed), formatBytes(totalMemory), memPercent)))
+		b.WriteString(m.renderResourceBar(memPercent, 50))
+		b.WriteString("\n\n")
+
+		// Storage stats
+		storUsed := totalStorage - availableStorage
+		storPercent := float64(0)
+		if totalStorage > 0 {
+			storPercent = float64(storUsed) * 100.0 / float64(totalStorage)
+		}
+		b.WriteString(labelStyle.Render("Storage Resources:    "))
+		b.WriteString(valueStyle.Render(fmt.Sprintf("%s / %s (%.1f%% used)\n",
+			formatBytes(storUsed), formatBytes(totalStorage), storPercent)))
+		b.WriteString(m.renderResourceBar(storPercent, 50))
+		b.WriteString("\n\n")
+
+		// Summary stats
+		b.WriteString(headerStyle.Render("Cluster Statistics\n\n"))
+		b.WriteString(labelStyle.Render("Total Hosts:          "))
+		b.WriteString(valueStyle.Render(fmt.Sprintf("%d\n", len(rp.hostCapacity))))
+		b.WriteString(labelStyle.Render("Total VMs:            "))
+		b.WriteString(valueStyle.Render(fmt.Sprintf("%d\n", totalVMs)))
+		b.WriteString(labelStyle.Render("Average VMs per Host: "))
+		avgVMs := 0.0
+		if len(rp.hostCapacity) > 0 {
+			avgVMs = float64(totalVMs) / float64(len(rp.hostCapacity))
+		}
+		b.WriteString(valueStyle.Render(fmt.Sprintf("%.1f\n", avgVMs)))
+
+	} else if rp.mode == "hosts" {
+		// Host-by-host resource breakdown
+		headerStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("255"))
+		b.WriteString(headerStyle.Render(fmt.Sprintf("%-25s %-12s %-15s %-15s %-10s %s\n",
+			"Host", "VMs", "CPU", "Memory", "Storage", "Status")))
+		b.WriteString(strings.Repeat("─", 100) + "\n")
+
+		hostList := make([]hostResources, 0)
+		for _, host := range rp.hostCapacity {
+			hostList = append(hostList, host)
+		}
+
+		for i, host := range hostList {
+			prefix := "  "
+			if i == rp.cursor {
+				prefix = "▶ "
+			}
+
+			cpuUsed := host.totalCPU - host.availableCPU
+			cpuPercent := float64(0)
+			if host.totalCPU > 0 {
+				cpuPercent = float64(cpuUsed) * 100.0 / float64(host.totalCPU)
+			}
+
+			memUsed := host.totalMemory - host.availableMemory
+			memPercent := float64(0)
+			if host.totalMemory > 0 {
+				memPercent = float64(memUsed) * 100.0 / float64(host.totalMemory)
+			}
+
+			storUsed := host.totalStorage - host.availableStorage
+			storPercent := float64(0)
+			if host.totalStorage > 0 {
+				storPercent = float64(storUsed) * 100.0 / float64(host.totalStorage)
+			}
+
+			statusColor := lipgloss.Color("46") // Green for healthy
+			if host.status == "overcommitted" {
+				statusColor = lipgloss.Color("196") // Red
+			} else if host.status == "underutilized" {
+				statusColor = lipgloss.Color("226") // Yellow
+			}
+
+			style := lipgloss.NewStyle().Foreground(lipgloss.Color("255"))
+			if i == rp.cursor {
+				style = lipgloss.NewStyle().
+					Foreground(lipgloss.Color("39")).
+					Bold(true).
+					Background(lipgloss.Color("237"))
+			}
+
+			line := fmt.Sprintf("%s%-25s %3d        %4d/%-4d (%3.0f%%) %8s/%-8s (%3.0f%%) %6s %s",
+				prefix,
+				truncateString(host.name, 25),
+				host.vmCount,
+				cpuUsed, host.totalCPU, cpuPercent,
+				formatBytes(memUsed)[:8], formatBytes(host.totalMemory)[:8], memPercent,
+				formatBytes(storUsed)[:6],
+				lipgloss.NewStyle().Foreground(statusColor).Render(host.status))
+
+			b.WriteString(style.Render(line) + "\n")
+		}
+
+	} else if rp.mode == "plan" {
+		// Allocation planning
+		selectedVMs := m.getSelectedVMs()
+		b.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("226")).Render(
+			fmt.Sprintf("Planning allocation for %d selected VMs\n\n", len(selectedVMs))))
+
+		if len(selectedVMs) > 0 {
+			var totalCPU int32
+			var totalMemory, totalStorage int64
+
+			for _, vmItem := range selectedVMs {
+				totalCPU += vmItem.vm.CPU
+				totalMemory += vmItem.vm.Memory
+				totalStorage += vmItem.vm.Storage
+			}
+
+			labelStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("243"))
+			valueStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("255"))
+
+			b.WriteString(labelStyle.Render("Total CPU Required:    "))
+			b.WriteString(valueStyle.Render(fmt.Sprintf("%d cores\n", totalCPU)))
+			b.WriteString(labelStyle.Render("Total Memory Required: "))
+			b.WriteString(valueStyle.Render(fmt.Sprintf("%s\n", formatBytes(totalMemory))))
+			b.WriteString(labelStyle.Render("Total Storage Required:"))
+			b.WriteString(valueStyle.Render(fmt.Sprintf("%s\n\n", formatBytes(totalStorage))))
+
+			// Find suitable hosts
+			b.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("46")).Render(
+				"Suitable Hosts:\n\n"))
+
+			suitableCount := 0
+			for _, host := range rp.hostCapacity {
+				if host.availableCPU >= totalCPU &&
+					host.availableMemory >= totalMemory &&
+					host.availableStorage >= totalStorage {
+					suitableCount++
+					b.WriteString(fmt.Sprintf("  ✓ %s - CPU: %d available, Mem: %s, Storage: %s\n",
+						host.name,
+						host.availableCPU,
+						formatBytes(host.availableMemory),
+						formatBytes(host.availableStorage)))
+				}
+			}
+
+			if suitableCount == 0 {
+				b.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("196")).Render(
+					"  ⚠ No single host can accommodate all selected VMs\n"))
+				b.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("243")).Render(
+					"  Consider distributing VMs across multiple hosts\n"))
+			}
+		} else {
+			b.WriteString("No VMs selected. Select VMs in the main view first.")
+		}
+
+	} else if rp.mode == "optimize" {
+		// Optimization recommendations
+		b.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("226")).Render(
+			fmt.Sprintf("Optimization Goal: %s\n\n", rp.optimizationGoal)))
+
+		headerStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("46"))
+		b.WriteString(headerStyle.Render("Optimization Recommendations:\n\n"))
+
+		recommendations := m.generateOptimizationRecommendations(rp)
+		for i, rec := range recommendations {
+			prefix := "  "
+			if i == rp.cursor {
+				prefix = "▶ "
+			}
+
+			style := lipgloss.NewStyle().Foreground(lipgloss.Color("255"))
+			if i == rp.cursor {
+				style = lipgloss.NewStyle().
+					Foreground(lipgloss.Color("39")).
+					Bold(true)
+			}
+
+			b.WriteString(style.Render(prefix + rec + "\n"))
+		}
+
+	} else if rp.mode == "recommendations" {
+		// General recommendations
+		headerStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("46"))
+		b.WriteString(headerStyle.Render("Resource Management Recommendations\n\n"))
+
+		recommendations := []string{
+			"Consider consolidating VMs on underutilized hosts to reduce power consumption",
+			"Balance CPU-heavy and memory-heavy workloads across hosts",
+			"Implement DRS (Distributed Resource Scheduler) for automatic load balancing",
+			"Review storage allocation to avoid fragmentation",
+			"Set up resource pools for different workload types",
+			"Monitor peak usage times and plan capacity accordingly",
+			"Use snapshots judiciously to manage storage consumption",
+			"Implement resource reservations for critical VMs",
+		}
+
+		for _, rec := range recommendations {
+			b.WriteString(fmt.Sprintf("  • %s\n", rec))
+		}
+	}
+
+	// Help footer
+	b.WriteString("\n\n")
+	helpStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
+
+	switch rp.mode {
+	case "overview":
+		b.WriteString(helpStyle.Render("1: Overview | 2: Hosts | 3: Plan | 4: Optimize | 5: Recommendations | Esc: Back"))
+	case "hosts":
+		b.WriteString(helpStyle.Render("↑↓/k/j: Navigate | 1-5: Switch mode | Esc: Back"))
+	case "plan":
+		b.WriteString(helpStyle.Render("1-5: Switch mode | Esc: Back"))
+	case "optimize":
+		b.WriteString(helpStyle.Render("↑↓/k/j: Navigate | G: Change goal | 1-5: Switch mode | Esc: Back"))
+	case "recommendations":
+		b.WriteString(helpStyle.Render("1-5: Switch mode | Esc: Back"))
+	}
+
+	return b.String()
+}
+
+// renderResourceBar renders a visual bar graph for resource utilization
+func (m tuiModel) renderResourceBar(percent float64, width int) string {
+	filled := int(percent * float64(width) / 100.0)
+	if filled > width {
+		filled = width
+	}
+
+	var color lipgloss.Color
+	if percent < 60 {
+		color = lipgloss.Color("46") // Green
+	} else if percent < 80 {
+		color = lipgloss.Color("226") // Yellow
+	} else {
+		color = lipgloss.Color("196") // Red
+	}
+
+	bar := strings.Repeat("█", filled) + strings.Repeat("░", width-filled)
+	return lipgloss.NewStyle().Foreground(color).Render(bar) + fmt.Sprintf(" %.1f%%", percent)
+}
+
+// handleResourcePlannerKeys handles keyboard input in resource planner mode
+func (m tuiModel) handleResourcePlannerKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	if m.resourcePlanner == nil {
+		m.phase = "select"
+		return m, nil
+	}
+
+	rp := m.resourcePlanner
+
+	switch msg.String() {
+	case "ctrl+c", "q":
+		return m, tea.Quit
+
+	case "escape", "esc":
+		// Exit resource planner
+		m.phase = "select"
+		m.showResourcePlanner = false
+		m.resourcePlanner = nil
+		return m, nil
+
+	case "1":
+		rp.mode = "overview"
+		rp.cursor = 0
+
+	case "2":
+		rp.mode = "hosts"
+		rp.cursor = 0
+
+	case "3":
+		rp.mode = "plan"
+		rp.cursor = 0
+
+	case "4":
+		rp.mode = "optimize"
+		rp.cursor = 0
+
+	case "5":
+		rp.mode = "recommendations"
+		rp.cursor = 0
+
+	case "up", "k":
+		if rp.mode == "hosts" || rp.mode == "optimize" {
+			if rp.cursor > 0 {
+				rp.cursor--
+			}
+		}
+
+	case "down", "j":
+		if rp.mode == "hosts" {
+			if rp.cursor < len(rp.hostCapacity)-1 {
+				rp.cursor++
+			}
+		} else if rp.mode == "optimize" {
+			recommendations := m.generateOptimizationRecommendations(rp)
+			if rp.cursor < len(recommendations)-1 {
+				rp.cursor++
+			}
+		}
+
+	case "g", "G":
+		if rp.mode == "optimize" {
+			// Cycle through optimization goals
+			goals := []string{"balanced", "cpu", "memory", "storage", "cost"}
+			for i, goal := range goals {
+				if goal == rp.optimizationGoal {
+					rp.optimizationGoal = goals[(i+1)%len(goals)]
+					break
+				}
+			}
+		}
+	}
+
+	return m, nil
+}
+
+// generateOptimizationRecommendations generates optimization recommendations
+func (m tuiModel) generateOptimizationRecommendations(rp *resourcePlannerState) []string {
+	recommendations := make([]string, 0)
+
+	switch rp.optimizationGoal {
+	case "balanced":
+		recommendations = append(recommendations,
+			"Distribute VMs evenly across all hosts to balance resource usage",
+			"Move CPU-intensive VMs to hosts with lower CPU utilization",
+			"Consolidate memory-light VMs to free up memory on busy hosts",
+			"Use anti-affinity rules to separate critical VMs across hosts")
+
+	case "cpu":
+		recommendations = append(recommendations,
+			"Migrate VMs from CPU-constrained hosts to hosts with available cores",
+			"Consider CPU resource pools for different priority levels",
+			"Enable CPU hot-add for scalability without downtime",
+			"Review and adjust CPU reservations and limits")
+
+	case "memory":
+		recommendations = append(recommendations,
+			"Consolidate VMs on memory-rich hosts",
+			"Enable memory ballooning for flexible allocation",
+			"Consider memory compression for better utilization",
+			"Review memory reservations and reduce where possible")
+
+	case "storage":
+		recommendations = append(recommendations,
+			"Move large VMs to hosts with more storage capacity",
+			"Clean up old snapshots to reclaim space",
+			"Use thin provisioning to reduce storage footprint",
+			"Consider storage vMotion to balance datastore usage")
+
+	case "cost":
+		recommendations = append(recommendations,
+			"Consolidate VMs to minimize number of active hosts",
+			"Power off or suspend development/test VMs when not in use",
+			"Right-size VMs to match actual resource usage",
+			"Use resource pools to enforce budget constraints")
+	}
+
+	return recommendations
+}
+
+// initializeResourcePlanner initializes the resource planner with simulated data
+func (m *tuiModel) initializeResourcePlanner() *resourcePlannerState {
+	// Simulate host capacity data
+	hostCapacity := make(map[string]hostResources)
+
+	// Calculate aggregate VM stats
+	var totalVMCPU int32
+	var totalVMMemory, totalVMStorage int64
+	for _, vmItem := range m.vms {
+		totalVMCPU += vmItem.vm.CPU
+		totalVMMemory += vmItem.vm.Memory
+		totalVMStorage += vmItem.vm.Storage
+	}
+
+	// Simulate 3 hosts with varying capacity
+	vmCount := len(m.vms)
+	vmPerHost := vmCount / 3
+
+	hostCapacity["esxi-host-01"] = hostResources{
+		name:             "esxi-host-01",
+		totalCPU:         64,
+		totalMemory:      256 * 1024 * 1024 * 1024, // 256 GB
+		totalStorage:     4 * 1024 * 1024 * 1024 * 1024, // 4 TB
+		availableCPU:     32,
+		availableMemory:  128 * 1024 * 1024 * 1024,
+		availableStorage: 2 * 1024 * 1024 * 1024 * 1024,
+		vmCount:          vmPerHost,
+		status:           "healthy",
+	}
+
+	hostCapacity["esxi-host-02"] = hostResources{
+		name:             "esxi-host-02",
+		totalCPU:         64,
+		totalMemory:      256 * 1024 * 1024 * 1024,
+		totalStorage:     4 * 1024 * 1024 * 1024 * 1024,
+		availableCPU:     8,
+		availableMemory:  32 * 1024 * 1024 * 1024,
+		availableStorage: 500 * 1024 * 1024 * 1024,
+		vmCount:          vmPerHost + 5,
+		status:           "overcommitted",
+	}
+
+	hostCapacity["esxi-host-03"] = hostResources{
+		name:             "esxi-host-03",
+		totalCPU:         64,
+		totalMemory:      256 * 1024 * 1024 * 1024,
+		totalStorage:     4 * 1024 * 1024 * 1024 * 1024,
+		availableCPU:     48,
+		availableMemory:  192 * 1024 * 1024 * 1024,
+		availableStorage: 3 * 1024 * 1024 * 1024 * 1024,
+		vmCount:          vmPerHost - 5,
+		status:           "underutilized",
+	}
+
+	return &resourcePlannerState{
+		mode:             "overview",
+		scenarios:        make([]resourceAllocation, 0),
+		selectedScenario: 0,
+		cursor:           0,
+		hostCapacity:     hostCapacity,
+		optimizationGoal: "balanced",
+	}
 }
 
 // handleTreeKeys handles keyboard input in tree view
