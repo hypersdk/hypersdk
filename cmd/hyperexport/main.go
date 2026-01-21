@@ -1910,6 +1910,26 @@ func runInteractiveTUI(ctx context.Context, client *vsphere.VSphereClient, cfg *
 			key.WithKeys("p"),
 			key.WithHelp("p", "change priority"),
 		),
+		History: key.NewBinding(
+			key.WithKeys("H"),
+			key.WithHelp("H", "export history"),
+		),
+		FilterHistory: key.NewBinding(
+			key.WithKeys("f"),
+			key.WithHelp("f", "filter history"),
+		),
+		Logs: key.NewBinding(
+			key.WithKeys("L"),
+			key.WithHelp("L", "view logs"),
+		),
+		FilterLogs: key.NewBinding(
+			key.WithKeys("l"),
+			key.WithHelp("l", "filter log level"),
+		),
+		ToggleAutoScroll: key.NewBinding(
+			key.WithKeys("a"),
+			key.WithHelp("a", "toggle auto-scroll"),
+		),
 	}
 
 	// Create initial model
@@ -1928,6 +1948,11 @@ func runInteractiveTUI(ctx context.Context, client *vsphere.VSphereClient, cfg *
 		keys:            keys,
 		splitScreenMode: false,
 		focusedPane:     "list",
+		logEntries:      []logEntry{},
+		logLevelFilter:  "all",
+		autoScrollLogs:  true,
+		showLogsPanel:   false,
+		maxLogEntries:   1000,
 	}
 
 	// Run the TUI program

@@ -3,6 +3,7 @@
 package main
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -1533,5 +1534,326 @@ func TestHistoryFilterCycling(t *testing.T) {
 	m.historyDateFilter = "all"
 	if m.historyDateFilter != "all" {
 		t.Errorf("Expected date filter back to 'all', got %s", m.historyDateFilter)
+	}
+}
+
+// TestAddLogEntry tests adding log entries
+func TestAddLogEntry(t *testing.T) {
+	m := tuiModel{
+		logEntries:     []logEntry{},
+		autoScrollLogs: true,
+		maxLogEntries:  1000,
+	}
+
+	m.addLogEntry("INFO", "Test message 1", "VM1")
+	if len(m.logEntries) != 1 {
+		t.Errorf("Expected 1 log entry, got %d", len(m.logEntries))
+	}
+
+	entry := m.logEntries[0]
+	if entry.level != "INFO" {
+		t.Errorf("Expected level INFO, got %s", entry.level)
+	}
+	if entry.message != "Test message 1" {
+		t.Errorf("Expected message 'Test message 1', got %s", entry.message)
+	}
+	if entry.vmName != "VM1" {
+		t.Errorf("Expected vmName 'VM1', got %s", entry.vmName)
+	}
+
+	// Add more entries
+	m.addLogEntry("WARN", "Warning message", "VM2")
+	m.addLogEntry("ERROR", "Error message", "VM3")
+
+	if len(m.logEntries) != 3 {
+		t.Errorf("Expected 3 log entries, got %d", len(m.logEntries))
+	}
+}
+
+// TestLogEntryLimit tests that log entries are limited to maxLogEntries
+func TestLogEntryLimit(t *testing.T) {
+	m := tuiModel{
+		logEntries:     []logEntry{},
+		autoScrollLogs: true,
+		maxLogEntries:  100,
+	}
+
+	// Add 150 entries
+	for i := 0; i < 150; i++ {
+		m.addLogEntry("INFO", fmt.Sprintf("Message %d", i), "")
+	}
+
+	if len(m.logEntries) != 100 {
+		t.Errorf("Expected 100 log entries (max limit), got %d", len(m.logEntries))
+	}
+
+	// Verify it kept the most recent entries (50-149)
+	if !strings.Contains(m.logEntries[0].message, "50") {
+		t.Error("Expected oldest entry to be message 50 after pruning")
+	}
+}
+
+// TestFilterLogsByLevel tests filtering logs by level
+func TestFilterLogsByLevel(t *testing.T) {
+	m := tuiModel{
+		logEntries: []logEntry{
+			{level: "INFO", message: "Info 1", vmName: ""},
+			{level: "WARN", message: "Warn 1", vmName: ""},
+			{level: "ERROR", message: "Error 1", vmName: ""},
+			{level: "INFO", message: "Info 2", vmName: ""},
+			{level: "DEBUG", message: "Debug 1", vmName: ""},
+		},
+		logLevelFilter: "all",
+	}
+
+	// Test "all" filter
+	filtered := m.getFilteredLogs()
+	if len(filtered) != 5 {
+		t.Errorf("Expected 5 entries with 'all' filter, got %d", len(filtered))
+	}
+
+	// Test "info" filter
+	m.logLevelFilter = "info"
+	filtered = m.getFilteredLogs()
+	if len(filtered) != 2 {
+		t.Errorf("Expected 2 entries with 'info' filter, got %d", len(filtered))
+	}
+
+	// Test "warn" filter
+	m.logLevelFilter = "warn"
+	filtered = m.getFilteredLogs()
+	if len(filtered) != 1 {
+		t.Errorf("Expected 1 entry with 'warn' filter, got %d", len(filtered))
+	}
+
+	// Test "error" filter
+	m.logLevelFilter = "error"
+	filtered = m.getFilteredLogs()
+	if len(filtered) != 1 {
+		t.Errorf("Expected 1 entry with 'error' filter, got %d", len(filtered))
+	}
+
+	// Test "debug" filter
+	m.logLevelFilter = "debug"
+	filtered = m.getFilteredLogs()
+	if len(filtered) != 1 {
+		t.Errorf("Expected 1 entry with 'debug' filter, got %d", len(filtered))
+	}
+}
+
+// TestAutoScroll tests auto-scroll functionality
+func TestAutoScroll(t *testing.T) {
+	m := tuiModel{
+		logEntries:     []logEntry{},
+		autoScrollLogs: true,
+		maxLogEntries:  1000,
+		logLevelFilter: "all",
+	}
+
+	// Add entries and verify cursor auto-scrolls
+	m.addLogEntry("INFO", "Message 1", "")
+	if m.logCursor != 0 {
+		t.Errorf("Expected cursor at 0, got %d", m.logCursor)
+	}
+
+	m.addLogEntry("INFO", "Message 2", "")
+	if m.logCursor != 1 {
+		t.Errorf("Expected cursor at 1 with auto-scroll, got %d", m.logCursor)
+	}
+
+	m.addLogEntry("INFO", "Message 3", "")
+	if m.logCursor != 2 {
+		t.Errorf("Expected cursor at 2 with auto-scroll, got %d", m.logCursor)
+	}
+
+	// Disable auto-scroll
+	m.autoScrollLogs = false
+	m.addLogEntry("INFO", "Message 4", "")
+	if m.logCursor != 2 {
+		t.Errorf("Expected cursor to stay at 2 with auto-scroll off, got %d", m.logCursor)
+	}
+}
+
+// TestRenderLogs tests rendering the logs view
+func TestRenderLogs(t *testing.T) {
+	now := time.Now()
+	m := tuiModel{
+		logEntries: []logEntry{
+			{
+				timestamp: now,
+				level:     "INFO",
+				message:   "Test info message",
+				vmName:    "TestVM1",
+			},
+			{
+				timestamp: now.Add(1 * time.Second),
+				level:     "WARN",
+				message:   "Test warning message",
+				vmName:    "",
+			},
+			{
+				timestamp: now.Add(2 * time.Second),
+				level:     "ERROR",
+				message:   "Test error message",
+				vmName:    "TestVM2",
+			},
+		},
+		logLevelFilter: "all",
+		autoScrollLogs: true,
+		logCursor:      0,
+		termWidth:      100,
+	}
+
+	output := m.renderLogs()
+
+	// Verify output contains expected elements
+	if !strings.Contains(output, "LIVE LOGS VIEWER") {
+		t.Error("Expected logs view to contain 'LIVE LOGS VIEWER' header")
+	}
+
+	if !strings.Contains(output, "Test info message") {
+		t.Error("Expected logs view to contain info message")
+	}
+
+	if !strings.Contains(output, "Test warning message") {
+		t.Error("Expected logs view to contain warning message")
+	}
+
+	if !strings.Contains(output, "Test error message") {
+		t.Error("Expected logs view to contain error message")
+	}
+
+	if !strings.Contains(output, "L: Filter Level") {
+		t.Error("Expected logs view to contain filter instructions")
+	}
+
+	// Verify summary stats
+	if !strings.Contains(output, "Total") {
+		t.Error("Expected logs view to contain total count")
+	}
+
+	if !strings.Contains(output, "Info") {
+		t.Error("Expected logs view to contain info count")
+	}
+
+	if !strings.Contains(output, "Warn") {
+		t.Error("Expected logs view to contain warn count")
+	}
+
+	if !strings.Contains(output, "Error") {
+		t.Error("Expected logs view to contain error count")
+	}
+}
+
+// TestLogsNavigation tests cursor navigation in logs view
+func TestLogsNavigation(t *testing.T) {
+	m := tuiModel{
+		logEntries: []logEntry{
+			{level: "INFO", message: "Log 1", vmName: ""},
+			{level: "INFO", message: "Log 2", vmName: ""},
+			{level: "INFO", message: "Log 3", vmName: ""},
+		},
+		logCursor:      0,
+		logLevelFilter: "all",
+	}
+
+	// Test moving down
+	if m.logCursor < len(m.getFilteredLogs())-1 {
+		m.logCursor++
+	}
+
+	if m.logCursor != 1 {
+		t.Errorf("Expected cursor at 1, got %d", m.logCursor)
+	}
+
+	// Move down again
+	if m.logCursor < len(m.getFilteredLogs())-1 {
+		m.logCursor++
+	}
+
+	if m.logCursor != 2 {
+		t.Errorf("Expected cursor at 2, got %d", m.logCursor)
+	}
+
+	// Try to move past end (should stay at 2)
+	if m.logCursor < len(m.getFilteredLogs())-1 {
+		m.logCursor++
+	}
+
+	if m.logCursor != 2 {
+		t.Errorf("Expected cursor to stay at 2, got %d", m.logCursor)
+	}
+
+	// Move up
+	if m.logCursor > 0 {
+		m.logCursor--
+	}
+
+	if m.logCursor != 1 {
+		t.Errorf("Expected cursor at 1 after moving up, got %d", m.logCursor)
+	}
+}
+
+// TestLogsWithEmptyEntries tests logs view with no entries
+func TestLogsWithEmptyEntries(t *testing.T) {
+	m := tuiModel{
+		logEntries:     []logEntry{},
+		logLevelFilter: "all",
+		logCursor:      0,
+		termWidth:      100,
+	}
+
+	output := m.renderLogs()
+
+	// Should render without error
+	if !strings.Contains(output, "LIVE LOGS VIEWER") {
+		t.Error("Expected logs view header even with no entries")
+	}
+
+	// Should show "No log entries found" message
+	if !strings.Contains(output, "No log entries found") {
+		t.Error("Expected 'No log entries found' message in empty logs view")
+	}
+
+	filtered := m.getFilteredLogs()
+	if len(filtered) != 0 {
+		t.Errorf("Expected 0 filtered log entries, got %d", len(filtered))
+	}
+}
+
+// TestLogLevelFilterCycling tests cycling through log level filters
+func TestLogLevelFilterCycling(t *testing.T) {
+	m := tuiModel{
+		logLevelFilter: "all",
+	}
+
+	// Test level filter cycling: all -> info -> warn -> error -> debug -> all
+	if m.logLevelFilter != "all" {
+		t.Errorf("Expected initial filter 'all', got %s", m.logLevelFilter)
+	}
+
+	m.logLevelFilter = "info"
+	if m.logLevelFilter != "info" {
+		t.Errorf("Expected filter 'info', got %s", m.logLevelFilter)
+	}
+
+	m.logLevelFilter = "warn"
+	if m.logLevelFilter != "warn" {
+		t.Errorf("Expected filter 'warn', got %s", m.logLevelFilter)
+	}
+
+	m.logLevelFilter = "error"
+	if m.logLevelFilter != "error" {
+		t.Errorf("Expected filter 'error', got %s", m.logLevelFilter)
+	}
+
+	m.logLevelFilter = "debug"
+	if m.logLevelFilter != "debug" {
+		t.Errorf("Expected filter 'debug', got %s", m.logLevelFilter)
+	}
+
+	m.logLevelFilter = "all"
+	if m.logLevelFilter != "all" {
+		t.Errorf("Expected filter back to 'all', got %s", m.logLevelFilter)
 	}
 }

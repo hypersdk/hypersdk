@@ -64,11 +64,19 @@ var exportTemplates = []exportTemplate{
 }
 
 // TUI model for interactive hyperexport
+// logEntry represents a single log message in the TUI
+type logEntry struct {
+	timestamp time.Time
+	level     string // "INFO", "WARN", "ERROR", "DEBUG"
+	message   string
+	vmName    string // associated VM if any
+}
+
 type tuiModel struct {
 	vms              []tuiVMItem
 	filteredVMs      []tuiVMItem
 	cursor           int
-	phase            string // "select", "confirm", "template", "regex", "cloud", "features", "export", "cloudupload", "done", "search", "details", "validation", "config", "stats", "queue", "history"
+	phase            string // "select", "confirm", "template", "regex", "cloud", "features", "export", "cloudupload", "done", "search", "details", "validation", "config", "stats", "queue", "history", "logs"
 	detailsVM        *vsphere.VMInfo // VM to show details for
 	validationReport *ValidationReport // Pre-export validation results
 	configPanel      *configPanelState // Interactive config panel state
@@ -126,6 +134,15 @@ type tuiModel struct {
 	historySearchQuery   string
 	historyDateFilter    string // "all", "today", "week", "month"
 	historyProviderFilter string // "all", "vsphere", etc.
+
+	// Live logs viewer
+	logEntries      []logEntry
+	logCursor       int
+	logLevelFilter  string // "all", "info", "warn", "error", "debug"
+	logSearchQuery  string
+	autoScrollLogs  bool
+	showLogsPanel   bool
+	maxLogEntries   int
 
 	// Configuration
 	client    *vsphere.VSphereClient
@@ -236,6 +253,9 @@ type tuiKeyMap struct {
 	Priority    key.Binding
 	History     key.Binding
 	FilterHistory key.Binding
+	Logs        key.Binding
+	FilterLogs  key.Binding
+	ToggleAutoScroll key.Binding
 }
 
 func (k tuiKeyMap) ShortHelp() []key.Binding {
@@ -532,6 +552,8 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.handleQueueKeys(msg)
 		case "history":
 			return m.handleHistoryKeys(msg)
+		case "logs":
+			return m.handleLogsKeys(msg)
 		case "cloud":
 			// Cloud phase is handled by cloudSelectionModel
 			return m, nil
@@ -720,6 +742,19 @@ func (m tuiModel) handleSelectionKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		// Load history entries
 		if err := m.loadHistoryEntries(); err != nil {
 			m.message = fmt.Sprintf("Failed to load history: %v", err)
+		}
+		return m, nil
+
+	case "L":
+		// Show live logs viewer
+		m.phase = "logs"
+		m.logCursor = 0
+		m.logLevelFilter = "all"
+		m.logSearchQuery = ""
+		// Add some sample logs if empty (for demo)
+		if len(m.logEntries) == 0 {
+			m.addLogEntry("INFO", "Logs viewer opened", "")
+			m.addLogEntry("INFO", "Ready to display export logs", "")
 		}
 		return m, nil
 
@@ -1297,6 +1332,8 @@ func (m tuiModel) View() string {
 		return m.renderQueue()
 	case "history":
 		return m.renderHistory()
+	case "logs":
+		return m.renderLogs()
 	case "export":
 		return m.renderExport()
 	case "cloudupload":
@@ -3901,4 +3938,309 @@ func matchVMPattern(vmName, pattern string) bool {
 	}
 
 	return strings.Contains(vmLower, patternLower)
+}
+
+// addLogEntry adds a new log entry to the logs viewer
+func (m *tuiModel) addLogEntry(level, message, vmName string) {
+	entry := logEntry{
+		timestamp: time.Now(),
+		level:     level,
+		message:   message,
+		vmName:    vmName,
+	}
+
+	m.logEntries = append(m.logEntries, entry)
+
+	// Limit log entries to maxLogEntries
+	if len(m.logEntries) > m.maxLogEntries {
+		m.logEntries = m.logEntries[len(m.logEntries)-m.maxLogEntries:]
+	}
+
+	// Auto-scroll to bottom if enabled
+	if m.autoScrollLogs {
+		filtered := m.getFilteredLogs()
+		if len(filtered) > 0 {
+			m.logCursor = len(filtered) - 1
+		}
+	}
+}
+
+// getFilteredLogs returns logs filtered by level and search query
+func (m tuiModel) getFilteredLogs() []logEntry {
+	filtered := make([]logEntry, 0)
+
+	for _, entry := range m.logEntries {
+		// Apply level filter
+		if m.logLevelFilter != "all" {
+			if strings.ToLower(entry.level) != strings.ToLower(m.logLevelFilter) {
+				continue
+			}
+		}
+
+		// Apply search query
+		if m.logSearchQuery != "" {
+			query := strings.ToLower(m.logSearchQuery)
+			if !strings.Contains(strings.ToLower(entry.message), query) &&
+				!strings.Contains(strings.ToLower(entry.vmName), query) {
+				continue
+			}
+		}
+
+		filtered = append(filtered, entry)
+	}
+
+	return filtered
+}
+
+// handleLogsKeys handles keyboard input in logs view
+func (m tuiModel) handleLogsKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	entries := m.getFilteredLogs()
+
+	switch msg.String() {
+	case "ctrl+c", "q", "esc":
+		// Return to selection or hide logs panel
+		if m.phase == "export" {
+			m.showLogsPanel = false
+		} else {
+			m.phase = "select"
+		}
+		return m, nil
+
+	case "up", "k":
+		if m.logCursor > 0 {
+			m.logCursor--
+			m.autoScrollLogs = false
+		}
+
+	case "down", "j":
+		if m.logCursor < len(entries)-1 {
+			m.logCursor++
+		}
+
+	case "g":
+		m.logCursor = 0
+		m.autoScrollLogs = false
+
+	case "G":
+		if len(entries) > 0 {
+			m.logCursor = len(entries) - 1
+		}
+		m.autoScrollLogs = true
+
+	case "l", "L":
+		switch m.logLevelFilter {
+		case "all":
+			m.logLevelFilter = "info"
+		case "info":
+			m.logLevelFilter = "warn"
+		case "warn":
+			m.logLevelFilter = "error"
+		case "error":
+			m.logLevelFilter = "debug"
+		case "debug":
+			m.logLevelFilter = "all"
+		}
+		m.logCursor = 0
+
+	case "a", "A":
+		m.autoScrollLogs = !m.autoScrollLogs
+		if m.autoScrollLogs && len(entries) > 0 {
+			m.logCursor = len(entries) - 1
+		}
+
+	case "c", "C":
+		m.logEntries = []logEntry{}
+		m.logCursor = 0
+	}
+
+	return m, nil
+}
+
+// renderLogs renders the live logs viewer
+func (m tuiModel) renderLogs() string {
+	var b strings.Builder
+
+	header := lipgloss.NewStyle().
+		Foreground(tealInfo).
+		Background(darkBg).
+		Bold(true).
+		Padding(0, 2).
+		Border(lipgloss.DoubleBorder()).
+		BorderForeground(deepOrange).
+		Width(m.getResponsiveWidth() - 4).
+		Render("╔═══ LIVE LOGS VIEWER ═══╗  Real-time Export Logs")
+
+	b.WriteString(header)
+	b.WriteString("\n\n")
+
+	filterParts := []string{}
+	if m.logLevelFilter != "all" {
+		filterParts = append(filterParts, fmt.Sprintf("Level: %s", strings.ToUpper(m.logLevelFilter)))
+	}
+	if m.autoScrollLogs {
+		filterParts = append(filterParts, "[AUTO-SCROLL ON]")
+	} else {
+		filterParts = append(filterParts, "[AUTO-SCROLL OFF]")
+	}
+
+	if len(filterParts) > 0 {
+		filters := lipgloss.NewStyle().
+			Foreground(amberYellow).
+			Italic(true).
+			Render("Active: " + strings.Join(filterParts, " | "))
+		b.WriteString(filters)
+		b.WriteString("\n\n")
+	}
+
+	instructions := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#9CA3AF")).
+		Italic(true).
+		Render("L: Filter Level  |  A: Toggle Auto-Scroll  |  G/g: Jump  |  C: Clear  |  Esc: Back")
+
+	b.WriteString(instructions)
+	b.WriteString("\n\n")
+
+	entries := m.getFilteredLogs()
+
+	if len(entries) == 0 {
+		noLogs := lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#9CA3AF")).
+			Italic(true).
+			Render("No log entries found")
+		b.WriteString(noLogs)
+		return b.String()
+	}
+
+	totalLogs := len(entries)
+	infoCount := 0
+	warnCount := 0
+	errorCount := 0
+	debugCount := 0
+
+	for _, entry := range entries {
+		switch strings.ToUpper(entry.level) {
+		case "INFO":
+			infoCount++
+		case "WARN", "WARNING":
+			warnCount++
+		case "ERROR":
+			errorCount++
+		case "DEBUG":
+			debugCount++
+		}
+	}
+
+	summary := lipgloss.NewStyle().
+		Foreground(tealInfo).
+		Bold(true).
+		Render(fmt.Sprintf("📊 %d Total | ℹ %d Info | ⚠ %d Warn | ✗ %d Error | 🐛 %d Debug",
+			totalLogs, infoCount, warnCount, errorCount, debugCount))
+
+	b.WriteString(summary)
+	b.WriteString("\n")
+	b.WriteString(strings.Repeat("─", m.getResponsiveWidth()-4))
+	b.WriteString("\n\n")
+
+	maxVisible := 20
+	start := 0
+	if len(entries) > maxVisible {
+		start = len(entries) - maxVisible
+		if m.logCursor < start {
+			start = m.logCursor
+		}
+		if m.logCursor >= start+maxVisible {
+			start = m.logCursor - maxVisible + 1
+		}
+	}
+
+	end := start + maxVisible
+	if end > len(entries) {
+		end = len(entries)
+	}
+
+	for i := start; i < end; i++ {
+		entry := entries[i]
+
+		cursor := "  "
+		if i == m.logCursor {
+			cursor = "❯ "
+		}
+
+		var levelIcon string
+		var levelColor lipgloss.Color
+		switch strings.ToUpper(entry.level) {
+		case "INFO":
+			levelIcon = "ℹ"
+			levelColor = tealInfo
+		case "WARN", "WARNING":
+			levelIcon = "⚠"
+			levelColor = amberYellow
+		case "ERROR":
+			levelIcon = "✗"
+			levelColor = warmRed
+		case "DEBUG":
+			levelIcon = "🐛"
+			levelColor = mutedGray
+		default:
+			levelIcon = "·"
+			levelColor = offWhite
+		}
+
+		levelStr := strings.ToUpper(entry.level)
+		if len(levelStr) > 3 {
+			levelStr = levelStr[:3]
+		}
+		level := lipgloss.NewStyle().
+			Foreground(levelColor).
+			Bold(true).
+			Width(5).
+			Render(levelIcon + " " + levelStr)
+
+		timestamp := entry.timestamp.Format("15:04:05")
+		timeStyle := lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#9CA3AF")).
+			Width(10)
+		timeStr := timeStyle.Render(timestamp)
+
+		vmPart := ""
+		if entry.vmName != "" {
+			vmStyle := lipgloss.NewStyle().
+				Foreground(deepOrange).
+				Bold(true)
+			vmPart = vmStyle.Render("[" + entry.vmName + "] ")
+		}
+
+		message := entry.message
+		maxMsgLen := m.getResponsiveWidth() - 60
+		if maxMsgLen > 3 && len(message) > maxMsgLen {
+			message = message[:maxMsgLen-3] + "..."
+		}
+
+		msgStyle := lipgloss.NewStyle()
+		if i == m.logCursor {
+			msgStyle = msgStyle.Foreground(offWhite).Bold(true)
+		}
+		msgStr := msgStyle.Render(message)
+
+		line := fmt.Sprintf("%s%s %s %s%s", cursor, level, timeStr, vmPart, msgStr)
+		b.WriteString(line)
+		b.WriteString("\n")
+	}
+
+	if start > 0 {
+		b.WriteString("\n")
+		b.WriteString(lipgloss.NewStyle().
+			Foreground(mutedGray).
+			Italic(true).
+			Render(fmt.Sprintf("... %d more above (g: top) ...", start)))
+	}
+	if end < len(entries) {
+		b.WriteString("\n")
+		b.WriteString(lipgloss.NewStyle().
+			Foreground(mutedGray).
+			Italic(true).
+			Render(fmt.Sprintf("... %d more below (G: bottom) ...", len(entries)-end)))
+	}
+
+	return b.String()
 }
