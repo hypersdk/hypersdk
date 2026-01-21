@@ -11,6 +11,7 @@ The interactive mode provides a powerful Terminal User Interface (TUI) for disco
 - [Selection](#selection)
 - [Detail View](#detail-view)
 - [Split-Screen Mode](#split-screen-mode)
+- [Export Queue Management](#export-queue-management)
 - [Dry-Run Mode](#dry-run-mode)
 - [Migration Workflow](#migration-workflow)
 - [Keyboard Reference](#keyboard-reference)
@@ -190,6 +191,58 @@ Press `v` to toggle split-screen mode, which displays the VM list and VM details
 6. Press **Space** to select interesting VMs
 7. Press **v** to exit split-screen when done
 
+## Export Queue Management
+
+Press `Q` (capital Q) to open the export queue manager, which allows you to reorder VMs and set export priorities.
+
+**Opening the Queue:**
+- Select one or more VMs in the main selection view
+- Press **Q** to open the queue manager
+- Queue is built from currently selected VMs only
+
+**Queue Controls:**
+- **↑ / k** - Navigate up in queue
+- **↓ / j** - Navigate down in queue
+- **K / Shift+↑** - Move current VM up in queue order
+- **J / Shift+↓** - Move current VM down in queue order
+- **P** - Cycle priority (Normal → High → Low → Normal)
+- **Enter** - Confirm queue and proceed to export
+- **Esc** - Cancel and return to VM selection
+
+**Priority Levels:**
+- **[HIGH]** (red) - Export first, highest priority
+- **[NORM]** (blue) - Normal priority (default)
+- **[LOW]** (gray) - Export last, lowest priority
+
+**Visual Indicators:**
+- Position numbers (#1, #2, #3...) show export order
+- Color-coded priority badges
+- VM name and storage size displayed
+- Active cursor (❯) shows current selection
+- Summary shows counts: "X High | Y Normal | Z Low"
+
+**Use Cases:**
+- **Critical VMs first:** Set production VMs to [HIGH] priority
+- **Size-based ordering:** Move large VMs to end of queue ([LOW])
+- **Dependency ordering:** Reorder based on VM dependencies
+- **Testing:** Export test VMs first ([HIGH]) before production
+
+**Example Workflow:**
+1. Select 10 VMs for export
+2. Press **Q** to open queue manager
+3. Navigate to production database VM
+4. Press **P** to set to [HIGH] priority
+5. Press **K** multiple times to move it to position #1
+6. Repeat for other critical VMs
+7. Press **Enter** to confirm and start exports in order
+
+**Benefits:**
+- Full control over export sequence
+- Prioritize critical VMs
+- Optimize based on VM size or importance
+- Visual feedback before starting
+- Change your mind before exporting
+
 ## Dry-Run Mode
 
 Press `r` to toggle dry-run mode.
@@ -307,7 +360,17 @@ The migration proceeds in stages:
 | d / i | Show detail view |
 | v | Toggle split-screen mode |
 | Tab | Switch pane (in split-screen) |
+| Q | Open export queue manager |
 | r | Toggle dry-run mode |
+
+### Queue Management (in queue view)
+| Key | Action |
+|-----|--------|
+| K / Shift+↑ | Move VM up in queue |
+| J / Shift+↓ | Move VM down in queue |
+| p | Change priority |
+| Enter | Confirm queue |
+| Esc | Cancel and return |
 
 ## Examples
 
