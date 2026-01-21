@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 	"syscall"
@@ -7003,8 +7004,8 @@ func (m tuiModel) renderFilterBuilder() string {
 				truncateString(vm.Name, 30),
 				lipgloss.NewStyle().Foreground(powerColor).Render(powerIcon),
 				vm.PowerState,
-				vm.CPU,
-				fmt.Sprintf("%.1f GB", float64(vm.Memory)/(1024*1024*1024)),
+				vm.NumCPU,
+				fmt.Sprintf("%.1f GB", float64(vm.MemoryMB)/1024),
 				formatBytes(vm.Storage)))
 		}
 
@@ -7258,19 +7259,19 @@ func (m tuiModel) applyFilterBuilder(fb *filterBuilderState) []vsphere.VMInfo {
 		// CPU range
 		if fb.minCPU > 0 {
 			totalCriteria++
-			if vm.CPU >= fb.minCPU {
+			if vm.NumCPU >= fb.minCPU {
 				matchCount++
 			}
 		}
 		if fb.maxCPU > 0 {
 			totalCriteria++
-			if vm.CPU <= fb.maxCPU {
+			if vm.NumCPU <= fb.maxCPU {
 				matchCount++
 			}
 		}
 
 		// Memory range
-		memoryGB := float64(vm.Memory) / (1024 * 1024 * 1024)
+		memoryGB := float64(vm.MemoryMB) / (1024 * 1024 * 1024)
 		if fb.minMemoryGB > 0 {
 			totalCriteria++
 			if memoryGB >= fb.minMemoryGB {
@@ -7973,13 +7974,13 @@ func (m tuiModel) renderResourcePlanner() string {
 					Background(lipgloss.Color("237"))
 			}
 
-			line := fmt.Sprintf("%s%-25s %3d        %4d/%-4d (%3.0f%%) %8s/%-8s (%3.0f%%) %6s %s",
+			line := fmt.Sprintf("%s%-25s %3d        %4d/%-4d (%3.0f%%) %8s/%-8s (%3.0f%%) %6s/%-6s (%3.0f%%) %s",
 				prefix,
 				truncateString(host.name, 25),
 				host.vmCount,
 				cpuUsed, host.totalCPU, cpuPercent,
 				formatBytes(memUsed)[:8], formatBytes(host.totalMemory)[:8], memPercent,
-				formatBytes(storUsed)[:6],
+				formatBytes(storUsed)[:6], formatBytes(host.totalStorage)[:6], storPercent,
 				lipgloss.NewStyle().Foreground(statusColor).Render(host.status))
 
 			b.WriteString(style.Render(line) + "\n")
@@ -7996,8 +7997,8 @@ func (m tuiModel) renderResourcePlanner() string {
 			var totalMemory, totalStorage int64
 
 			for _, vmItem := range selectedVMs {
-				totalCPU += vmItem.vm.CPU
-				totalMemory += vmItem.vm.Memory
+				totalCPU += vmItem.vm.NumCPU
+				totalMemory += int64(vmItem.vm.MemoryMB)
 				totalStorage += vmItem.vm.Storage
 			}
 
@@ -8253,8 +8254,8 @@ func (m *tuiModel) initializeResourcePlanner() *resourcePlannerState {
 	var totalVMCPU int32
 	var totalVMMemory, totalVMStorage int64
 	for _, vmItem := range m.vms {
-		totalVMCPU += vmItem.vm.CPU
-		totalVMMemory += vmItem.vm.Memory
+		totalVMCPU += vmItem.vm.NumCPU
+		totalVMMemory += int64(vmItem.vm.MemoryMB)
 		totalVMStorage += vmItem.vm.Storage
 	}
 
@@ -8384,8 +8385,8 @@ func (m tuiModel) renderMigrationWizard() string {
 			for _, vm := range mw.vms {
 				b.WriteString(fmt.Sprintf("  %-30s %4d cores %-12s %s\n",
 					truncateString(vm.Name, 30),
-					vm.CPU,
-					formatBytes(vm.Memory),
+					vm.NumCPU,
+					formatBytes(int64(vm.MemoryMB) * 1024 * 1024),
 					formatBytes(vm.Storage)))
 			}
 
@@ -8393,8 +8394,8 @@ func (m tuiModel) renderMigrationWizard() string {
 			var totalCPU int32
 			var totalMemory, totalStorage int64
 			for _, vm := range mw.vms {
-				totalCPU += vm.CPU
-				totalMemory += vm.Memory
+				totalCPU += vm.NumCPU
+				totalMemory += int64(vm.MemoryMB)
 				totalStorage += vm.Storage
 			}
 
