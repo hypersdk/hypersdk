@@ -1950,6 +1950,10 @@ func runInteractiveTUI(ctx context.Context, client *vsphere.VSphereClient, cfg *
 			key.WithKeys("b"),
 			key.WithHelp("b", "bulk operations"),
 		),
+		Compare: key.NewBinding(
+			key.WithKeys("C"),
+			key.WithHelp("C", "compare VMs"),
+		),
 	}
 
 	// Create initial model

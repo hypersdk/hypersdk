@@ -137,7 +137,7 @@ type tuiModel struct {
 	vms              []tuiVMItem
 	filteredVMs      []tuiVMItem
 	cursor           int
-	phase            string // "select", "confirm", "template", "regex", "cloud", "features", "export", "cloudupload", "done", "search", "details", "validation", "config", "stats", "queue", "history", "logs", "tree", "preview", "actions", "bulkops"
+	phase            string // "select", "confirm", "template", "regex", "cloud", "features", "export", "cloudupload", "done", "search", "details", "validation", "config", "stats", "queue", "history", "logs", "tree", "preview", "actions", "bulkops", "compare"
 	detailsVM        *vsphere.VMInfo // VM to show details for
 	validationReport *ValidationReport // Pre-export validation results
 	configPanel      *configPanelState // Interactive config panel state
@@ -225,6 +225,12 @@ type tuiModel struct {
 	showBulkOps     bool
 	bulkOpsCursor   int
 	bulkOpsProgress map[string]bulkOpStatus // VM path -> status
+
+	// VM comparison view
+	showComparison   bool
+	comparisonVMs    []vsphere.VMInfo
+	comparisonScroll int
+	comparisonMode   string // "overview", "resources", "storage", "network"
 
 	// Configuration
 	client    *vsphere.VSphereClient
@@ -343,6 +349,7 @@ type tuiKeyMap struct {
 	Preview     key.Binding
 	Actions     key.Binding
 	BulkOps     key.Binding
+	Compare     key.Binding
 }
 
 func (k tuiKeyMap) ShortHelp() []key.Binding {
@@ -649,6 +656,8 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.handleActionsKeys(msg)
 		case "bulkops":
 			return m.handleBulkOpsKeys(msg)
+		case "compare":
+			return m.handleCompareKeys(msg)
 		case "cloud":
 			// Cloud phase is handled by cloudSelectionModel
 			return m, nil
@@ -945,6 +954,30 @@ func (m tuiModel) handleSelectionKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.showBulkOps = true
 		m.bulkOpsProgress = make(map[string]bulkOpStatus)
 		m.phase = "bulkops"
+		return m, nil
+
+	case "C":
+		// Show VM comparison view
+		selectedCount := m.countSelected()
+		if selectedCount < 2 {
+			m.message = "Select at least 2 VMs to compare (use SPACE)"
+			return m, nil
+		}
+		if selectedCount > 4 {
+			m.message = "Cannot compare more than 4 VMs at once"
+			return m, nil
+		}
+		// Build comparison list
+		m.comparisonVMs = make([]vsphere.VMInfo, 0)
+		for _, item := range m.vms {
+			if item.selected {
+				m.comparisonVMs = append(m.comparisonVMs, item.vm)
+			}
+		}
+		m.showComparison = true
+		m.comparisonScroll = 0
+		m.comparisonMode = "overview"
+		m.phase = "compare"
 		return m, nil
 	}
 
@@ -1476,6 +1509,8 @@ func (m tuiModel) View() string {
 		return m.renderActions()
 	case "bulkops":
 		return m.renderBulkOps()
+	case "compare":
+		return m.renderCompare()
 	case "export":
 		return m.renderExport()
 	case "cloudupload":
@@ -3245,6 +3280,7 @@ Actions:
   i         Show VM details
   x         Quick actions menu (power, snapshot, export)
   b         Bulk operations (perform actions on multiple VMs)
+  C         Compare VMs side-by-side (select 2-4 VMs)
   u         Cloud upload (S3/Azure/GCS/SFTP)
   t         Export templates
   f         Advanced features
@@ -5392,6 +5428,350 @@ func (m tuiModel) getBulkOperations(selectedVMs []tuiVMItem) []bulkOperation {
 	}
 
 	return operations
+}
+
+// renderCompare renders the VM comparison view
+func (m tuiModel) renderCompare() string {
+	var b strings.Builder
+
+	// Header
+	modeText := map[string]string{
+		"overview":  "OVERVIEW",
+		"resources": "RESOURCES",
+		"storage":   "STORAGE",
+		"network":   "NETWORK",
+	}
+	header := lipgloss.NewStyle().
+		Foreground(deepOrange).
+		Bold(true).
+		Render(fmt.Sprintf("🔍 VM COMPARISON - %s  (Esc/C: Back | 1-4: Switch Mode | ↑↓: Scroll)", modeText[m.comparisonMode]))
+	b.WriteString(header)
+	b.WriteString("\n\n")
+
+	if len(m.comparisonVMs) < 2 {
+		b.WriteString(errorStyleTUI.Render("Need at least 2 VMs to compare"))
+		return b.String()
+	}
+
+	// Mode selector
+	modeBar := lipgloss.NewStyle().
+		Foreground(mutedGray).
+		Render("Modes: ")
+
+	modes := []string{"1:Overview", "2:Resources", "3:Storage", "4:Network"}
+	modeMapping := []string{"overview", "resources", "storage", "network"}
+
+	for i, modeLabel := range modes {
+		if modeMapping[i] == m.comparisonMode {
+			modeBar += lipgloss.NewStyle().
+				Foreground(deepOrange).
+				Bold(true).
+				Background(lightBg).
+				Render(fmt.Sprintf(" [%s] ", modeLabel))
+		} else {
+			modeBar += lipgloss.NewStyle().
+				Foreground(mutedGray).
+				Render(fmt.Sprintf("  %s  ", modeLabel))
+		}
+	}
+	b.WriteString(modeBar)
+	b.WriteString("\n\n")
+
+	// Build comparison table based on mode
+	switch m.comparisonMode {
+	case "overview":
+		b.WriteString(m.renderComparisonOverview())
+	case "resources":
+		b.WriteString(m.renderComparisonResources())
+	case "storage":
+		b.WriteString(m.renderComparisonStorage())
+	case "network":
+		b.WriteString(m.renderComparisonNetwork())
+	}
+
+	// Help footer
+	helpText := helpStyleTUI.Render("1-4: Switch comparison mode | Esc/C: Back to selection")
+	b.WriteString("\n")
+	b.WriteString(helpText)
+	b.WriteString("\n")
+
+	return b.String()
+}
+
+// renderComparisonOverview renders the overview comparison table
+func (m tuiModel) renderComparisonOverview() string {
+	var b strings.Builder
+
+	// Column widths
+	labelWidth := 20
+	colWidth := 25
+
+	// Header row
+	headerStyle := lipgloss.NewStyle().Foreground(tealInfo).Bold(true)
+	b.WriteString(lipgloss.NewStyle().Width(labelWidth).Render("Property"))
+	for _, vm := range m.comparisonVMs {
+		vmName := vm.Name
+		if len(vmName) > colWidth-2 {
+			vmName = vmName[:colWidth-5] + "..."
+		}
+		b.WriteString(headerStyle.Render(lipgloss.NewStyle().Width(colWidth).Render(vmName)))
+	}
+	b.WriteString("\n")
+	b.WriteString(strings.Repeat("─", labelWidth+colWidth*len(m.comparisonVMs)))
+	b.WriteString("\n")
+
+	// Data rows
+	rows := []struct {
+		label  string
+		getter func(vsphere.VMInfo) string
+		diff   bool // highlight differences
+	}{
+		{"Name", func(vm vsphere.VMInfo) string { return vm.Name }, false},
+		{"Power State", func(vm vsphere.VMInfo) string { return vm.PowerState }, true},
+		{"Guest OS", func(vm vsphere.VMInfo) string { return vm.GuestOS }, true},
+		{"vCPUs", func(vm vsphere.VMInfo) string { return fmt.Sprintf("%d", vm.NumCPU) }, true},
+		{"Memory (GB)", func(vm vsphere.VMInfo) string { return fmt.Sprintf("%.1f", float64(vm.MemoryMB)/1024) }, true},
+		{"Storage", func(vm vsphere.VMInfo) string { return formatBytes(vm.Storage) }, true},
+		{"Path", func(vm vsphere.VMInfo) string { return vm.Path }, false},
+	}
+
+	for _, row := range rows {
+		labelStyle := lipgloss.NewStyle().Foreground(amberYellow)
+		b.WriteString(labelStyle.Render(lipgloss.NewStyle().Width(labelWidth).Render(row.label)))
+
+		values := make([]string, len(m.comparisonVMs))
+		for i, vm := range m.comparisonVMs {
+			values[i] = row.getter(vm)
+		}
+
+		// Check if values differ
+		allSame := true
+		if row.diff && len(values) > 1 {
+			for i := 1; i < len(values); i++ {
+				if values[i] != values[0] {
+					allSame = false
+					break
+				}
+			}
+		}
+
+		// Render values
+		for _, val := range values {
+			cellStyle := lipgloss.NewStyle()
+			if row.diff && !allSame {
+				cellStyle = cellStyle.Foreground(warningColor).Bold(true)
+			} else {
+				cellStyle = cellStyle.Foreground(offWhite)
+			}
+			b.WriteString(cellStyle.Render(lipgloss.NewStyle().Width(colWidth).Render(val)))
+		}
+		b.WriteString("\n")
+	}
+
+	return b.String()
+}
+
+// renderComparisonResources renders resource comparison
+func (m tuiModel) renderComparisonResources() string {
+	var b strings.Builder
+
+	labelWidth := 20
+	colWidth := 25
+
+	// Header
+	headerStyle := lipgloss.NewStyle().Foreground(tealInfo).Bold(true)
+	b.WriteString(lipgloss.NewStyle().Width(labelWidth).Render("Resource"))
+	for _, vm := range m.comparisonVMs {
+		vmName := vm.Name
+		if len(vmName) > colWidth-2 {
+			vmName = vmName[:colWidth-5] + "..."
+		}
+		b.WriteString(headerStyle.Render(lipgloss.NewStyle().Width(colWidth).Render(vmName)))
+	}
+	b.WriteString("\n")
+	b.WriteString(strings.Repeat("─", labelWidth+colWidth*len(m.comparisonVMs)))
+	b.WriteString("\n")
+
+	// CPU section
+	sectionStyle := lipgloss.NewStyle().Foreground(deepOrange).Bold(true)
+	b.WriteString(sectionStyle.Render("CPU"))
+	b.WriteString("\n")
+
+	rows := []struct {
+		label  string
+		getter func(vsphere.VMInfo) string
+	}{
+		{"vCPUs", func(vm vsphere.VMInfo) string { return fmt.Sprintf("%d", vm.NumCPU) }},
+		{"CPU Sockets", func(vm vsphere.VMInfo) string { return "N/A" }}, // Would need additional data
+		{"Cores per Socket", func(vm vsphere.VMInfo) string { return "N/A" }},
+	}
+
+	for _, row := range rows {
+		labelStyle := lipgloss.NewStyle().Foreground(mutedGray).Render("  " + row.label)
+		b.WriteString(lipgloss.NewStyle().Width(labelWidth).Render(labelStyle))
+
+		for _, vm := range m.comparisonVMs {
+			val := row.getter(vm)
+			b.WriteString(lipgloss.NewStyle().Width(colWidth).Foreground(offWhite).Render(val))
+		}
+		b.WriteString("\n")
+	}
+
+	b.WriteString("\n")
+	b.WriteString(sectionStyle.Render("Memory"))
+	b.WriteString("\n")
+
+	memRows := []struct {
+		label  string
+		getter func(vsphere.VMInfo) string
+	}{
+		{"Total Memory (MB)", func(vm vsphere.VMInfo) string { return fmt.Sprintf("%d", vm.MemoryMB) }},
+		{"Memory (GB)", func(vm vsphere.VMInfo) string { return fmt.Sprintf("%.2f", float64(vm.MemoryMB)/1024) }},
+		{"Reservation", func(vm vsphere.VMInfo) string { return "N/A" }},
+	}
+
+	for _, row := range memRows {
+		labelStyle := lipgloss.NewStyle().Foreground(mutedGray).Render("  " + row.label)
+		b.WriteString(lipgloss.NewStyle().Width(labelWidth).Render(labelStyle))
+
+		for _, vm := range m.comparisonVMs {
+			val := row.getter(vm)
+			b.WriteString(lipgloss.NewStyle().Width(colWidth).Foreground(offWhite).Render(val))
+		}
+		b.WriteString("\n")
+	}
+
+	return b.String()
+}
+
+// renderComparisonStorage renders storage comparison
+func (m tuiModel) renderComparisonStorage() string {
+	var b strings.Builder
+
+	labelWidth := 20
+	colWidth := 25
+
+	// Header
+	headerStyle := lipgloss.NewStyle().Foreground(tealInfo).Bold(true)
+	b.WriteString(lipgloss.NewStyle().Width(labelWidth).Render("Storage"))
+	for _, vm := range m.comparisonVMs {
+		vmName := vm.Name
+		if len(vmName) > colWidth-2 {
+			vmName = vmName[:colWidth-5] + "..."
+		}
+		b.WriteString(headerStyle.Render(lipgloss.NewStyle().Width(colWidth).Render(vmName)))
+	}
+	b.WriteString("\n")
+	b.WriteString(strings.Repeat("─", labelWidth+colWidth*len(m.comparisonVMs)))
+	b.WriteString("\n")
+
+	rows := []struct {
+		label  string
+		getter func(vsphere.VMInfo) string
+	}{
+		{"Total Storage", func(vm vsphere.VMInfo) string { return formatBytes(vm.Storage) }},
+		{"Storage (GB)", func(vm vsphere.VMInfo) string { return fmt.Sprintf("%.2f", float64(vm.Storage)/(1024*1024*1024)) }},
+		{"Disk Count", func(vm vsphere.VMInfo) string { return "N/A" }}, // Would need additional data
+		{"Provisioning", func(vm vsphere.VMInfo) string { return "N/A" }},
+		{"Datastore", func(vm vsphere.VMInfo) string { return "N/A" }},
+	}
+
+	for _, row := range rows {
+		labelStyle := lipgloss.NewStyle().Foreground(amberYellow)
+		b.WriteString(labelStyle.Render(lipgloss.NewStyle().Width(labelWidth).Render(row.label)))
+
+		for _, vm := range m.comparisonVMs {
+			val := row.getter(vm)
+			b.WriteString(lipgloss.NewStyle().Width(colWidth).Foreground(offWhite).Render(val))
+		}
+		b.WriteString("\n")
+	}
+
+	return b.String()
+}
+
+// renderComparisonNetwork renders network comparison
+func (m tuiModel) renderComparisonNetwork() string {
+	var b strings.Builder
+
+	labelWidth := 20
+	colWidth := 25
+
+	// Header
+	headerStyle := lipgloss.NewStyle().Foreground(tealInfo).Bold(true)
+	b.WriteString(lipgloss.NewStyle().Width(labelWidth).Render("Network"))
+	for _, vm := range m.comparisonVMs {
+		vmName := vm.Name
+		if len(vmName) > colWidth-2 {
+			vmName = vmName[:colWidth-5] + "..."
+		}
+		b.WriteString(headerStyle.Render(lipgloss.NewStyle().Width(colWidth).Render(vmName)))
+	}
+	b.WriteString("\n")
+	b.WriteString(strings.Repeat("─", labelWidth+colWidth*len(m.comparisonVMs)))
+	b.WriteString("\n")
+
+	// Note about limited data
+	noteStyle := lipgloss.NewStyle().Foreground(mutedGray).Italic(true)
+	b.WriteString(noteStyle.Render("Network information would require additional VM data"))
+	b.WriteString("\n\n")
+
+	rows := []struct {
+		label  string
+		getter func(vsphere.VMInfo) string
+	}{
+		{"NICs", func(vm vsphere.VMInfo) string { return "N/A" }},
+		{"Network 1", func(vm vsphere.VMInfo) string { return "N/A" }},
+		{"MAC Address", func(vm vsphere.VMInfo) string { return "N/A" }},
+		{"Adapter Type", func(vm vsphere.VMInfo) string { return "N/A" }},
+	}
+
+	for _, row := range rows {
+		labelStyle := lipgloss.NewStyle().Foreground(amberYellow)
+		b.WriteString(labelStyle.Render(lipgloss.NewStyle().Width(labelWidth).Render(row.label)))
+
+		for _, vm := range m.comparisonVMs {
+			val := row.getter(vm)
+			b.WriteString(lipgloss.NewStyle().Width(colWidth).Foreground(mutedGray).Render(val))
+		}
+		b.WriteString("\n")
+	}
+
+	return b.String()
+}
+
+// handleCompareKeys handles keyboard input in comparison view
+func (m tuiModel) handleCompareKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "ctrl+c", "q":
+		return m, tea.Quit
+
+	case "escape", "C":
+		// Return to select phase
+		m.phase = "select"
+		m.showComparison = false
+		m.comparisonVMs = nil
+		return m, nil
+
+	case "1":
+		m.comparisonMode = "overview"
+	case "2":
+		m.comparisonMode = "resources"
+	case "3":
+		m.comparisonMode = "storage"
+	case "4":
+		m.comparisonMode = "network"
+
+	case "up", "k":
+		if m.comparisonScroll > 0 {
+			m.comparisonScroll--
+		}
+
+	case "down", "j":
+		m.comparisonScroll++
+	}
+
+	return m, nil
 }
 
 // handleTreeKeys handles keyboard input in tree view
