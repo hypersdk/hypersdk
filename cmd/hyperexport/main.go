@@ -1974,6 +1974,10 @@ func runInteractiveTUI(ctx context.Context, client *vsphere.VSphereClient, cfg *
 			key.WithKeys("R"),
 			key.WithHelp("R", "resource planner"),
 		),
+		Migration: key.NewBinding(
+			key.WithKeys("W"),
+			key.WithHelp("W", "migration wizard"),
+		),
 	}
 
 	// Create initial model

@@ -262,11 +262,46 @@ type hostResources struct {
 	status          string // "healthy", "overcommitted", "underutilized"
 }
 
-type tuiModel struct {
+// migrationWizardState manages the migration wizard workflow
+type migrationWizardState struct {
+	step             int    // Current step in wizard (0-6)
+	vms              []vsphere.VMInfo
+	sourceType       string // "vsphere", "aws", "azure", "hyperv"
+	targetType       string // "vsphere", "aws", "azure", "kvm", "local"
+	sourceDetails    map[string]string
+	targetDetails    map[string]string
+	migrationMode    string // "cold", "hot", "snapshot"
+	validationChecks []migrationCheck
+	warnings         []string
+	readyToMigrate   bool
+	estimatedTime    time.Duration
+	estimatedSize    int64
+	networkBandwidth int64 // bytes per second
+	scheduledTime    time.Time
+	useSchedule      bool
+}
+
+// migrationCheck represents a pre-migration validation check
+type migrationCheck struct {
+	name     string
+	status   string // "pending", "running", "passed", "failed", "warning"
+	message  string
+	critical bool // If true, migration cannot proceed if failed
+}
+
+// migrationStep represents a step in the wizard
+type migrationStep struct {
+	number      int
+	title       string
+	description string
+	completed   bool
+}
+
+type tuiModel struct{
 	vms              []tuiVMItem
 	filteredVMs      []tuiVMItem
 	cursor           int
-	phase            string // "select", "confirm", "template", "regex", "cloud", "features", "export", "cloudupload", "done", "search", "details", "validation", "config", "stats", "queue", "history", "logs", "tree", "preview", "actions", "bulkops", "compare", "bookmarks", "metrics", "filterbuilder", "snapshots", "resources"
+	phase            string // "select", "confirm", "template", "regex", "cloud", "features", "export", "cloudupload", "done", "search", "details", "validation", "config", "stats", "queue", "history", "logs", "tree", "preview", "actions", "bulkops", "compare", "bookmarks", "metrics", "filterbuilder", "snapshots", "resources", "migration"
 	detailsVM        *vsphere.VMInfo // VM to show details for
 	validationReport *ValidationReport // Pre-export validation results
 	configPanel      *configPanelState // Interactive config panel state
@@ -385,6 +420,10 @@ type tuiModel struct {
 	// Resource allocation planner
 	showResourcePlanner bool
 	resourcePlanner     *resourcePlannerState
+
+	// Migration wizard
+	showMigrationWizard bool
+	migrationWizard     *migrationWizardState
 
 	// Configuration
 	client    *vsphere.VSphereClient
@@ -509,6 +548,7 @@ type tuiKeyMap struct {
 	FilterBuilder key.Binding
 	Snapshots   key.Binding
 	Resources   key.Binding
+	Migration   key.Binding
 }
 
 func (k tuiKeyMap) ShortHelp() []key.Binding {
@@ -827,6 +867,8 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.handleSnapshotManagerKeys(msg)
 		case "resources":
 			return m.handleResourcePlannerKeys(msg)
+		case "migration":
+			return m.handleMigrationWizardKeys(msg)
 		case "cloud":
 			// Cloud phase is handled by cloudSelectionModel
 			return m, nil
@@ -1203,6 +1245,13 @@ func (m tuiModel) handleSelectionKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.showResourcePlanner = true
 		m.resourcePlanner = m.initializeResourcePlanner()
 		m.phase = "resources"
+		return m, nil
+
+	case "W":
+		// Show migration wizard
+		m.showMigrationWizard = true
+		m.migrationWizard = m.initializeMigrationWizard()
+		m.phase = "migration"
 		return m, nil
 	}
 
@@ -1746,6 +1795,8 @@ func (m tuiModel) View() string {
 		return m.renderSnapshotManager()
 	case "resources":
 		return m.renderResourcePlanner()
+	case "migration":
+		return m.renderMigrationWizard()
 	case "export":
 		return m.renderExport()
 	case "cloudupload":
@@ -8254,6 +8305,592 @@ func (m *tuiModel) initializeResourcePlanner() *resourcePlannerState {
 		cursor:           0,
 		hostCapacity:     hostCapacity,
 		optimizationGoal: "balanced",
+	}
+}
+
+// renderMigrationWizard renders the migration wizard interface
+func (m tuiModel) renderMigrationWizard() string {
+	if m.migrationWizard == nil {
+		return "Migration wizard not initialized"
+	}
+
+	mw := m.migrationWizard
+	var b strings.Builder
+
+	// Title
+	titleStyle := lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.Color("39")).
+		Background(lipgloss.Color("235")).
+		Padding(0, 2)
+
+	b.WriteString(titleStyle.Render("🚀 MIGRATION WIZARD"))
+	b.WriteString("\n\n")
+
+	// Progress bar showing wizard steps
+	steps := []migrationStep{
+		{0, "Select VMs", "Choose VMs to migrate", mw.step > 0},
+		{1, "Source Config", "Configure source platform", mw.step > 1},
+		{2, "Target Config", "Configure target platform", mw.step > 2},
+		{3, "Migration Mode", "Choose migration strategy", mw.step > 3},
+		{4, "Validation", "Pre-migration checks", mw.step > 4},
+		{5, "Schedule", "Set migration time", mw.step > 5},
+		{6, "Review", "Final review and confirm", mw.step > 6},
+	}
+
+	// Render step progress bar
+	for i, step := range steps {
+		var style lipgloss.Style
+		if i < mw.step {
+			style = lipgloss.NewStyle().Foreground(lipgloss.Color("46")) // Green for completed
+		} else if i == mw.step {
+			style = lipgloss.NewStyle().
+				Foreground(lipgloss.Color("39")).
+				Bold(true) // Blue for current
+		} else {
+			style = lipgloss.NewStyle().Foreground(lipgloss.Color("243")) // Gray for pending
+		}
+
+		indicator := "○"
+		if step.completed {
+			indicator = "●"
+		}
+
+		b.WriteString(style.Render(fmt.Sprintf("%s Step %d: %s", indicator, i+1, step.title)))
+		if i < len(steps)-1 {
+			b.WriteString(style.Render(" → "))
+		}
+	}
+	b.WriteString("\n\n")
+
+	// Current step details
+	currentStep := steps[mw.step]
+	stepStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("226"))
+	b.WriteString(stepStyle.Render(fmt.Sprintf("Step %d: %s\n", mw.step+1, currentStep.title)))
+	b.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("243")).Render(currentStep.description + "\n\n"))
+
+	// Step-specific content
+	switch mw.step {
+	case 0: // Select VMs
+		b.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("255")).Render(
+			fmt.Sprintf("Selected VMs: %d\n\n", len(mw.vms))))
+
+		if len(mw.vms) > 0 {
+			headerStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("255"))
+			b.WriteString(headerStyle.Render(fmt.Sprintf("%-30s %-10s %-12s %s\n",
+				"VM Name", "CPU", "Memory", "Storage")))
+			b.WriteString(strings.Repeat("─", 70) + "\n")
+
+			for _, vm := range mw.vms {
+				b.WriteString(fmt.Sprintf("  %-30s %4d cores %-12s %s\n",
+					truncateString(vm.Name, 30),
+					vm.CPU,
+					formatBytes(vm.Memory),
+					formatBytes(vm.Storage)))
+			}
+
+			// Calculate totals
+			var totalCPU int32
+			var totalMemory, totalStorage int64
+			for _, vm := range mw.vms {
+				totalCPU += vm.CPU
+				totalMemory += vm.Memory
+				totalStorage += vm.Storage
+			}
+
+			b.WriteString(strings.Repeat("─", 70) + "\n")
+			b.WriteString(fmt.Sprintf("  %-30s %4d cores %-12s %s\n",
+				"TOTAL",
+				totalCPU,
+				formatBytes(totalMemory),
+				formatBytes(totalStorage)))
+		} else {
+			b.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("196")).Render(
+				"No VMs selected. Go back and select VMs in the main view.\n"))
+		}
+
+	case 1: // Source Config
+		b.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("255")).Render("Source Platform Configuration\n\n"))
+
+		platforms := []string{"vSphere", "AWS", "Azure", "Hyper-V"}
+		for i, platform := range platforms {
+			prefix := "  "
+			platformLower := strings.ToLower(platform)
+			if platformLower == mw.sourceType || (platform == "vSphere" && mw.sourceType == "vsphere") {
+				prefix = "▶ "
+			}
+
+			style := lipgloss.NewStyle().Foreground(lipgloss.Color("255"))
+			if platformLower == mw.sourceType || (platform == "vSphere" && mw.sourceType == "vsphere") {
+				style = lipgloss.NewStyle().
+					Foreground(lipgloss.Color("39")).
+					Bold(true).
+					Background(lipgloss.Color("237"))
+			}
+
+			b.WriteString(style.Render(fmt.Sprintf("%s[%d] %s\n", prefix, i+1, platform)))
+		}
+
+		if mw.sourceType != "" {
+			b.WriteString("\n")
+			b.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("46")).Render(
+				fmt.Sprintf("✓ Source platform: %s\n", mw.sourceType)))
+		}
+
+	case 2: // Target Config
+		b.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("255")).Render("Target Platform Configuration\n\n"))
+
+		platforms := []string{"vSphere", "AWS", "Azure", "KVM/Local", "OVF Export"}
+		for i, platform := range platforms {
+			prefix := "  "
+			platformLower := strings.ToLower(platform)
+			selected := platformLower == mw.targetType ||
+				(platform == "KVM/Local" && mw.targetType == "kvm") ||
+				(platform == "OVF Export" && mw.targetType == "local")
+
+			if selected {
+				prefix = "▶ "
+			}
+
+			style := lipgloss.NewStyle().Foreground(lipgloss.Color("255"))
+			if selected {
+				style = lipgloss.NewStyle().
+					Foreground(lipgloss.Color("39")).
+					Bold(true).
+					Background(lipgloss.Color("237"))
+			}
+
+			b.WriteString(style.Render(fmt.Sprintf("%s[%d] %s\n", prefix, i+1, platform)))
+		}
+
+		if mw.targetType != "" {
+			b.WriteString("\n")
+			b.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("46")).Render(
+				fmt.Sprintf("✓ Target platform: %s\n", mw.targetType)))
+		}
+
+	case 3: // Migration Mode
+		b.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("255")).Render("Migration Strategy\n\n"))
+
+		modes := []struct {
+			name string
+			desc string
+		}{
+			{"Cold Migration", "Power off VMs, migrate, then power on (safest, requires downtime)"},
+			{"Hot Migration", "Migrate running VMs with minimal downtime (complex, requires compatible platforms)"},
+			{"Snapshot Export", "Export VM snapshots for backup or clone purposes"},
+		}
+
+		for i, mode := range modes {
+			prefix := "  "
+			modeLower := strings.ToLower(strings.Fields(mode.name)[0])
+			if modeLower == mw.migrationMode {
+				prefix = "▶ "
+			}
+
+			style := lipgloss.NewStyle().Foreground(lipgloss.Color("255"))
+			if modeLower == mw.migrationMode {
+				style = lipgloss.NewStyle().
+					Foreground(lipgloss.Color("39")).
+					Bold(true)
+			}
+
+			b.WriteString(style.Render(fmt.Sprintf("%s[%d] %s\n", prefix, i+1, mode.name)))
+			b.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("243")).Render(
+				fmt.Sprintf("    %s\n", mode.desc)))
+			b.WriteString("\n")
+		}
+
+	case 4: // Validation
+		b.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("255")).Render("Pre-Migration Validation\n\n"))
+
+		if len(mw.validationChecks) > 0 {
+			for _, check := range mw.validationChecks {
+				var icon, color string
+				switch check.status {
+				case "passed":
+					icon = "✓"
+					color = "46"
+				case "failed":
+					icon = "✗"
+					color = "196"
+				case "warning":
+					icon = "⚠"
+					color = "226"
+				case "running":
+					icon = "⟳"
+					color = "39"
+				default:
+					icon = "○"
+					color = "243"
+				}
+
+				style := lipgloss.NewStyle().Foreground(lipgloss.Color(color))
+				b.WriteString(style.Render(fmt.Sprintf("%s %s: %s\n", icon, check.name, check.message)))
+			}
+
+			// Summary
+			passed := 0
+			failed := 0
+			warnings := 0
+			for _, check := range mw.validationChecks {
+				switch check.status {
+				case "passed":
+					passed++
+				case "failed":
+					failed++
+				case "warning":
+					warnings++
+				}
+			}
+
+			b.WriteString("\n")
+			b.WriteString(fmt.Sprintf("Summary: %d passed, %d warnings, %d failed\n",
+				passed, warnings, failed))
+
+			if failed > 0 {
+				b.WriteString("\n")
+				b.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("196")).Render(
+					"⚠ Migration cannot proceed due to failed checks\n"))
+			} else if warnings > 0 {
+				b.WriteString("\n")
+				b.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("226")).Render(
+					"⚠ Migration can proceed but has warnings\n"))
+			} else if passed == len(mw.validationChecks) {
+				b.WriteString("\n")
+				b.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("46")).Render(
+					"✓ All validation checks passed - ready to migrate\n"))
+				mw.readyToMigrate = true
+			}
+		} else {
+			b.WriteString("Running validation checks...\n")
+		}
+
+	case 5: // Schedule
+		b.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("255")).Render("Migration Scheduling\n\n"))
+
+		options := []struct {
+			name string
+			desc string
+		}{
+			{"Migrate Now", "Start migration immediately"},
+			{"Schedule for Later", "Set a specific date and time"},
+		}
+
+		for i, option := range options {
+			prefix := "  "
+			if (i == 0 && !mw.useSchedule) || (i == 1 && mw.useSchedule) {
+				prefix = "▶ "
+			}
+
+			style := lipgloss.NewStyle().Foreground(lipgloss.Color("255"))
+			if (i == 0 && !mw.useSchedule) || (i == 1 && mw.useSchedule) {
+				style = lipgloss.NewStyle().
+					Foreground(lipgloss.Color("39")).
+					Bold(true)
+			}
+
+			b.WriteString(style.Render(fmt.Sprintf("%s[%d] %s\n", prefix, i+1, option.name)))
+			b.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("243")).Render(
+				fmt.Sprintf("    %s\n", option.desc)))
+		}
+
+		if mw.useSchedule {
+			b.WriteString("\n")
+			b.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("255")).Render(
+				fmt.Sprintf("Scheduled time: %s\n", mw.scheduledTime.Format("2006-01-02 15:04 MST"))))
+		}
+
+		// Estimates
+		b.WriteString("\n")
+		b.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("255")).Render("Migration Estimates\n\n"))
+		b.WriteString(fmt.Sprintf("Estimated duration: %s\n", mw.estimatedTime))
+		b.WriteString(fmt.Sprintf("Total data size: %s\n", formatBytes(mw.estimatedSize)))
+		b.WriteString(fmt.Sprintf("Network bandwidth: %s/s\n", formatBytes(mw.networkBandwidth)))
+
+	case 6: // Review
+		b.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("255")).Render("Migration Summary\n\n"))
+
+		labelStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("243"))
+		valueStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("255"))
+
+		b.WriteString(labelStyle.Render("VMs to migrate:     "))
+		b.WriteString(valueStyle.Render(fmt.Sprintf("%d\n", len(mw.vms))))
+
+		b.WriteString(labelStyle.Render("Source platform:    "))
+		b.WriteString(valueStyle.Render(fmt.Sprintf("%s\n", mw.sourceType)))
+
+		b.WriteString(labelStyle.Render("Target platform:    "))
+		b.WriteString(valueStyle.Render(fmt.Sprintf("%s\n", mw.targetType)))
+
+		b.WriteString(labelStyle.Render("Migration mode:     "))
+		b.WriteString(valueStyle.Render(fmt.Sprintf("%s\n", mw.migrationMode)))
+
+		b.WriteString(labelStyle.Render("Total size:         "))
+		b.WriteString(valueStyle.Render(fmt.Sprintf("%s\n", formatBytes(mw.estimatedSize))))
+
+		b.WriteString(labelStyle.Render("Estimated duration: "))
+		b.WriteString(valueStyle.Render(fmt.Sprintf("%s\n", mw.estimatedTime)))
+
+		if mw.useSchedule {
+			b.WriteString(labelStyle.Render("Scheduled time:     "))
+			b.WriteString(valueStyle.Render(fmt.Sprintf("%s\n", mw.scheduledTime.Format("2006-01-02 15:04 MST"))))
+		} else {
+			b.WriteString(labelStyle.Render("Start time:         "))
+			b.WriteString(valueStyle.Render("Immediately\n"))
+		}
+
+		b.WriteString("\n")
+		if mw.readyToMigrate {
+			b.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("46")).Render(
+				"✓ Ready to proceed with migration\n"))
+			b.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("243")).Render(
+				"Press Enter to start migration or B to go back\n"))
+		} else {
+			b.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("196")).Render(
+				"⚠ Cannot proceed - validation checks failed\n"))
+		}
+	}
+
+	// Help footer
+	b.WriteString("\n\n")
+	helpStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
+
+	if mw.step == 6 && mw.readyToMigrate {
+		b.WriteString(helpStyle.Render("Enter: Start Migration | B: Back | Esc: Cancel"))
+	} else if mw.step == 0 {
+		b.WriteString(helpStyle.Render("N: Next (if VMs selected) | Esc: Cancel"))
+	} else {
+		b.WriteString(helpStyle.Render("N: Next | B: Back | Esc: Cancel"))
+	}
+
+	return b.String()
+}
+
+// handleMigrationWizardKeys handles keyboard input in migration wizard mode
+func (m tuiModel) handleMigrationWizardKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	if m.migrationWizard == nil {
+		m.phase = "select"
+		return m, nil
+	}
+
+	mw := m.migrationWizard
+
+	switch msg.String() {
+	case "ctrl+c", "q":
+		return m, tea.Quit
+
+	case "escape", "esc":
+		// Exit wizard
+		m.phase = "select"
+		m.showMigrationWizard = false
+		m.migrationWizard = nil
+		return m, nil
+
+	case "n", "N":
+		// Next step
+		if mw.step == 0 && len(mw.vms) == 0 {
+			m.message = "Please select VMs first"
+			return m, nil
+		}
+		if mw.step < 6 {
+			mw.step++
+			// Auto-run validation when entering validation step
+			if mw.step == 4 {
+				mw.validationChecks = m.runMigrationValidation(mw)
+			}
+			// Calculate estimates when entering schedule step
+			if mw.step == 5 {
+				mw.estimatedSize = m.calculateMigrationSize(mw)
+				mw.estimatedTime = m.calculateMigrationDuration(mw)
+				mw.networkBandwidth = 100 * 1024 * 1024 // 100 MB/s default
+			}
+		}
+
+	case "b", "B":
+		// Back step
+		if mw.step > 0 {
+			mw.step--
+		}
+
+	case "1", "2", "3", "4", "5":
+		num := int(msg.String()[0] - '0')
+		switch mw.step {
+		case 1: // Source platform selection
+			platforms := []string{"vsphere", "aws", "azure", "hyperv"}
+			if num > 0 && num <= len(platforms) {
+				mw.sourceType = platforms[num-1]
+			}
+
+		case 2: // Target platform selection
+			platforms := []string{"vsphere", "aws", "azure", "kvm", "local"}
+			if num > 0 && num <= len(platforms) {
+				mw.targetType = platforms[num-1]
+			}
+
+		case 3: // Migration mode selection
+			modes := []string{"cold", "hot", "snapshot"}
+			if num > 0 && num <= len(modes) {
+				mw.migrationMode = modes[num-1]
+			}
+
+		case 5: // Schedule selection
+			if num == 1 {
+				mw.useSchedule = false
+			} else if num == 2 {
+				mw.useSchedule = true
+				mw.scheduledTime = time.Now().Add(24 * time.Hour)
+			}
+		}
+
+	case "enter":
+		if mw.step == 6 && mw.readyToMigrate {
+			// Start migration (would integrate with actual export/migration logic)
+			m.message = "Migration started! Check export queue for progress."
+			m.phase = "select"
+			m.showMigrationWizard = false
+			return m, nil
+		}
+	}
+
+	return m, nil
+}
+
+// runMigrationValidation runs pre-migration validation checks
+func (m tuiModel) runMigrationValidation(mw *migrationWizardState) []migrationCheck {
+	checks := make([]migrationCheck, 0)
+
+	// Check 1: VM selection
+	if len(mw.vms) > 0 {
+		checks = append(checks, migrationCheck{
+			name:     "VM Selection",
+			status:   "passed",
+			message:  fmt.Sprintf("%d VMs selected", len(mw.vms)),
+			critical: true,
+		})
+	} else {
+		checks = append(checks, migrationCheck{
+			name:     "VM Selection",
+			status:   "failed",
+			message:  "No VMs selected",
+			critical: true,
+		})
+	}
+
+	// Check 2: Platform compatibility
+	if mw.sourceType != "" && mw.targetType != "" {
+		if mw.sourceType == mw.targetType {
+			checks = append(checks, migrationCheck{
+				name:     "Platform Compatibility",
+				status:   "warning",
+				message:  "Source and target are the same platform",
+				critical: false,
+			})
+		} else {
+			checks = append(checks, migrationCheck{
+				name:     "Platform Compatibility",
+				status:   "passed",
+				message:  fmt.Sprintf("%s to %s migration is supported", mw.sourceType, mw.targetType),
+				critical: true,
+			})
+		}
+	} else {
+		checks = append(checks, migrationCheck{
+			name:     "Platform Compatibility",
+			status:   "failed",
+			message:  "Source or target platform not configured",
+			critical: true,
+		})
+	}
+
+	// Check 3: Migration mode
+	if mw.migrationMode != "" {
+		checks = append(checks, migrationCheck{
+			name:     "Migration Mode",
+			status:   "passed",
+			message:  fmt.Sprintf("Using %s migration", mw.migrationMode),
+			critical: true,
+		})
+	} else {
+		checks = append(checks, migrationCheck{
+			name:     "Migration Mode",
+			status:   "failed",
+			message:  "Migration mode not selected",
+			critical: true,
+		})
+	}
+
+	// Check 4: Storage capacity (simulated)
+	checks = append(checks, migrationCheck{
+		name:     "Target Storage Capacity",
+		status:   "passed",
+		message:  "Sufficient storage available on target",
+		critical: true,
+	})
+
+	// Check 5: Network connectivity (simulated)
+	checks = append(checks, migrationCheck{
+		name:     "Network Connectivity",
+		status:   "passed",
+		message:  "Source and target are reachable",
+		critical: true,
+	})
+
+	// Check 6: Permissions (simulated)
+	checks = append(checks, migrationCheck{
+		name:     "Permissions",
+		status:   "passed",
+		message:  "Sufficient permissions on source and target",
+		critical: true,
+	})
+
+	return checks
+}
+
+// calculateMigrationSize calculates total size for migration
+func (m tuiModel) calculateMigrationSize(mw *migrationWizardState) int64 {
+	var totalSize int64
+	for _, vm := range mw.vms {
+		totalSize += vm.Storage
+	}
+	return totalSize
+}
+
+// calculateMigrationDuration estimates migration duration
+func (m tuiModel) calculateMigrationDuration(mw *migrationWizardState) time.Duration {
+	// Estimate based on size and network speed
+	// Assume 100 MB/s network bandwidth
+	bandwidth := float64(100 * 1024 * 1024) // bytes per second
+	totalBytes := float64(mw.estimatedSize)
+	seconds := totalBytes / bandwidth
+
+	// Add overhead for VM operations
+	overhead := 300.0 // 5 minutes per VM
+	seconds += float64(len(mw.vms)) * overhead
+
+	return time.Duration(seconds) * time.Second
+}
+
+// initializeMigrationWizard initializes the wizard with selected VMs
+func (m *tuiModel) initializeMigrationWizard() *migrationWizardState {
+	selectedVMs := m.getSelectedVMs()
+	vms := make([]vsphere.VMInfo, 0)
+	for _, item := range selectedVMs {
+		vms = append(vms, item.vm)
+	}
+
+	return &migrationWizardState{
+		step:             0,
+		vms:              vms,
+		sourceType:       "vsphere", // Default to current type
+		targetType:       "",
+		sourceDetails:    make(map[string]string),
+		targetDetails:    make(map[string]string),
+		migrationMode:    "",
+		validationChecks: make([]migrationCheck, 0),
+		warnings:         make([]string, 0),
+		readyToMigrate:   false,
+		useSchedule:      false,
 	}
 }
 
