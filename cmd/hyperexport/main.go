@@ -1886,22 +1886,32 @@ func runInteractiveTUI(ctx context.Context, client *vsphere.VSphereClient, cfg *
 			key.WithKeys("u"),
 			key.WithHelp("u", "cloud"),
 		),
+		SplitScreen: key.NewBinding(
+			key.WithKeys("v"),
+			key.WithHelp("v", "split view"),
+		),
+		SwitchPane: key.NewBinding(
+			key.WithKeys("tab"),
+			key.WithHelp("tab", "switch pane"),
+		),
 	}
 
 	// Create initial model
 	m := tuiModel{
-		vms:         []tuiVMItem{},
-		filteredVMs: []tuiVMItem{},
-		cursor:      0,
-		phase:       "loading",
-		sortMode:    "name",
-		client:      client,
-		outputDir:   outputDirPath,
-		log:         log,
-		ctx:         ctx,
-		progressBar: prog,
-		helpModel:   h,
-		keys:        keys,
+		vms:             []tuiVMItem{},
+		filteredVMs:     []tuiVMItem{},
+		cursor:          0,
+		phase:           "loading",
+		sortMode:        "name",
+		client:          client,
+		outputDir:       outputDirPath,
+		log:             log,
+		ctx:             ctx,
+		progressBar:     prog,
+		helpModel:       h,
+		keys:            keys,
+		splitScreenMode: false,
+		focusedPane:     "list",
 	}
 
 	// Run the TUI program

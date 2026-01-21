@@ -109,6 +109,10 @@ type tuiModel struct {
 	// Animation frame counter
 	animFrame int
 
+	// Split-screen mode
+	splitScreenMode bool
+	focusedPane     string // "list" or "details"
+
 	// Configuration
 	client    *vsphere.VSphereClient
 	outputDir string
@@ -189,17 +193,19 @@ type configField struct {
 
 // Modern key bindings
 type tuiKeyMap struct {
-	Up       key.Binding
-	Down     key.Binding
-	Select   key.Binding
-	Confirm  key.Binding
-	Back     key.Binding
-	Quit     key.Binding
-	Help     key.Binding
-	Filter   key.Binding
-	Sort     key.Binding
-	Features key.Binding
-	Cloud    key.Binding
+	Up          key.Binding
+	Down        key.Binding
+	Select      key.Binding
+	Confirm     key.Binding
+	Back        key.Binding
+	Quit        key.Binding
+	Help        key.Binding
+	Filter      key.Binding
+	Sort        key.Binding
+	Features    key.Binding
+	Cloud       key.Binding
+	SplitScreen key.Binding
+	SwitchPane  key.Binding
 }
 
 func (k tuiKeyMap) ShortHelp() []key.Binding {
@@ -686,6 +692,23 @@ func (m tuiModel) handleSelectionKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.phase = "cloud"
 		cloudModel := newCloudSelectionModel(&m)
 		return cloudModel, nil
+
+	case "v", "V":
+		// Toggle split screen mode
+		m.splitScreenMode = !m.splitScreenMode
+		m.focusedPane = "list"
+		return m, nil
+
+	case "tab":
+		// Switch pane in split screen mode
+		if m.splitScreenMode {
+			if m.focusedPane == "list" {
+				m.focusedPane = "details"
+			} else {
+				m.focusedPane = "list"
+			}
+		}
+		return m, nil
 
 	case "f", "F":
 		// Advanced features configuration
@@ -1249,7 +1272,264 @@ func renderCoolBanner() string {
 	return box.Render(gradientBanner + "\n" + subtitle)
 }
 
+// renderSplitScreen renders a split-screen layout with VM list and details side-by-side
+func (m tuiModel) renderSplitScreen() string {
+	var b strings.Builder
+
+	// Calculate pane widths based on terminal width
+	termWidth := m.getResponsiveWidth()
+	leftPaneWidth := termWidth * 45 / 100  // 45% for list
+	rightPaneWidth := termWidth * 50 / 100 // 50% for details
+
+	if termWidth < 80 {
+		// On narrow terminals, use vertical split instead
+		return m.renderVerticalSplit()
+	}
+
+	// Header with split screen indicator
+	header := lipgloss.NewStyle().
+		Foreground(tealInfo).
+		Background(darkBg).
+		Bold(true).
+		Padding(0, 2).
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(deepOrange).
+		Width(termWidth - 4).
+		Render("╔═══ SPLIT VIEW MODE ═══╗  VMs │ Details  (Tab: Switch Pane | V: Exit Split View)")
+
+	b.WriteString(header)
+	b.WriteString("\n\n")
+
+	// Render left pane (VM list)
+	leftPane := m.renderVMListPane(leftPaneWidth)
+
+	// Render right pane (VM details)
+	rightPane := m.renderDetailsPane(rightPaneWidth)
+
+	// Create bordered styles for each pane
+	leftStyle := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(func() lipgloss.Color {
+			if m.focusedPane == "list" {
+				return tealInfo
+			}
+			return lipgloss.Color("#4B5563")
+		}()).
+		Width(leftPaneWidth).
+		Height(m.termHeight - 10)
+
+	rightStyle := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(func() lipgloss.Color {
+			if m.focusedPane == "details" {
+				return tealInfo
+			}
+			return lipgloss.Color("#4B5563")
+		}()).
+		Width(rightPaneWidth).
+		Height(m.termHeight - 10)
+
+	// Join panes horizontally
+	panes := lipgloss.JoinHorizontal(
+		lipgloss.Top,
+		leftStyle.Render(leftPane),
+		"  ",
+		rightStyle.Render(rightPane),
+	)
+
+	b.WriteString(panes)
+	b.WriteString("\n")
+
+	// Footer with keyboard shortcuts
+	footer := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#6B7280")).
+		Italic(true).
+		Render("Tab: Switch Pane | ↑/↓: Navigate | Space: Select | Enter: Export | V: Exit Split View | Q: Quit")
+
+	b.WriteString(footer)
+
+	return b.String()
+}
+
+// renderVMListPane renders the left pane with VM list
+func (m tuiModel) renderVMListPane(width int) string {
+	var b strings.Builder
+
+	// Pane title
+	title := lipgloss.NewStyle().
+		Foreground(tealInfo).
+		Bold(true).
+		Render(fmt.Sprintf("📋 VM List (%s)", func() string {
+			if m.focusedPane == "list" {
+				return "ACTIVE"
+			}
+			return "inactive"
+		}()))
+
+	b.WriteString(title)
+	b.WriteString("\n\n")
+
+	// Stats
+	selectedCount := m.countSelected()
+	totalCount := len(m.vms)
+	visibleCount := len(m.getVisibleVMs())
+
+	stats := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#9CA3AF")).
+		Render(fmt.Sprintf("Total: %d | Visible: %d | Selected: %d", totalCount, visibleCount, selectedCount))
+
+	b.WriteString(stats)
+	b.WriteString("\n\n")
+
+	// VM list
+	vms := m.getVisibleVMs()
+	maxVisible := m.termHeight - 15
+	if maxVisible < 5 {
+		maxVisible = 5
+	}
+
+	start := m.cursor - maxVisible/2
+	if start < 0 {
+		start = 0
+	}
+	end := start + maxVisible
+	if end > len(vms) {
+		end = len(vms)
+		start = end - maxVisible
+		if start < 0 {
+			start = 0
+		}
+	}
+
+	for i := start; i < end && i < len(vms); i++ {
+		vm := vms[i]
+		cursor := " "
+		if i == m.cursor {
+			cursor = "❯"
+		}
+
+		checkbox := "[ ]"
+		if vm.selected {
+			checkbox = "[✓]"
+		}
+
+		// Truncate name if too long
+		name := vm.vm.Name
+		maxNameLen := width - 15
+		if len(name) > maxNameLen {
+			name = name[:maxNameLen-3] + "..."
+		}
+
+		style := lipgloss.NewStyle()
+		if i == m.cursor {
+			style = style.Foreground(tealInfo).Bold(true)
+		} else if vm.selected {
+			style = style.Foreground(successGreen)
+		}
+
+		line := fmt.Sprintf("%s %s %s", cursor, checkbox, name)
+		b.WriteString(style.Render(line))
+		b.WriteString("\n")
+	}
+
+	return b.String()
+}
+
+// renderDetailsPane renders the right pane with VM details
+func (m tuiModel) renderDetailsPane(width int) string {
+	var b strings.Builder
+
+	// Pane title
+	title := lipgloss.NewStyle().
+		Foreground(tealInfo).
+		Bold(true).
+		Render(fmt.Sprintf("📊 VM Details (%s)", func() string {
+			if m.focusedPane == "details" {
+				return "ACTIVE"
+			}
+			return "inactive"
+		}()))
+
+	b.WriteString(title)
+	b.WriteString("\n\n")
+
+	// Get currently selected VM
+	vms := m.getVisibleVMs()
+	if m.cursor >= len(vms) {
+		b.WriteString(lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#9CA3AF")).
+			Render("No VM selected"))
+		return b.String()
+	}
+
+	vm := vms[m.cursor].vm
+
+	// VM details
+	details := []struct {
+		label string
+		value string
+		color lipgloss.Color
+	}{
+		{"Name", vm.Name, tealInfo},
+		{"Path", vm.Path, lipgloss.Color("#6B7280")},
+		{"Power", vm.PowerState, func() lipgloss.Color {
+			if vm.PowerState == "poweredOn" {
+				return successGreen
+			}
+			return amberYellow
+		}()},
+		{"OS", vm.GuestOS, lipgloss.Color("#9CA3AF")},
+		{"CPU", fmt.Sprintf("%d cores", vm.NumCPU), lipgloss.Color("#60A5FA")},
+		{"Memory", fmt.Sprintf("%d MB", vm.MemoryMB), lipgloss.Color("#34D399")},
+		{"Storage", fmt.Sprintf("%.2f GB", float64(vm.Storage)/(1024*1024*1024)), lipgloss.Color("#F59E0B")},
+	}
+
+	for _, detail := range details {
+		label := lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#9CA3AF")).
+			Width(12).
+			Render(detail.label + ":")
+
+		value := lipgloss.NewStyle().
+			Foreground(detail.color).
+			Bold(true).
+			Render(detail.value)
+
+		b.WriteString(label + " " + value)
+		b.WriteString("\n")
+	}
+
+	return b.String()
+}
+
+// renderVerticalSplit renders a vertical split for narrow terminals
+func (m tuiModel) renderVerticalSplit() string {
+	var b strings.Builder
+
+	b.WriteString(lipgloss.NewStyle().
+		Foreground(tealInfo).
+		Bold(true).
+		Render("╔═══ SPLIT VIEW (Vertical) ═══╗"))
+	b.WriteString("\n\n")
+
+	// VM List on top
+	b.WriteString(m.renderVMListPane(m.termWidth - 4))
+	b.WriteString("\n")
+	b.WriteString(strings.Repeat("─", m.termWidth-4))
+	b.WriteString("\n")
+
+	// Details on bottom
+	b.WriteString(m.renderDetailsPane(m.termWidth - 4))
+
+	return b.String()
+}
+
 func (m tuiModel) renderSelection() string {
+	// If split screen mode is enabled, use split screen layout
+	if m.splitScreenMode {
+		return m.renderSplitScreen()
+	}
+
 	var b strings.Builder
 
 	// Cool banner instead of simple title

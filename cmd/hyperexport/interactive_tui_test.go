@@ -652,3 +652,299 @@ func TestPhaseValues(t *testing.T) {
 		})
 	}
 }
+
+// TestSplitScreenMode tests split screen mode toggling
+func TestSplitScreenMode(t *testing.T) {
+	m := tuiModel{
+		splitScreenMode: false,
+		focusedPane:     "list",
+	}
+
+	if m.splitScreenMode {
+		t.Error("Expected splitScreenMode to be false initially")
+	}
+
+	// Toggle split screen mode
+	m.splitScreenMode = true
+	if !m.splitScreenMode {
+		t.Error("Expected splitScreenMode to be true after toggle")
+	}
+
+	// Toggle back
+	m.splitScreenMode = false
+	if m.splitScreenMode {
+		t.Error("Expected splitScreenMode to be false after second toggle")
+	}
+}
+
+// TestSwitchPane tests pane switching in split screen mode
+func TestSwitchPane(t *testing.T) {
+	m := tuiModel{
+		splitScreenMode: true,
+		focusedPane:     "list",
+	}
+
+	if m.focusedPane != "list" {
+		t.Errorf("Expected focusedPane to be 'list', got %s", m.focusedPane)
+	}
+
+	// Switch to details
+	m.focusedPane = "details"
+	if m.focusedPane != "details" {
+		t.Errorf("Expected focusedPane to be 'details', got %s", m.focusedPane)
+	}
+
+	// Switch back to list
+	m.focusedPane = "list"
+	if m.focusedPane != "list" {
+		t.Errorf("Expected focusedPane to be 'list', got %s", m.focusedPane)
+	}
+}
+
+// TestRenderSplitScreen tests split screen rendering
+func TestRenderSplitScreen(t *testing.T) {
+	m := tuiModel{
+		vms: []tuiVMItem{
+			{
+				vm: vsphere.VMInfo{
+					Name:       "TestVM1",
+					Path:       "/datacenter/vm/test1",
+					PowerState: "poweredOn",
+					GuestOS:    "Ubuntu",
+					NumCPU:     4,
+					MemoryMB:   8192,
+					Storage:    100 * 1024 * 1024 * 1024, // 100 GB
+				},
+				selected: false,
+			},
+			{
+				vm: vsphere.VMInfo{
+					Name:       "TestVM2",
+					Path:       "/datacenter/vm/test2",
+					PowerState: "poweredOff",
+					GuestOS:    "Windows",
+					NumCPU:     2,
+					MemoryMB:   4096,
+					Storage:    50 * 1024 * 1024 * 1024, // 50 GB
+				},
+				selected: true,
+			},
+		},
+		filteredVMs:     []tuiVMItem{},
+		cursor:          0,
+		splitScreenMode: true,
+		focusedPane:     "list",
+		termWidth:       100,
+		termHeight:      30,
+	}
+
+	// Apply filters to populate filteredVMs
+	m.applyFiltersAndSort()
+
+	output := m.renderSplitScreen()
+
+	if output == "" {
+		t.Error("renderSplitScreen returned empty string")
+	}
+
+	// Check for key elements
+	if !contains(output, "SPLIT VIEW MODE") {
+		t.Error("Output should contain split view mode indicator")
+	}
+
+	if !contains(output, "Tab: Switch Pane") {
+		t.Error("Output should contain tab hint")
+	}
+}
+
+// TestRenderVMListPane tests VM list pane rendering
+func TestRenderVMListPane(t *testing.T) {
+	m := tuiModel{
+		vms: []tuiVMItem{
+			{
+				vm: vsphere.VMInfo{
+					Name:       "TestVM1",
+					Path:       "/datacenter/vm/test1",
+					PowerState: "poweredOn",
+					GuestOS:    "Ubuntu",
+					NumCPU:     4,
+					MemoryMB:   8192,
+					Storage:    100 * 1024 * 1024 * 1024,
+				},
+				selected: true,
+			},
+			{
+				vm: vsphere.VMInfo{
+					Name:       "TestVM2",
+					Path:       "/datacenter/vm/test2",
+					PowerState: "poweredOff",
+					GuestOS:    "Windows",
+					NumCPU:     2,
+					MemoryMB:   4096,
+					Storage:    50 * 1024 * 1024 * 1024,
+				},
+				selected: false,
+			},
+		},
+		filteredVMs: []tuiVMItem{},
+		cursor:      0,
+		focusedPane: "list",
+		termWidth:   80,
+		termHeight:  30,
+	}
+
+	m.applyFiltersAndSort()
+
+	output := m.renderVMListPane(40)
+
+	if output == "" {
+		t.Error("renderVMListPane returned empty string")
+	}
+
+	// Check for VM names
+	if !contains(output, "TestVM1") {
+		t.Error("Output should contain VM1 name")
+	}
+
+	// Check for selection indicators
+	if !contains(output, "[✓]") {
+		t.Error("Output should contain checked box for selected VM")
+	}
+
+	if !contains(output, "[ ]") {
+		t.Error("Output should contain unchecked box for unselected VM")
+	}
+}
+
+// TestRenderDetailsPane tests VM details pane rendering
+func TestRenderDetailsPane(t *testing.T) {
+	m := tuiModel{
+		vms: []tuiVMItem{
+			{
+				vm: vsphere.VMInfo{
+					Name:       "DetailTestVM",
+					Path:       "/datacenter/vm/detail-test",
+					PowerState: "poweredOn",
+					GuestOS:    "Ubuntu 22.04",
+					NumCPU:     8,
+					MemoryMB:   16384,
+					Storage:    200 * 1024 * 1024 * 1024,
+				},
+				selected: false,
+			},
+		},
+		filteredVMs: []tuiVMItem{},
+		cursor:      0,
+		focusedPane: "details",
+		termWidth:   80,
+		termHeight:  30,
+	}
+
+	m.applyFiltersAndSort()
+
+	output := m.renderDetailsPane(50)
+
+	if output == "" {
+		t.Error("renderDetailsPane returned empty string")
+	}
+
+	// Check for VM details
+	if !contains(output, "DetailTestVM") {
+		t.Error("Output should contain VM name")
+	}
+
+	if !contains(output, "Ubuntu 22.04") {
+		t.Error("Output should contain guest OS")
+	}
+
+	if !contains(output, "8 cores") {
+		t.Error("Output should contain CPU count")
+	}
+
+	if !contains(output, "16384 MB") {
+		t.Error("Output should contain memory")
+	}
+
+	if !contains(output, "poweredOn") {
+		t.Error("Output should contain power state")
+	}
+}
+
+// TestRenderVerticalSplit tests vertical split for narrow terminals
+func TestRenderVerticalSplit(t *testing.T) {
+	m := tuiModel{
+		vms: []tuiVMItem{
+			{
+				vm: vsphere.VMInfo{
+					Name:       "TestVM",
+					Path:       "/datacenter/vm/test",
+					PowerState: "poweredOn",
+					GuestOS:    "Linux",
+					NumCPU:     2,
+					MemoryMB:   4096,
+					Storage:    50 * 1024 * 1024 * 1024,
+				},
+				selected: false,
+			},
+		},
+		filteredVMs:     []tuiVMItem{},
+		cursor:          0,
+		splitScreenMode: true,
+		focusedPane:     "list",
+		termWidth:       60, // Narrow terminal
+		termHeight:      30,
+	}
+
+	m.applyFiltersAndSort()
+
+	output := m.renderVerticalSplit()
+
+	if output == "" {
+		t.Error("renderVerticalSplit returned empty string")
+	}
+
+	// Check for vertical split indicator
+	if !contains(output, "SPLIT VIEW (Vertical)") {
+		t.Error("Output should contain vertical split indicator")
+	}
+
+	// Should contain both list and details sections
+	if !contains(output, "TestVM") {
+		t.Error("Output should contain VM name")
+	}
+}
+
+// TestSplitScreenWithNoVMs tests split screen with empty VM list
+func TestSplitScreenWithNoVMs(t *testing.T) {
+	m := tuiModel{
+		vms:             []tuiVMItem{},
+		filteredVMs:     []tuiVMItem{},
+		cursor:          0,
+		splitScreenMode: true,
+		focusedPane:     "list",
+		termWidth:       100,
+		termHeight:      30,
+	}
+
+	m.applyFiltersAndSort()
+
+	output := m.renderSplitScreen()
+
+	if output == "" {
+		t.Error("renderSplitScreen returned empty string even with no VMs")
+	}
+}
+
+// Helper function to check if string contains substring
+func contains(s, substr string) bool {
+	return len(s) > 0 && len(substr) > 0 && (s == substr || (len(s) > len(substr) && anyMatch(s, substr)))
+}
+
+func anyMatch(s, substr string) bool {
+	for i := 0; i <= len(s)-len(substr); i++ {
+		if s[i:i+len(substr)] == substr {
+			return true
+		}
+	}
+	return false
+}
