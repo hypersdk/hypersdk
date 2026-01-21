@@ -300,7 +300,9 @@ func configureExport(defaultOutputDir string, theme *huh.Theme) (*exportConfigur
 
 	// Convert parallel string to int
 	if config.parallelStr != "" {
-		fmt.Sscanf(config.parallelStr, "%d", &config.parallel)
+		if _, err := fmt.Sscanf(config.parallelStr, "%d", &config.parallel); err != nil {
+			return nil, fmt.Errorf("invalid parallel downloads value: %w", err)
+		}
 	}
 
 	// Apply template or custom settings
@@ -390,7 +392,22 @@ func confirmAndExecute(ctx context.Context, client *vsphere.VSphereClient, vms [
 	for i, vm := range vms {
 		pterm.DefaultSection.Printf("Exporting VM %d/%d: %s", i+1, len(vms), vm.Name)
 
-		vmOutputDir := filepath.Join(cfg.outputDir, sanitizeFilename(vm.Name))
+		sanitized := sanitizeFilename(vm.Name)
+		vmOutputDir := filepath.Join(cfg.outputDir, sanitized)
+
+		// Validate path to prevent directory traversal
+		absOutputDir, err := filepath.Abs(cfg.outputDir)
+		if err != nil {
+			return fmt.Errorf("resolve output directory path: %w", err)
+		}
+		absVMDir, err := filepath.Abs(vmOutputDir)
+		if err != nil {
+			return fmt.Errorf("resolve VM output directory path: %w", err)
+		}
+		if !strings.HasPrefix(absVMDir, absOutputDir+string(filepath.Separator)) {
+			return fmt.Errorf("security: invalid VM name would escape output directory")
+		}
+
 		if err := os.MkdirAll(vmOutputDir, 0755); err != nil {
 			return fmt.Errorf("create output directory: %w", err)
 		}
@@ -480,7 +497,7 @@ func printBanner() {
 	pterm.Println(version)
 	pterm.Println()
 
-	pterm.Info.Println("Use arrow keys to navigate, space to select, enter to confirm\n")
+	pterm.Info.Println("Use arrow keys to navigate, space to select, enter to confirm")
 }
 
 func truncate(s string, max int) string {
