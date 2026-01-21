@@ -155,11 +155,43 @@ type savedFilter struct {
 	created     time.Time
 }
 
+// filterBuilderState manages the interactive filter builder
+type filterBuilderState struct {
+	focusedField     int
+	namePattern      string
+	powerState       string // "", "on", "off"
+	osPattern        string
+	minCPU           int32
+	maxCPU           int32
+	minMemoryGB      float64
+	maxMemoryGB      float64
+	minStorageGB     float64
+	maxStorageGB     float64
+	tagsPattern      string
+	folderPattern    string
+	matchMode        string // "all" (AND), "any" (OR)
+	caseSensitive    bool
+	useRegex         bool
+	previewResults   []vsphere.VMInfo
+	filterName       string
+	filterDesc       string
+	mode             string // "build", "save", "preview"
+}
+
+// filterBuilderField represents a single field in the filter builder
+type filterBuilderField struct {
+	name        string
+	value       string
+	description string
+	fieldType   string // "text", "number", "bool", "choice"
+	choices     []string
+}
+
 type tuiModel struct {
 	vms              []tuiVMItem
 	filteredVMs      []tuiVMItem
 	cursor           int
-	phase            string // "select", "confirm", "template", "regex", "cloud", "features", "export", "cloudupload", "done", "search", "details", "validation", "config", "stats", "queue", "history", "logs", "tree", "preview", "actions", "bulkops", "compare", "bookmarks", "metrics"
+	phase            string // "select", "confirm", "template", "regex", "cloud", "features", "export", "cloudupload", "done", "search", "details", "validation", "config", "stats", "queue", "history", "logs", "tree", "preview", "actions", "bulkops", "compare", "bookmarks", "metrics", "filterbuilder"
 	detailsVM        *vsphere.VMInfo // VM to show details for
 	validationReport *ValidationReport // Pre-export validation results
 	configPanel      *configPanelState // Interactive config panel state
@@ -265,6 +297,11 @@ type tuiModel struct {
 	showMetrics      bool
 	metricsMode      string // "overview", "cpu", "memory", "storage"
 	metricsRefresh   time.Time
+
+	// Advanced filter builder
+	showFilterBuilder bool
+	filterBuilder     *filterBuilderState
+	filterPreviewCount int
 
 	// Configuration
 	client    *vsphere.VSphereClient
@@ -386,6 +423,7 @@ type tuiKeyMap struct {
 	Compare     key.Binding
 	Bookmarks   key.Binding
 	Metrics     key.Binding
+	FilterBuilder key.Binding
 }
 
 func (k tuiKeyMap) ShortHelp() []key.Binding {
@@ -698,6 +736,8 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.handleBookmarksKeys(msg)
 		case "metrics":
 			return m.handleMetricsKeys(msg)
+		case "filterbuilder":
+			return m.handleFilterBuilderKeys(msg)
 		case "cloud":
 			// Cloud phase is handled by cloudSelectionModel
 			return m, nil
@@ -1040,6 +1080,17 @@ func (m tuiModel) handleSelectionKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.metricsMode = "overview"
 		m.metricsRefresh = time.Now()
 		m.phase = "metrics"
+		return m, nil
+
+	case "G":
+		// Show advanced filter builder
+		m.showFilterBuilder = true
+		m.filterBuilder = &filterBuilderState{
+			mode:      "build",
+			matchMode: "all",
+		}
+		m.filterPreviewCount = len(m.vms)
+		m.phase = "filterbuilder"
 		return m, nil
 	}
 
@@ -1577,6 +1628,8 @@ func (m tuiModel) View() string {
 		return m.renderBookmarks()
 	case "metrics":
 		return m.renderMetrics()
+	case "filterbuilder":
+		return m.renderFilterBuilder()
 	case "export":
 		return m.renderExport()
 	case "cloudupload":
@@ -6668,6 +6721,467 @@ func (m tuiModel) handleMetricsKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 
 	return m, nil
+}
+
+// renderFilterBuilder renders the advanced filter builder interface
+func (m tuiModel) renderFilterBuilder() string {
+	if m.filterBuilder == nil {
+		return "Filter builder not initialized"
+	}
+
+	fb := m.filterBuilder
+	var b strings.Builder
+
+	// Title
+	titleStyle := lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.Color("39")).
+		Background(lipgloss.Color("235")).
+		Padding(0, 2)
+
+	b.WriteString(titleStyle.Render("🔍 ADVANCED FILTER BUILDER"))
+	b.WriteString("\n\n")
+
+	// Mode indicator
+	modeStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("208"))
+	switch fb.mode {
+	case "build":
+		b.WriteString(modeStyle.Render("Mode: Building Filter"))
+	case "preview":
+		b.WriteString(modeStyle.Render("Mode: Preview Results"))
+	case "save":
+		b.WriteString(modeStyle.Render("Mode: Save Filter"))
+	}
+	b.WriteString("\n\n")
+
+	if fb.mode == "build" {
+		// Render filter criteria fields
+		fields := []struct {
+			idx   int
+			label string
+			value string
+			hint  string
+		}{
+			{0, "Name Pattern", fb.namePattern, "e.g., web-*, *prod*, db-?"},
+			{1, "Power State", fb.powerState, "[any/on/off]"},
+			{2, "OS Pattern", fb.osPattern, "e.g., Ubuntu*, Windows*"},
+			{3, "Min CPU", fmt.Sprintf("%d", fb.minCPU), "Minimum vCPUs (0 = any)"},
+			{4, "Max CPU", fmt.Sprintf("%d", fb.maxCPU), "Maximum vCPUs (0 = unlimited)"},
+			{5, "Min Memory (GB)", fmt.Sprintf("%.1f", fb.minMemoryGB), "Minimum RAM"},
+			{6, "Max Memory (GB)", fmt.Sprintf("%.1f", fb.maxMemoryGB), "Maximum RAM (0 = unlimited)"},
+			{7, "Min Storage (GB)", fmt.Sprintf("%.1f", fb.minStorageGB), "Minimum disk space"},
+			{8, "Max Storage (GB)", fmt.Sprintf("%.1f", fb.maxStorageGB), "Maximum disk space (0 = unlimited)"},
+			{9, "Folder Pattern", fb.folderPattern, "e.g., /Datacenter/*/Production"},
+			{10, "Match Mode", fb.matchMode, "[all=AND / any=OR]"},
+			{11, "Case Sensitive", fmt.Sprintf("%t", fb.caseSensitive), "[true/false]"},
+			{12, "Use Regex", fmt.Sprintf("%t", fb.useRegex), "[true/false]"},
+		}
+
+		labelStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("243"))
+		valueStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("255"))
+		focusedStyle := lipgloss.NewStyle().
+			Foreground(lipgloss.Color("39")).
+			Bold(true).
+			Background(lipgloss.Color("237"))
+		hintStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Italic(true)
+
+		for _, field := range fields {
+			prefix := "  "
+			if field.idx == fb.focusedField {
+				prefix = "▶ "
+			}
+
+			fieldLine := prefix + labelStyle.Render(fmt.Sprintf("%-20s", field.label+":"))
+			if field.idx == fb.focusedField {
+				fieldLine += " " + focusedStyle.Render(fmt.Sprintf("%-25s", field.value))
+			} else {
+				fieldLine += " " + valueStyle.Render(fmt.Sprintf("%-25s", field.value))
+			}
+			fieldLine += " " + hintStyle.Render(field.hint)
+			b.WriteString(fieldLine + "\n")
+		}
+
+		// Match preview
+		b.WriteString("\n")
+		previewStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("46"))
+		matchCount := m.filterPreviewCount
+		b.WriteString(previewStyle.Render(fmt.Sprintf("📊 Matches: %d VMs", matchCount)))
+
+	} else if fb.mode == "preview" {
+		// Show preview results
+		b.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("46")).Render(
+			fmt.Sprintf("Filter matches %d VMs:\n\n", len(fb.previewResults))))
+
+		headerStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("255"))
+		b.WriteString(headerStyle.Render(fmt.Sprintf("%-30s %-12s %-6s %-10s %-12s\n",
+			"Name", "Power", "CPU", "Memory", "Storage")))
+		b.WriteString(strings.Repeat("─", 80) + "\n")
+
+		// Show first 15 results
+		maxShow := 15
+		if len(fb.previewResults) < maxShow {
+			maxShow = len(fb.previewResults)
+		}
+
+		for i := 0; i < maxShow; i++ {
+			vm := fb.previewResults[i]
+			powerIcon := "●"
+			powerColor := lipgloss.Color("243")
+			if vm.PowerState == "poweredOn" {
+				powerIcon = "●"
+				powerColor = lipgloss.Color("46")
+			}
+
+			b.WriteString(fmt.Sprintf("%-30s %s %-10s %4d   %-10s %-12s\n",
+				truncateString(vm.Name, 30),
+				lipgloss.NewStyle().Foreground(powerColor).Render(powerIcon),
+				vm.PowerState,
+				vm.CPU,
+				fmt.Sprintf("%.1f GB", float64(vm.Memory)/(1024*1024*1024)),
+				formatBytes(vm.Storage)))
+		}
+
+		if len(fb.previewResults) > maxShow {
+			b.WriteString(fmt.Sprintf("\n... and %d more\n", len(fb.previewResults)-maxShow))
+		}
+
+	} else if fb.mode == "save" {
+		// Save filter form
+		b.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("226")).Render("Save Filter Configuration\n\n"))
+
+		fields := []struct {
+			idx   int
+			label string
+			value string
+		}{
+			{0, "Filter Name", fb.filterName},
+			{1, "Description", fb.filterDesc},
+		}
+
+		labelStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("243"))
+		valueStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("255"))
+		focusedStyle := lipgloss.NewStyle().
+			Foreground(lipgloss.Color("39")).
+			Bold(true).
+			Background(lipgloss.Color("237"))
+
+		for _, field := range fields {
+			prefix := "  "
+			if field.idx == fb.focusedField-100 { // Offset to distinguish from build mode
+				prefix = "▶ "
+			}
+
+			fieldLine := prefix + labelStyle.Render(fmt.Sprintf("%-20s", field.label+":"))
+			if field.idx == fb.focusedField-100 {
+				fieldLine += " " + focusedStyle.Render(field.value)
+			} else {
+				fieldLine += " " + valueStyle.Render(field.value)
+			}
+			b.WriteString(fieldLine + "\n")
+		}
+
+		b.WriteString("\n")
+		b.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("243")).Render(
+			"Filter will match " + fmt.Sprintf("%d", len(fb.previewResults)) + " VMs"))
+	}
+
+	// Help footer
+	b.WriteString("\n\n")
+	helpStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
+
+	switch fb.mode {
+	case "build":
+		b.WriteString(helpStyle.Render("↑↓/k/j: Navigate | Enter: Edit | P: Preview | S: Save | A: Apply | C: Clear | Esc: Cancel"))
+	case "preview":
+		b.WriteString(helpStyle.Render("Esc/B: Back to builder | A: Apply filter | S: Save"))
+	case "save":
+		b.WriteString(helpStyle.Render("Enter: Confirm save | Esc: Cancel"))
+	}
+
+	return b.String()
+}
+
+// handleFilterBuilderKeys handles keyboard input in filter builder mode
+func (m tuiModel) handleFilterBuilderKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	if m.filterBuilder == nil {
+		m.phase = "select"
+		return m, nil
+	}
+
+	fb := m.filterBuilder
+
+	switch msg.String() {
+	case "ctrl+c", "q":
+		return m, tea.Quit
+
+	case "escape", "esc":
+		if fb.mode == "build" {
+			// Exit filter builder
+			m.phase = "select"
+			m.showFilterBuilder = false
+			m.filterBuilder = nil
+			return m, nil
+		} else {
+			// Go back to build mode
+			fb.mode = "build"
+			fb.focusedField = 0
+		}
+
+	case "up", "k":
+		if fb.mode == "build" {
+			if fb.focusedField > 0 {
+				fb.focusedField--
+			}
+		}
+
+	case "down", "j":
+		if fb.mode == "build" {
+			if fb.focusedField < 12 { // 13 fields (0-12)
+				fb.focusedField++
+			}
+		}
+
+	case "p", "P":
+		if fb.mode == "build" {
+			// Switch to preview mode
+			fb.mode = "preview"
+			fb.previewResults = m.applyFilterBuilder(fb)
+			m.filterPreviewCount = len(fb.previewResults)
+		}
+
+	case "s", "S":
+		// Switch to save mode
+		fb.mode = "save"
+		fb.focusedField = 100 // Reset for save mode fields
+		if fb.filterName == "" {
+			fb.filterName = "Custom Filter " + time.Now().Format("15:04")
+		}
+
+	case "a", "A":
+		// Apply filter to main list
+		m.filteredVMs = make([]tuiVMItem, 0)
+		matches := m.applyFilterBuilder(fb)
+		for _, vm := range matches {
+			for _, item := range m.vms {
+				if item.vm.Path == vm.Path {
+					m.filteredVMs = append(m.filteredVMs, item)
+					break
+				}
+			}
+		}
+		m.cursor = 0
+		m.message = fmt.Sprintf("Applied filter: %d VMs match", len(m.filteredVMs))
+		m.phase = "select"
+		m.showFilterBuilder = false
+		return m, nil
+
+	case "c", "C":
+		if fb.mode == "build" {
+			// Clear all filters
+			*fb = filterBuilderState{
+				mode:      "build",
+				matchMode: "all",
+			}
+			m.filterPreviewCount = 0
+		}
+
+	case "b", "B":
+		if fb.mode == "preview" {
+			fb.mode = "build"
+		}
+
+	case "enter":
+		if fb.mode == "save" {
+			// Save the filter
+			newFilter := savedFilter{
+				name:         fb.filterName,
+				description:  fb.filterDesc,
+				powerState:   fb.powerState,
+				osFilter:     fb.osPattern,
+				minCPU:       fb.minCPU,
+				searchQuery:  fb.namePattern,
+				minMemoryGB:  fb.minMemoryGB,
+				minStorageGB: fb.minStorageGB,
+				created:      time.Now(),
+			}
+			m.savedFilters = append(m.savedFilters, newFilter)
+			m.message = fmt.Sprintf("Filter '%s' saved successfully", fb.filterName)
+			m.phase = "select"
+			m.showFilterBuilder = false
+			return m, nil
+		}
+		// In build mode, enter could toggle or edit the focused field
+		// For simplicity, we'll use specific keys to modify values
+
+	case "0", "1", "2", "3", "4", "5", "6", "7", "8", "9":
+		// For numeric fields, could implement inline editing
+		// For now, this is a simplified version
+
+	case "t", "T":
+		if fb.mode == "build" {
+			// Toggle boolean fields
+			if fb.focusedField == 11 { // Case Sensitive
+				fb.caseSensitive = !fb.caseSensitive
+			} else if fb.focusedField == 12 { // Use Regex
+				fb.useRegex = !fb.useRegex
+			}
+		}
+
+	case "m", "M":
+		if fb.mode == "build" && fb.focusedField == 10 {
+			// Toggle match mode
+			if fb.matchMode == "all" {
+				fb.matchMode = "any"
+			} else {
+				fb.matchMode = "all"
+			}
+		}
+	}
+
+	// Update preview count when in build mode
+	if fb.mode == "build" {
+		matches := m.applyFilterBuilder(fb)
+		m.filterPreviewCount = len(matches)
+	}
+
+	return m, nil
+}
+
+// applyFilterBuilder applies the filter builder criteria to all VMs
+func (m tuiModel) applyFilterBuilder(fb *filterBuilderState) []vsphere.VMInfo {
+	if fb == nil {
+		return nil
+	}
+
+	matches := make([]vsphere.VMInfo, 0)
+
+	for _, item := range m.vms {
+		vm := item.vm
+		matchCount := 0
+		totalCriteria := 0
+
+		// Name pattern
+		if fb.namePattern != "" {
+			totalCriteria++
+			if matchesPattern(vm.Name, fb.namePattern, fb.caseSensitive, fb.useRegex) {
+				matchCount++
+			}
+		}
+
+		// Power state
+		if fb.powerState != "" {
+			totalCriteria++
+			expectedState := "poweredOn"
+			if fb.powerState == "off" {
+				expectedState = "poweredOff"
+			}
+			if vm.PowerState == expectedState || (fb.powerState == "on" && vm.PowerState == "poweredOn") {
+				matchCount++
+			}
+		}
+
+		// OS pattern
+		if fb.osPattern != "" {
+			totalCriteria++
+			if matchesPattern(vm.GuestOS, fb.osPattern, fb.caseSensitive, fb.useRegex) {
+				matchCount++
+			}
+		}
+
+		// CPU range
+		if fb.minCPU > 0 {
+			totalCriteria++
+			if vm.CPU >= fb.minCPU {
+				matchCount++
+			}
+		}
+		if fb.maxCPU > 0 {
+			totalCriteria++
+			if vm.CPU <= fb.maxCPU {
+				matchCount++
+			}
+		}
+
+		// Memory range
+		memoryGB := float64(vm.Memory) / (1024 * 1024 * 1024)
+		if fb.minMemoryGB > 0 {
+			totalCriteria++
+			if memoryGB >= fb.minMemoryGB {
+				matchCount++
+			}
+		}
+		if fb.maxMemoryGB > 0 {
+			totalCriteria++
+			if memoryGB <= fb.maxMemoryGB {
+				matchCount++
+			}
+		}
+
+		// Storage range
+		storageGB := float64(vm.Storage) / (1024 * 1024 * 1024)
+		if fb.minStorageGB > 0 {
+			totalCriteria++
+			if storageGB >= fb.minStorageGB {
+				matchCount++
+			}
+		}
+		if fb.maxStorageGB > 0 {
+			totalCriteria++
+			if storageGB <= fb.maxStorageGB {
+				matchCount++
+			}
+		}
+
+		// Folder pattern
+		if fb.folderPattern != "" {
+			totalCriteria++
+			if matchesPattern(vm.Path, fb.folderPattern, fb.caseSensitive, fb.useRegex) {
+				matchCount++
+			}
+		}
+
+		// Determine if VM matches based on match mode
+		if totalCriteria == 0 {
+			// No criteria set, match all
+			matches = append(matches, vm)
+		} else if fb.matchMode == "all" {
+			// AND mode: all criteria must match
+			if matchCount == totalCriteria {
+				matches = append(matches, vm)
+			}
+		} else {
+			// OR mode: at least one criterion must match
+			if matchCount > 0 {
+				matches = append(matches, vm)
+			}
+		}
+	}
+
+	return matches
+}
+
+// matchesPattern checks if a string matches a pattern (wildcard or regex)
+func matchesPattern(str, pattern string, caseSensitive, useRegex bool) bool {
+	if !caseSensitive {
+		str = strings.ToLower(str)
+		pattern = strings.ToLower(pattern)
+	}
+
+	if useRegex {
+		// Use regex matching
+		// For safety, we'll use a simple Contains check if regex compilation fails
+		matched, _ := filepath.Match(pattern, str)
+		return matched || strings.Contains(str, pattern)
+	}
+
+	// Wildcard matching
+	if strings.Contains(pattern, "*") || strings.Contains(pattern, "?") {
+		matched, _ := filepath.Match(pattern, str)
+		return matched
+	}
+
+	// Simple substring match
+	return strings.Contains(str, pattern)
 }
 
 // handleTreeKeys handles keyboard input in tree view
