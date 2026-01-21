@@ -159,7 +159,7 @@ type tuiModel struct {
 	vms              []tuiVMItem
 	filteredVMs      []tuiVMItem
 	cursor           int
-	phase            string // "select", "confirm", "template", "regex", "cloud", "features", "export", "cloudupload", "done", "search", "details", "validation", "config", "stats", "queue", "history", "logs", "tree", "preview", "actions", "bulkops", "compare", "bookmarks"
+	phase            string // "select", "confirm", "template", "regex", "cloud", "features", "export", "cloudupload", "done", "search", "details", "validation", "config", "stats", "queue", "history", "logs", "tree", "preview", "actions", "bulkops", "compare", "bookmarks", "metrics"
 	detailsVM        *vsphere.VMInfo // VM to show details for
 	validationReport *ValidationReport // Pre-export validation results
 	configPanel      *configPanelState // Interactive config panel state
@@ -260,6 +260,11 @@ type tuiModel struct {
 	bookmarkCursor   int
 	savedFilters     []savedFilter
 	filtersCursor    int
+
+	// Performance metrics dashboard
+	showMetrics      bool
+	metricsMode      string // "overview", "cpu", "memory", "storage"
+	metricsRefresh   time.Time
 
 	// Configuration
 	client    *vsphere.VSphereClient
@@ -380,6 +385,7 @@ type tuiKeyMap struct {
 	BulkOps     key.Binding
 	Compare     key.Binding
 	Bookmarks   key.Binding
+	Metrics     key.Binding
 }
 
 func (k tuiKeyMap) ShortHelp() []key.Binding {
@@ -690,6 +696,8 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.handleCompareKeys(msg)
 		case "bookmarks":
 			return m.handleBookmarksKeys(msg)
+		case "metrics":
+			return m.handleMetricsKeys(msg)
 		case "cloud":
 			// Cloud phase is handled by cloudSelectionModel
 			return m, nil
@@ -1012,7 +1020,7 @@ func (m tuiModel) handleSelectionKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.phase = "compare"
 		return m, nil
 
-	case "m", "M":
+	case "m":
 		// Show bookmarks and saved filters
 		m.showBookmarks = true
 		m.bookmarkCursor = 0
@@ -1024,6 +1032,14 @@ func (m tuiModel) handleSelectionKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if len(m.savedFilters) == 0 {
 			m.initializeSampleFilters()
 		}
+		return m, nil
+
+	case "M":
+		// Show performance metrics dashboard
+		m.showMetrics = true
+		m.metricsMode = "overview"
+		m.metricsRefresh = time.Now()
+		m.phase = "metrics"
 		return m, nil
 	}
 
@@ -1559,6 +1575,8 @@ func (m tuiModel) View() string {
 		return m.renderCompare()
 	case "bookmarks":
 		return m.renderBookmarks()
+	case "metrics":
+		return m.renderMetrics()
 	case "export":
 		return m.renderExport()
 	case "cloudupload":
@@ -3339,6 +3357,8 @@ Actions:
 Views:
   v         Toggle split-screen
   ]         Folder tree view
+  D         Statistics dashboard
+  M         Performance metrics
   H         Export history
   L         Live logs viewer
   Q         Queue manager
@@ -6179,6 +6199,475 @@ func (m *tuiModel) initializeSampleFilters() {
 			created:     time.Now().Add(-72 * time.Hour),
 		},
 	}
+}
+
+// renderMetrics renders the performance metrics dashboard
+func (m tuiModel) renderMetrics() string {
+	var b strings.Builder
+
+	// Header
+	modeText := map[string]string{
+		"overview": "OVERVIEW",
+		"cpu":      "CPU METRICS",
+		"memory":   "MEMORY METRICS",
+		"storage":  "STORAGE METRICS",
+	}
+	header := lipgloss.NewStyle().
+		Foreground(deepOrange).
+		Bold(true).
+		Render(fmt.Sprintf("📊 PERFORMANCE METRICS - %s  (Esc/M: Back | 1-4: Switch Mode)", modeText[m.metricsMode]))
+	b.WriteString(header)
+	b.WriteString("\n\n")
+
+	// Mode selector
+	modeBar := lipgloss.NewStyle().
+		Foreground(mutedGray).
+		Render("Modes: ")
+
+	modes := []string{"1:Overview", "2:CPU", "3:Memory", "4:Storage"}
+	modeMapping := []string{"overview", "cpu", "memory", "storage"}
+
+	for i, modeLabel := range modes {
+		if modeMapping[i] == m.metricsMode {
+			modeBar += lipgloss.NewStyle().
+				Foreground(deepOrange).
+				Bold(true).
+				Background(lightBg).
+				Render(fmt.Sprintf(" [%s] ", modeLabel))
+		} else {
+			modeBar += lipgloss.NewStyle().
+				Foreground(mutedGray).
+				Render(fmt.Sprintf("  %s  ", modeLabel))
+		}
+	}
+	b.WriteString(modeBar)
+	b.WriteString("\n\n")
+
+	// Render metrics based on mode
+	switch m.metricsMode {
+	case "overview":
+		b.WriteString(m.renderMetricsOverview())
+	case "cpu":
+		b.WriteString(m.renderMetricsCPU())
+	case "memory":
+		b.WriteString(m.renderMetricsMemory())
+	case "storage":
+		b.WriteString(m.renderMetricsStorage())
+	}
+
+	// Help footer
+	helpText := helpStyleTUI.Render("1-4: Switch metrics mode | R: Refresh | Esc/M: Back to selection")
+	b.WriteString("\n")
+	b.WriteString(helpText)
+	b.WriteString("\n")
+
+	return b.String()
+}
+
+// renderMetricsOverview renders the overview metrics
+func (m tuiModel) renderMetricsOverview() string {
+	var b strings.Builder
+
+	// Calculate aggregate statistics
+	totalVMs := len(m.vms)
+	poweredOn := 0
+	poweredOff := 0
+	var totalCPU int32
+	var totalMemoryMB int32
+	var totalStorageBytes int64
+
+	for _, item := range m.vms {
+		if item.vm.PowerState == "poweredOn" {
+			poweredOn++
+		} else {
+			poweredOff++
+		}
+		totalCPU += item.vm.NumCPU
+		totalMemoryMB += item.vm.MemoryMB
+		totalStorageBytes += item.vm.Storage
+	}
+
+	// Infrastructure overview
+	sectionTitle := lipgloss.NewStyle().
+		Foreground(tealInfo).
+		Bold(true).
+		Render("Infrastructure Overview")
+	b.WriteString(sectionTitle)
+	b.WriteString("\n\n")
+
+	overviewBox := panelStyleTUI.Render(
+		fmt.Sprintf(
+			"  Total VMs: %s\n"+
+				"  Powered On: %s\n"+
+				"  Powered Off: %s\n"+
+				"  Selected: %s",
+			statsStyleTUI.Render(fmt.Sprintf("%d", totalVMs)),
+			statsStyleTUI.Render(fmt.Sprintf("%d", poweredOn)),
+			statsStyleTUI.Render(fmt.Sprintf("%d", poweredOff)),
+			statsStyleTUI.Render(fmt.Sprintf("%d", m.countSelected())),
+		),
+	)
+	b.WriteString(overviewBox)
+	b.WriteString("\n\n")
+
+	// Resource allocation
+	resourceTitle := lipgloss.NewStyle().
+		Foreground(tealInfo).
+		Bold(true).
+		Render("Resource Allocation")
+	b.WriteString(resourceTitle)
+	b.WriteString("\n\n")
+
+	resourceBox := panelStyleTUI.Render(
+		fmt.Sprintf(
+			"  Total vCPUs: %s\n"+
+				"  Total Memory: %s\n"+
+				"  Total Storage: %s\n"+
+				"  Avg CPUs/VM: %s",
+			statsStyleTUI.Render(fmt.Sprintf("%d", totalCPU)),
+			statsStyleTUI.Render(fmt.Sprintf("%.1f GB", float64(totalMemoryMB)/1024)),
+			statsStyleTUI.Render(formatBytes(totalStorageBytes)),
+			statsStyleTUI.Render(fmt.Sprintf("%.1f", float64(totalCPU)/float64(max(totalVMs, 1)))),
+		),
+	)
+	b.WriteString(resourceBox)
+	b.WriteString("\n\n")
+
+	// Distribution stats
+	distTitle := lipgloss.NewStyle().
+		Foreground(tealInfo).
+		Bold(true).
+		Render("OS Distribution")
+	b.WriteString(distTitle)
+	b.WriteString("\n")
+
+	// Count OS types
+	osCount := make(map[string]int)
+	for _, item := range m.vms {
+		os := item.vm.GuestOS
+		if strings.Contains(strings.ToLower(os), "linux") {
+			osCount["Linux"]++
+		} else if strings.Contains(strings.ToLower(os), "windows") {
+			osCount["Windows"]++
+		} else {
+			osCount["Other"]++
+		}
+	}
+
+	for os, count := range osCount {
+		percentage := float64(count) / float64(max(totalVMs, 1)) * 100
+		bar := strings.Repeat("█", int(percentage/2))
+		b.WriteString(fmt.Sprintf("  %s: %s %.1f%% (%d VMs)\n",
+			lipgloss.NewStyle().Width(10).Render(os),
+			lipgloss.NewStyle().Foreground(tealInfo).Render(bar),
+			percentage,
+			count,
+		))
+	}
+
+	return b.String()
+}
+
+// renderMetricsCPU renders CPU metrics
+func (m tuiModel) renderMetricsCPU() string {
+	var b strings.Builder
+
+	sectionTitle := lipgloss.NewStyle().
+		Foreground(tealInfo).
+		Bold(true).
+		Render("CPU Allocation Statistics")
+	b.WriteString(sectionTitle)
+	b.WriteString("\n\n")
+
+	// CPU distribution
+	cpuDist := make(map[int32]int)
+	var maxCPU int32
+	var minCPU int32 = 9999
+	var totalCPU int32
+
+	for _, item := range m.vms {
+		cpu := item.vm.NumCPU
+		cpuDist[cpu]++
+		totalCPU += cpu
+		if cpu > maxCPU {
+			maxCPU = cpu
+		}
+		if cpu < minCPU {
+			minCPU = cpu
+		}
+	}
+
+	avgCPU := float64(totalCPU) / float64(max(len(m.vms), 1))
+
+	statsBox := panelStyleTUI.Render(
+		fmt.Sprintf(
+			"  Total vCPUs: %s\n"+
+				"  Average: %s vCPUs/VM\n"+
+				"  Maximum: %s vCPUs\n"+
+				"  Minimum: %s vCPUs",
+			statsStyleTUI.Render(fmt.Sprintf("%d", totalCPU)),
+			statsStyleTUI.Render(fmt.Sprintf("%.1f", avgCPU)),
+			statsStyleTUI.Render(fmt.Sprintf("%d", maxCPU)),
+			statsStyleTUI.Render(fmt.Sprintf("%d", minCPU)),
+		),
+	)
+	b.WriteString(statsBox)
+	b.WriteString("\n\n")
+
+	// Distribution chart
+	distTitle := lipgloss.NewStyle().
+		Foreground(amberYellow).
+		Bold(true).
+		Render("CPU Distribution")
+	b.WriteString(distTitle)
+	b.WriteString("\n")
+
+	// Get sorted CPU values
+	cpuVals := make([]int32, 0, len(cpuDist))
+	for cpu := range cpuDist {
+		cpuVals = append(cpuVals, cpu)
+	}
+	// Simple sort
+	for i := 0; i < len(cpuVals); i++ {
+		for j := i + 1; j < len(cpuVals); j++ {
+			if cpuVals[i] > cpuVals[j] {
+				cpuVals[i], cpuVals[j] = cpuVals[j], cpuVals[i]
+			}
+		}
+	}
+
+	for _, cpu := range cpuVals {
+		count := cpuDist[cpu]
+		percentage := float64(count) / float64(len(m.vms)) * 100
+		bar := strings.Repeat("█", int(percentage))
+		b.WriteString(fmt.Sprintf("  %2d vCPUs: %s %.1f%% (%d VMs)\n",
+			cpu,
+			lipgloss.NewStyle().Foreground(deepOrange).Render(bar),
+			percentage,
+			count,
+		))
+	}
+
+	return b.String()
+}
+
+// renderMetricsMemory renders memory metrics
+func (m tuiModel) renderMetricsMemory() string {
+	var b strings.Builder
+
+	sectionTitle := lipgloss.NewStyle().
+		Foreground(tealInfo).
+		Bold(true).
+		Render("Memory Allocation Statistics")
+	b.WriteString(sectionTitle)
+	b.WriteString("\n\n")
+
+	var totalMemoryMB int32
+	var maxMemoryMB int32
+	var minMemoryMB int32 = 999999
+
+	for _, item := range m.vms {
+		mem := item.vm.MemoryMB
+		totalMemoryMB += mem
+		if mem > maxMemoryMB {
+			maxMemoryMB = mem
+		}
+		if mem < minMemoryMB {
+			minMemoryMB = mem
+		}
+	}
+
+	avgMemoryMB := float64(totalMemoryMB) / float64(max(len(m.vms), 1))
+	totalMemoryGB := float64(totalMemoryMB) / 1024
+
+	statsBox := panelStyleTUI.Render(
+		fmt.Sprintf(
+			"  Total Memory: %s\n"+
+				"  Average: %s/VM\n"+
+				"  Maximum: %s\n"+
+				"  Minimum: %s",
+			statsStyleTUI.Render(fmt.Sprintf("%.1f GB", totalMemoryGB)),
+			statsStyleTUI.Render(fmt.Sprintf("%.1f GB", avgMemoryMB/1024)),
+			statsStyleTUI.Render(fmt.Sprintf("%.1f GB", float64(maxMemoryMB)/1024)),
+			statsStyleTUI.Render(fmt.Sprintf("%.1f GB", float64(minMemoryMB)/1024)),
+		),
+	)
+	b.WriteString(statsBox)
+	b.WriteString("\n\n")
+
+	// Memory ranges
+	rangeTitle := lipgloss.NewStyle().
+		Foreground(amberYellow).
+		Bold(true).
+		Render("Memory Distribution")
+	b.WriteString(rangeTitle)
+	b.WriteString("\n")
+
+	// Count VMs in memory ranges
+	ranges := map[string]int{
+		"< 4 GB":      0,
+		"4-8 GB":      0,
+		"8-16 GB":     0,
+		"16-32 GB":    0,
+		"> 32 GB":     0,
+	}
+
+	for _, item := range m.vms {
+		memGB := float64(item.vm.MemoryMB) / 1024
+		if memGB < 4 {
+			ranges["< 4 GB"]++
+		} else if memGB < 8 {
+			ranges["4-8 GB"]++
+		} else if memGB < 16 {
+			ranges["8-16 GB"]++
+		} else if memGB < 32 {
+			ranges["16-32 GB"]++
+		} else {
+			ranges["> 32 GB"]++
+		}
+	}
+
+	rangeOrder := []string{"< 4 GB", "4-8 GB", "8-16 GB", "16-32 GB", "> 32 GB"}
+	for _, rng := range rangeOrder {
+		count := ranges[rng]
+		if count == 0 {
+			continue
+		}
+		percentage := float64(count) / float64(len(m.vms)) * 100
+		bar := strings.Repeat("█", int(percentage))
+		b.WriteString(fmt.Sprintf("  %s: %s %.1f%% (%d VMs)\n",
+			lipgloss.NewStyle().Width(12).Render(rng),
+			lipgloss.NewStyle().Foreground(tealInfo).Render(bar),
+			percentage,
+			count,
+		))
+	}
+
+	return b.String()
+}
+
+// renderMetricsStorage renders storage metrics
+func (m tuiModel) renderMetricsStorage() string {
+	var b strings.Builder
+
+	sectionTitle := lipgloss.NewStyle().
+		Foreground(tealInfo).
+		Bold(true).
+		Render("Storage Allocation Statistics")
+	b.WriteString(sectionTitle)
+	b.WriteString("\n\n")
+
+	var totalStorageBytes int64
+	var maxStorageBytes int64
+	var minStorageBytes int64 = 9999999999999
+
+	for _, item := range m.vms {
+		storage := item.vm.Storage
+		totalStorageBytes += storage
+		if storage > maxStorageBytes {
+			maxStorageBytes = storage
+		}
+		if storage < minStorageBytes {
+			minStorageBytes = storage
+		}
+	}
+
+	avgStorageBytes := totalStorageBytes / int64(max(len(m.vms), 1))
+
+	statsBox := panelStyleTUI.Render(
+		fmt.Sprintf(
+			"  Total Storage: %s\n"+
+				"  Average: %s/VM\n"+
+				"  Maximum: %s\n"+
+				"  Minimum: %s",
+			statsStyleTUI.Render(formatBytes(totalStorageBytes)),
+			statsStyleTUI.Render(formatBytes(avgStorageBytes)),
+			statsStyleTUI.Render(formatBytes(maxStorageBytes)),
+			statsStyleTUI.Render(formatBytes(minStorageBytes)),
+		),
+	)
+	b.WriteString(statsBox)
+	b.WriteString("\n\n")
+
+	// Storage ranges
+	rangeTitle := lipgloss.NewStyle().
+		Foreground(amberYellow).
+		Bold(true).
+		Render("Storage Distribution")
+	b.WriteString(rangeTitle)
+	b.WriteString("\n")
+
+	// Count VMs in storage ranges
+	ranges := map[string]int{
+		"< 100 GB":    0,
+		"100-500 GB":  0,
+		"500 GB-1 TB": 0,
+		"1-5 TB":      0,
+		"> 5 TB":      0,
+	}
+
+	for _, item := range m.vms {
+		storageGB := float64(item.vm.Storage) / (1024 * 1024 * 1024)
+		if storageGB < 100 {
+			ranges["< 100 GB"]++
+		} else if storageGB < 500 {
+			ranges["100-500 GB"]++
+		} else if storageGB < 1024 {
+			ranges["500 GB-1 TB"]++
+		} else if storageGB < 5120 {
+			ranges["1-5 TB"]++
+		} else {
+			ranges["> 5 TB"]++
+		}
+	}
+
+	rangeOrder := []string{"< 100 GB", "100-500 GB", "500 GB-1 TB", "1-5 TB", "> 5 TB"}
+	for _, rng := range rangeOrder {
+		count := ranges[rng]
+		if count == 0 {
+			continue
+		}
+		percentage := float64(count) / float64(len(m.vms)) * 100
+		bar := strings.Repeat("█", int(percentage))
+		b.WriteString(fmt.Sprintf("  %s: %s %.1f%% (%d VMs)\n",
+			lipgloss.NewStyle().Width(14).Render(rng),
+			lipgloss.NewStyle().Foreground(amberYellow).Render(bar),
+			percentage,
+			count,
+		))
+	}
+
+	return b.String()
+}
+
+// handleMetricsKeys handles keyboard input in metrics view
+func (m tuiModel) handleMetricsKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "ctrl+c", "q":
+		return m, tea.Quit
+
+	case "escape", "M":
+		// Return to select phase
+		m.phase = "select"
+		m.showMetrics = false
+		return m, nil
+
+	case "1":
+		m.metricsMode = "overview"
+	case "2":
+		m.metricsMode = "cpu"
+	case "3":
+		m.metricsMode = "memory"
+	case "4":
+		m.metricsMode = "storage"
+
+	case "r", "R":
+		// Refresh metrics
+		m.metricsRefresh = time.Now()
+		m.message = "Metrics refreshed"
+	}
+
+	return m, nil
 }
 
 // handleTreeKeys handles keyboard input in tree view

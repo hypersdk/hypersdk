@@ -1958,6 +1958,10 @@ func runInteractiveTUI(ctx context.Context, client *vsphere.VSphereClient, cfg *
 			key.WithKeys("m"),
 			key.WithHelp("m", "bookmarks & filters"),
 		),
+		Metrics: key.NewBinding(
+			key.WithKeys("M"),
+			key.WithHelp("M", "performance metrics"),
+		),
 	}
 
 	// Create initial model
