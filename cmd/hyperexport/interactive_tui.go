@@ -72,11 +72,22 @@ type logEntry struct {
 	vmName    string // associated VM if any
 }
 
+// folderNode represents a folder in the VM hierarchy tree
+type folderNode struct {
+	name     string
+	path     string
+	parent   *folderNode
+	children []*folderNode
+	vms      []tuiVMItem
+	expanded bool
+	level    int
+}
+
 type tuiModel struct {
 	vms              []tuiVMItem
 	filteredVMs      []tuiVMItem
 	cursor           int
-	phase            string // "select", "confirm", "template", "regex", "cloud", "features", "export", "cloudupload", "done", "search", "details", "validation", "config", "stats", "queue", "history", "logs"
+	phase            string // "select", "confirm", "template", "regex", "cloud", "features", "export", "cloudupload", "done", "search", "details", "validation", "config", "stats", "queue", "history", "logs", "tree"
 	detailsVM        *vsphere.VMInfo // VM to show details for
 	validationReport *ValidationReport // Pre-export validation results
 	configPanel      *configPanelState // Interactive config panel state
@@ -143,6 +154,12 @@ type tuiModel struct {
 	autoScrollLogs  bool
 	showLogsPanel   bool
 	maxLogEntries   int
+
+	// Folder tree view
+	folderTree      *folderNode
+	viewMode        string // "list" or "tree"
+	treeItems       []interface{} // flattened tree for rendering (mix of *folderNode and tuiVMItem)
+	treeCursor      int
 
 	// Configuration
 	client    *vsphere.VSphereClient
@@ -256,6 +273,8 @@ type tuiKeyMap struct {
 	Logs        key.Binding
 	FilterLogs  key.Binding
 	ToggleAutoScroll key.Binding
+	Tree        key.Binding
+	ExpandFolder key.Binding
 }
 
 func (k tuiKeyMap) ShortHelp() []key.Binding {
@@ -554,6 +573,8 @@ func (m tuiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.handleHistoryKeys(msg)
 		case "logs":
 			return m.handleLogsKeys(msg)
+		case "tree":
+			return m.handleTreeKeys(msg)
 		case "cloud":
 			// Cloud phase is handled by cloudSelectionModel
 			return m, nil
@@ -756,6 +777,14 @@ func (m tuiModel) handleSelectionKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.addLogEntry("INFO", "Logs viewer opened", "")
 			m.addLogEntry("INFO", "Ready to display export logs", "")
 		}
+		return m, nil
+
+	case "]":
+		// Show folder tree view
+		m.viewMode = "tree"
+		m.phase = "tree"
+		m.treeCursor = 0
+		m.buildFolderTree()
 		return m, nil
 
 	case "c":
@@ -1334,6 +1363,8 @@ func (m tuiModel) View() string {
 		return m.renderHistory()
 	case "logs":
 		return m.renderLogs()
+	case "tree":
+		return m.renderTree()
 	case "export":
 		return m.renderExport()
 	case "cloudupload":
@@ -4243,4 +4274,203 @@ func (m tuiModel) renderLogs() string {
 	}
 
 	return b.String()
+}
+
+// buildFolderTree builds a hierarchical folder tree from VM paths
+func (m *tuiModel) buildFolderTree() {
+	root := &folderNode{
+		name:     "VMs",
+		path:     "/",
+		children: []*folderNode{},
+		vms:      []tuiVMItem{},
+		expanded: true,
+		level:    0,
+	}
+
+	for _, vmItem := range m.vms {
+		pathParts := strings.Split(strings.Trim(vmItem.vm.Path, "/"), "/")
+		current := root
+
+		// Build folder hierarchy
+		for i, part := range pathParts[:len(pathParts)-1] {
+			found := false
+			for _, child := range current.children {
+				if child.name == part {
+					current = child
+					found = true
+					break
+				}
+			}
+			if !found {
+				newNode := &folderNode{
+					name:     part,
+					path:     strings.Join(pathParts[:i+1], "/"),
+					parent:   current,
+					children: []*folderNode{},
+					vms:      []tuiVMItem{},
+					expanded: false,
+					level:    i + 1,
+				}
+				current.children = append(current.children, newNode)
+				current = newNode
+			}
+		}
+		current.vms = append(current.vms, vmItem)
+	}
+
+	m.folderTree = root
+	m.flattenTree()
+}
+
+// flattenTree converts the tree structure into a flat list for rendering
+func (m *tuiModel) flattenTree() {
+	m.treeItems = []interface{}{}
+	var flatten func(*folderNode)
+	flatten = func(node *folderNode) {
+		if node != m.folderTree {
+			m.treeItems = append(m.treeItems, node)
+		}
+		if node.expanded {
+			for _, child := range node.children {
+				flatten(child)
+			}
+			for _, vm := range node.vms {
+				m.treeItems = append(m.treeItems, vm)
+			}
+		}
+	}
+	flatten(m.folderTree)
+}
+
+// toggleFolderAtCursor toggles expand/collapse of folder at cursor
+func (m *tuiModel) toggleFolderAtCursor() {
+	if m.treeCursor >= len(m.treeItems) {
+		return
+	}
+	if folder, ok := m.treeItems[m.treeCursor].(*folderNode); ok {
+		folder.expanded = !folder.expanded
+		m.flattenTree()
+	}
+}
+
+// renderTree renders the folder tree view
+func (m tuiModel) renderTree() string {
+	var b strings.Builder
+
+	header := lipgloss.NewStyle().
+		Foreground(tealInfo).
+		Bold(true).
+		Render("📁 FOLDER TREE VIEW  (T: List View | Enter: Expand/Collapse | Space: Select)")
+	b.WriteString(header)
+	b.WriteString("\n\n")
+
+	if len(m.treeItems) == 0 {
+		b.WriteString("No VMs in tree\n")
+		return b.String()
+	}
+
+	maxVisible := 20
+	start := 0
+	if m.treeCursor >= maxVisible {
+		start = m.treeCursor - maxVisible + 1
+	}
+	end := start + maxVisible
+	if end > len(m.treeItems) {
+		end = len(m.treeItems)
+	}
+
+	for i := start; i < end; i++ {
+		cursor := "  "
+		if i == m.treeCursor {
+			cursor = "❯ "
+		}
+
+		indent := ""
+		var line string
+
+		switch item := m.treeItems[i].(type) {
+		case *folderNode:
+			indent = strings.Repeat("  ", item.level)
+			icon := "📁"
+			if item.expanded {
+				icon = "📂"
+			}
+			folderStyle := lipgloss.NewStyle().Foreground(amberYellow).Bold(true)
+			line = fmt.Sprintf("%s%s%s %s (%d VMs)", cursor, indent, icon, folderStyle.Render(item.name), len(item.vms))
+
+		case tuiVMItem:
+			level := 2
+			if folder, ok := m.treeItems[i-1].(*folderNode); ok {
+				level = folder.level + 1
+			}
+			indent = strings.Repeat("  ", level)
+			checkbox := "[ ]"
+			if item.selected {
+				checkbox = "[✓]"
+			}
+			vmStyle := lipgloss.NewStyle()
+			if i == m.treeCursor {
+				vmStyle = vmStyle.Foreground(tealInfo).Bold(true)
+			}
+			line = fmt.Sprintf("%s%s%s %s", cursor, indent, checkbox, vmStyle.Render(item.vm.Name))
+		}
+
+		b.WriteString(line)
+		b.WriteString("\n")
+	}
+
+	statusLine := lipgloss.NewStyle().
+		Foreground(mutedGray).
+		Render(fmt.Sprintf("\n%d items | Selected: %d", len(m.treeItems), m.countSelected()))
+	b.WriteString(statusLine)
+
+	return b.String()
+}
+
+// handleTreeKeys handles keyboard input in tree view
+func (m tuiModel) handleTreeKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "ctrl+c", "q":
+		return m, tea.Quit
+
+	case "]":
+		m.viewMode = "list"
+		m.phase = "select"
+		return m, nil
+
+	case "up", "k":
+		if m.treeCursor > 0 {
+			m.treeCursor--
+		}
+
+	case "down", "j":
+		if m.treeCursor < len(m.treeItems)-1 {
+			m.treeCursor++
+		}
+
+	case "enter":
+		m.toggleFolderAtCursor()
+
+	case " ":
+		if m.treeCursor < len(m.treeItems) {
+			if vmItem, ok := m.treeItems[m.treeCursor].(tuiVMItem); ok {
+				for i := range m.vms {
+					if m.vms[i].vm.Path == vmItem.vm.Path {
+						m.vms[i].selected = !m.vms[i].selected
+						m.buildFolderTree()
+						break
+					}
+				}
+			} else {
+				m.toggleFolderAtCursor()
+			}
+		}
+
+	case "esc", "b":
+		m.viewMode = "list"
+		m.phase = "select"
+		return m, nil
+	}
+
+	return m, nil
 }

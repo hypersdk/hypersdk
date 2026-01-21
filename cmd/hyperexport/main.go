@@ -1930,6 +1930,14 @@ func runInteractiveTUI(ctx context.Context, client *vsphere.VSphereClient, cfg *
 			key.WithKeys("a"),
 			key.WithHelp("a", "toggle auto-scroll"),
 		),
+		Tree: key.NewBinding(
+			key.WithKeys("]"),
+			key.WithHelp("]", "folder tree view"),
+		),
+		ExpandFolder: key.NewBinding(
+			key.WithKeys("enter", "space"),
+			key.WithHelp("enter/space", "expand/collapse folder"),
+		),
 	}
 
 	// Create initial model
@@ -1953,6 +1961,9 @@ func runInteractiveTUI(ctx context.Context, client *vsphere.VSphereClient, cfg *
 		autoScrollLogs:  true,
 		showLogsPanel:   false,
 		maxLogEntries:   1000,
+		viewMode:        "list",
+		treeItems:       []interface{}{},
+		treeCursor:      0,
 	}
 
 	// Run the TUI program

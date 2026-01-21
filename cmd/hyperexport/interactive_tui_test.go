@@ -1857,3 +1857,85 @@ func TestLogLevelFilterCycling(t *testing.T) {
 		t.Errorf("Expected filter back to 'all', got %s", m.logLevelFilter)
 	}
 }
+
+// TestBuildFolderTree tests building folder tree from VM paths
+func TestBuildFolderTree(t *testing.T) {
+	m := tuiModel{
+		vms: []tuiVMItem{
+			{vm: vsphere.VMInfo{Name: "VM1", Path: "/Datacenter/vm/folder1/VM1"}},
+			{vm: vsphere.VMInfo{Name: "VM2", Path: "/Datacenter/vm/folder1/VM2"}},
+			{vm: vsphere.VMInfo{Name: "VM3", Path: "/Datacenter/vm/folder2/VM3"}},
+		},
+	}
+
+	m.buildFolderTree()
+
+	if m.folderTree == nil {
+		t.Error("Expected folder tree to be built")
+	}
+
+	if len(m.treeItems) == 0 {
+		t.Error("Expected tree items to be populated")
+	}
+}
+
+// TestToggleFolderAtCursor tests expand/collapse folder
+func TestToggleFolderAtCursor(t *testing.T) {
+	m := tuiModel{
+		vms: []tuiVMItem{
+			{vm: vsphere.VMInfo{Name: "VM1", Path: "/Datacenter/vm/folder1/VM1"}},
+		},
+	}
+
+	m.buildFolderTree()
+
+	if len(m.treeItems) == 0 {
+		t.Fatal("Expected tree items to be populated")
+	}
+
+	initialCount := len(m.treeItems)
+	m.toggleFolderAtCursor()
+	newCount := len(m.treeItems)
+
+	if folder, ok := m.treeItems[m.treeCursor].(*folderNode); ok {
+		if folder.expanded {
+			if newCount <= initialCount {
+				t.Error("Expected more items when folder is expanded")
+			}
+		} else {
+			if newCount >= initialCount {
+				t.Error("Expected fewer items when folder is collapsed")
+			}
+		}
+	}
+}
+
+// TestRenderTree tests rendering the tree view
+func TestRenderTree(t *testing.T) {
+	m := tuiModel{
+		vms: []tuiVMItem{
+			{vm: vsphere.VMInfo{Name: "TestVM1", Path: "/Datacenter/vm/folder1/TestVM1"}, selected: false},
+			{vm: vsphere.VMInfo{Name: "TestVM2", Path: "/Datacenter/vm/folder1/TestVM2"}, selected: true},
+		},
+		treeCursor: 0,
+		termWidth:  100,
+	}
+
+	m.buildFolderTree()
+	output := m.renderTree()
+
+	// Verify basic tree view elements
+	if !strings.Contains(output, "FOLDER TREE VIEW") {
+		t.Error("Expected tree view to contain 'FOLDER TREE VIEW' header")
+	}
+
+	// Should show folder structure even if folders aren't expanded
+	if !strings.Contains(output, "items") {
+		t.Error("Expected tree view to contain items count")
+	}
+
+	// Should show selected count
+	if !strings.Contains(output, "Selected:") {
+		t.Error("Expected tree view to contain selected count")
+	}
+}
