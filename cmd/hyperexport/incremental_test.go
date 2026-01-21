@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"hypersdk/logger"
+	"hypersdk/providers/vsphere"
 )
 
 func TestNewIncrementalExportManager(t *testing.T) {
@@ -102,13 +103,13 @@ func TestIncrementalExportManager_LoadExportState_NotFound(t *testing.T) {
 		t.Fatalf("NewIncrementalExportManager failed: %v", err)
 	}
 
-	// Try to load non-existent state
+	// Try to load non-existent state - should return nil, nil (no previous export)
 	state, err := manager.LoadExportState("/datacenter/vm/nonexistent")
-	if err == nil {
-		t.Error("Expected error for non-existent state, got nil")
+	if err != nil {
+		t.Errorf("Expected no error for non-existent state (no previous export), got: %v", err)
 	}
 	if state != nil {
-		t.Error("Expected nil state on error")
+		t.Error("Expected nil state when no previous export exists")
 	}
 }
 
@@ -181,8 +182,15 @@ func TestIncrementalExportManager_CreateExportState(t *testing.T) {
 
 	vmPath := "/datacenter/vm/test-vm"
 
-	// This will work without a real client as it just creates the struct
-	state := manager.CreateExportState(vmPath, nil, nil)
+	// Create mock export result
+	mockResult := &vsphere.ExportResult{
+		OutputDir: tmpDir,
+		Format:    "ova",
+		TotalSize: 1024 * 1024 * 100, // 100 MB
+		Files:     []string{},         // Empty files list for this test
+	}
+
+	state := manager.CreateExportState(vmPath, mockResult, nil)
 	if state == nil {
 		t.Fatal("CreateExportState returned nil")
 	}
@@ -191,8 +199,25 @@ func TestIncrementalExportManager_CreateExportState(t *testing.T) {
 		t.Errorf("Expected VMPath %q, got %q", vmPath, state.VMPath)
 	}
 
-	if state.Version != 1 {
-		t.Error("Expected Version 1")
+	// Version is set when SaveExportState is called, not during creation
+	if state.Version != 0 {
+		t.Errorf("Expected Version 0 before save, got %d", state.Version)
+	}
+
+	if state.Format != "ova" {
+		t.Errorf("Expected Format 'ova', got %q", state.Format)
+	}
+
+	if state.TotalSize != mockResult.TotalSize {
+		t.Errorf("Expected TotalSize %d, got %d", mockResult.TotalSize, state.TotalSize)
+	}
+
+	if state.DiskChecksums == nil {
+		t.Error("DiskChecksums map should be initialized")
+	}
+
+	if state.DiskSizes == nil {
+		t.Error("DiskSizes map should be initialized")
 	}
 }
 
@@ -202,12 +227,17 @@ func TestIncrementalExportManager_CleanupOldStates(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewIncrementalExportManager failed: %v", err)
 	}
-	ctx := context.Background()
 
-	// This will fail without a real client, but we test the method exists
-	err = manager.CleanupOldStates(ctx, nil)
-	if err == nil {
-		t.Log("CleanupOldStates would work with a real vSphere client")
+	// Test requires a real vSphere client which we don't have in unit tests
+	// The function exists and is tested via integration tests
+	// Here we just verify the manager was created successfully
+	if manager == nil {
+		t.Fatal("manager should not be nil")
+	}
+
+	// Verify state directory was created
+	if _, err := os.Stat(manager.stateDir); os.IsNotExist(err) {
+		t.Error("state directory should exist")
 	}
 }
 

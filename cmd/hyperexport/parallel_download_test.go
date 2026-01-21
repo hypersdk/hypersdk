@@ -7,11 +7,13 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"hypersdk/logger"
 )
 
 func TestNewDownloadWorkerPool(t *testing.T) {
 	ctx := context.Background()
-	pool := NewDownloadWorkerPool(ctx, 4, nil)
+	pool := NewDownloadWorkerPool(ctx, 4, logger.NewTestLogger(t))
 
 	if pool == nil {
 		t.Fatal("NewDownloadWorkerPool returned nil")
@@ -29,7 +31,7 @@ func TestNewDownloadWorkerPool(t *testing.T) {
 
 func TestDownloadWorkerPool_Start(t *testing.T) {
 	ctx := context.Background()
-	pool := NewDownloadWorkerPool(ctx, 2, nil)
+	pool := NewDownloadWorkerPool(ctx, 2, logger.NewTestLogger(t))
 
 	pool.Start()
 
@@ -44,7 +46,7 @@ func TestDownloadWorkerPool_Start(t *testing.T) {
 
 func TestDownloadWorkerPool_Submit(t *testing.T) {
 	ctx := context.Background()
-	pool := NewDownloadWorkerPool(ctx, 2, nil)
+	pool := NewDownloadWorkerPool(ctx, 2, logger.NewTestLogger(t))
 	defer pool.Close()
 
 	pool.Start()
@@ -70,7 +72,7 @@ func TestDownloadWorkerPool_Submit(t *testing.T) {
 
 func TestDownloadWorkerPool_Submit_AfterShutdown(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
-	pool := NewDownloadWorkerPool(ctx, 2, nil)
+	pool := NewDownloadWorkerPool(ctx, 2, logger.NewTestLogger(t))
 
 	cancel() // Cancel context immediately
 
@@ -89,7 +91,7 @@ func TestDownloadWorkerPool_Submit_AfterShutdown(t *testing.T) {
 
 func TestDownloadWorkerPool_Results(t *testing.T) {
 	ctx := context.Background()
-	pool := NewDownloadWorkerPool(ctx, 2, nil)
+	pool := NewDownloadWorkerPool(ctx, 2, logger.NewTestLogger(t))
 	defer pool.Close()
 
 	results := pool.Results()
@@ -100,7 +102,7 @@ func TestDownloadWorkerPool_Results(t *testing.T) {
 
 func TestDownloadWorkerPool_GetProgress(t *testing.T) {
 	ctx := context.Background()
-	pool := NewDownloadWorkerPool(ctx, 2, nil)
+	pool := NewDownloadWorkerPool(ctx, 2, logger.NewTestLogger(t))
 	defer pool.Close()
 
 	// Initially should be zero
@@ -131,7 +133,7 @@ func TestDownloadWorkerPool_GetProgress(t *testing.T) {
 
 func TestDownloadWorkerPool_Close(t *testing.T) {
 	ctx := context.Background()
-	pool := NewDownloadWorkerPool(ctx, 2, nil)
+	pool := NewDownloadWorkerPool(ctx, 2, logger.NewTestLogger(t))
 
 	pool.Start()
 
@@ -154,7 +156,7 @@ func TestDownloadWorkerPool_Close(t *testing.T) {
 func TestDownloadWorkerPool_DownloadFile(t *testing.T) {
 	tmpDir := t.TempDir()
 	ctx := context.Background()
-	pool := NewDownloadWorkerPool(ctx, 2, nil)
+	pool := NewDownloadWorkerPool(ctx, 2, logger.NewTestLogger(t))
 	defer pool.Close()
 
 	task := DownloadTask{
@@ -185,7 +187,7 @@ func TestDownloadWorkerPool_DownloadFile(t *testing.T) {
 func TestDownloadWorkerPool_DownloadFile_CancelledContext(t *testing.T) {
 	tmpDir := t.TempDir()
 	ctx, cancel := context.WithCancel(context.Background())
-	pool := NewDownloadWorkerPool(ctx, 2, nil)
+	pool := NewDownloadWorkerPool(ctx, 2, logger.NewTestLogger(t))
 	defer pool.Close()
 
 	cancel() // Cancel immediately
@@ -210,7 +212,7 @@ func TestDownloadWorkerPool_DownloadFile_CancelledContext(t *testing.T) {
 func TestDownloadWorkerPool_DownloadBatch(t *testing.T) {
 	tmpDir := t.TempDir()
 	ctx := context.Background()
-	pool := NewDownloadWorkerPool(ctx, 2, nil)
+	pool := NewDownloadWorkerPool(ctx, 2, logger.NewTestLogger(t))
 	defer pool.Close()
 
 	pool.Start()
@@ -264,7 +266,7 @@ func TestDownloadWorkerPool_DownloadBatch(t *testing.T) {
 func TestDownloadWorkerPool_ConcurrentDownloads(t *testing.T) {
 	tmpDir := t.TempDir()
 	ctx := context.Background()
-	pool := NewDownloadWorkerPool(ctx, 3, nil)
+	pool := NewDownloadWorkerPool(ctx, 3, logger.NewTestLogger(t))
 	defer pool.Close()
 
 	pool.Start()
@@ -468,7 +470,7 @@ func TestCheckpoint_Fields(t *testing.T) {
 
 func TestDownloadWorkerPool_ProgressTracking(t *testing.T) {
 	ctx := context.Background()
-	pool := NewDownloadWorkerPool(ctx, 2, nil)
+	pool := NewDownloadWorkerPool(ctx, 2, logger.NewTestLogger(t))
 	defer pool.Close()
 
 	// Manually update progress
@@ -490,7 +492,7 @@ func TestDownloadWorkerPool_ProgressTracking(t *testing.T) {
 
 func TestDownloadWorkerPool_MultipleClose(t *testing.T) {
 	ctx := context.Background()
-	pool := NewDownloadWorkerPool(ctx, 2, nil)
+	pool := NewDownloadWorkerPool(ctx, 2, logger.NewTestLogger(t))
 
 	pool.Start()
 
@@ -506,7 +508,7 @@ func TestDownloadWorkerPool_MultipleClose(t *testing.T) {
 
 func TestDownloadWorkerPool_WorkerCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
-	pool := NewDownloadWorkerPool(ctx, 2, nil)
+	pool := NewDownloadWorkerPool(ctx, 2, logger.NewTestLogger(t))
 
 	pool.Start()
 
@@ -524,7 +526,7 @@ func TestDownloadWorkerPool_WorkerCancellation(t *testing.T) {
 
 func TestDownloadWorkerPool_CreateDirectoryError(t *testing.T) {
 	ctx := context.Background()
-	pool := NewDownloadWorkerPool(ctx, 2, nil)
+	pool := NewDownloadWorkerPool(ctx, 2, logger.NewTestLogger(t))
 	defer pool.Close()
 
 	// Try to create file in non-writable location (may vary by system)
@@ -549,7 +551,7 @@ func TestDownloadWorkerPool_CreateDirectoryError(t *testing.T) {
 
 func TestDownloadBatch_EmptyTasks(t *testing.T) {
 	ctx := context.Background()
-	pool := NewDownloadWorkerPool(ctx, 2, nil)
+	pool := NewDownloadWorkerPool(ctx, 2, logger.NewTestLogger(t))
 	defer pool.Close()
 
 	pool.Start()
@@ -567,7 +569,7 @@ func TestDownloadBatch_EmptyTasks(t *testing.T) {
 func TestDownloadBatch_NilProgressCallback(t *testing.T) {
 	tmpDir := t.TempDir()
 	ctx := context.Background()
-	pool := NewDownloadWorkerPool(ctx, 2, nil)
+	pool := NewDownloadWorkerPool(ctx, 2, logger.NewTestLogger(t))
 	defer pool.Close()
 
 	pool.Start()
