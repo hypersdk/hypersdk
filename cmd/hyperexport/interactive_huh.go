@@ -67,6 +67,9 @@ var (
 	orangeDark      = lipgloss.Color("#D35400") // Deep orange
 )
 
+// Sentinel value for back navigation
+const backSentinel = "<BACK>"
+
 // runInteractiveHuh runs the new huh-based interactive TUI
 func runInteractiveHuh(ctx context.Context, client *vsphere.VSphereClient, cfg *config.Config, log logger.Logger) error {
 	// Set orange theme for huh
@@ -86,7 +89,7 @@ func runInteractiveHuh(ctx context.Context, client *vsphere.VSphereClient, cfg *
 		outputDirPath = "./exports"
 	}
 
-	// Step 1: Load VMs
+	// Step 1: Load VMs (only once at start)
 	spinner := newOrangeSpinner("Loading VMs from vSphere...")
 	vms, err := client.ListVMs(ctx)
 	spinner.Stop()
@@ -101,28 +104,77 @@ func runInteractiveHuh(ctx context.Context, client *vsphere.VSphereClient, cfg *
 
 	pterm.Success.Printf("Found %d VMs\n\n", len(vms))
 
-	// Step 2: VM Selection with search/filter
-	selectedVMs, err := selectVMs(vms, theme)
-	if err != nil {
-		return err
-	}
+	// Loop-based navigation with step counter
+	currentStep := 1
+	totalSteps := 3
+	var selectedVMs []vsphere.VMInfo
+	var exportConfig *exportConfiguration
 
-	// Step 3: Export configuration
-	exportConfig, err := configureExport(outputDirPath, theme)
-	if err != nil {
-		return err
-	}
+	for {
+		switch currentStep {
+		case 1:
+			// Step 1: VM Selection
+			pterm.DefaultSection.Printf("Step %d/%d: VM Selection\n\n", currentStep, totalSteps)
 
-	// Step 4: Confirm and execute
-	if err := confirmAndExecute(ctx, client, selectedVMs, exportConfig, log, theme); err != nil {
-		return err
-	}
+			selected, err := selectVMs(vms, theme, currentStep > 1)
+			if err != nil {
+				return err
+			}
+			if len(selected) == 0 && selected != nil {
+				// Back button pressed (empty slice is sentinel for back)
+				if currentStep > 1 {
+					currentStep--
+				}
+				continue
+			}
+			selectedVMs = selected
+			currentStep++
 
-	return nil
+		case 2:
+			// Step 2: Export Configuration
+			pterm.DefaultSection.Printf("Step %d/%d: Export Configuration\n\n", currentStep, totalSteps)
+
+			config, err := configureExport(outputDirPath, theme, true)
+			if err != nil {
+				return err
+			}
+			if config == nil {
+				// Back button pressed
+				currentStep--
+				continue
+			}
+			exportConfig = config
+			currentStep++
+
+		case 3:
+			// Step 3: Confirm and Execute
+			pterm.DefaultSection.Printf("Step %d/%d: Confirmation\n\n", currentStep, totalSteps)
+
+			shouldExecute, err := confirmAndExecute(ctx, client, selectedVMs, exportConfig, log, theme, true)
+			if err != nil {
+				return err
+			}
+			if shouldExecute == -1 {
+				// Back button pressed
+				currentStep--
+				continue
+			}
+			if shouldExecute == 0 {
+				// Cancelled
+				pterm.Info.Println("Export cancelled")
+				return nil
+			}
+			// Success - exit
+			return nil
+
+		default:
+			return nil
+		}
+	}
 }
 
 // selectVMs presents a multi-select interface for choosing VMs
-func selectVMs(vms []vsphere.VMInfo, theme *huh.Theme) ([]vsphere.VMInfo, error) {
+func selectVMs(vms []vsphere.VMInfo, theme *huh.Theme, allowBack bool) ([]vsphere.VMInfo, error) {
 	// Sort VMs by name
 	sort.Slice(vms, func(i, j int) bool {
 		return strings.ToLower(vms[i].Name) < strings.ToLower(vms[j].Name)
@@ -151,16 +203,26 @@ func selectVMs(vms []vsphere.VMInfo, theme *huh.Theme) ([]vsphere.VMInfo, error)
 		vmMap[vm.Path] = vm
 	}
 
+	// Add back button option if allowed
+	if allowBack {
+		options = append(options, huh.NewOption("← Go Back", backSentinel))
+	}
+
 	var selectedPaths []string
 
-	// Loop until at least one VM is selected
+	// Loop until at least one VM is selected or back is chosen
 	for {
+		description := "Use arrow keys to navigate, space to select, enter to confirm"
+		if allowBack {
+			description += " | Select '← Go Back' to return to previous step"
+		}
+
 		// Create the form with multi-select and orange theme
 		form := huh.NewForm(
 			huh.NewGroup(
 				huh.NewMultiSelect[string]().
 					Title("Select VMs to Export").
-					Description("Use arrow keys to navigate, space to select, enter to confirm").
+					Description(description).
 					Options(options...).
 					Value(&selectedPaths).
 					Height(15).
@@ -170,6 +232,16 @@ func selectVMs(vms []vsphere.VMInfo, theme *huh.Theme) ([]vsphere.VMInfo, error)
 
 		if err := form.Run(); err != nil {
 			return nil, err
+		}
+
+		// Check if back button was selected
+		if allowBack {
+			for _, path := range selectedPaths {
+				if path == backSentinel {
+					// Return empty slice as signal for back navigation
+					return []vsphere.VMInfo{}, nil
+				}
+			}
 		}
 
 		// Check if at least one VM is selected
@@ -186,6 +258,9 @@ func selectVMs(vms []vsphere.VMInfo, theme *huh.Theme) ([]vsphere.VMInfo, error)
 	// Map selected paths back to VM objects
 	selected := make([]vsphere.VMInfo, 0, len(selectedPaths))
 	for _, path := range selectedPaths {
+		if path == backSentinel {
+			continue // Skip back button sentinel
+		}
 		if vm, ok := vmMap[path]; ok {
 			selected = append(selected, vm)
 		}
@@ -218,7 +293,7 @@ type exportConfiguration struct {
 }
 
 // configureExport presents export configuration options
-func configureExport(defaultOutputDir string, theme *huh.Theme) (*exportConfiguration, error) {
+func configureExport(defaultOutputDir string, theme *huh.Theme, allowBack bool) (*exportConfiguration, error) {
 	config := &exportConfiguration{
 		outputDir:          defaultOutputDir,
 		parallel:           4,
@@ -238,6 +313,11 @@ func configureExport(defaultOutputDir string, theme *huh.Theme) (*exportConfigur
 			fmt.Sprintf("%s - %s", t.name, t.description),
 			t.name,
 		)
+	}
+
+	// Add back button option to template selection if allowed
+	if allowBack {
+		templateOptions = append(templateOptions, huh.NewOption("← Go Back", backSentinel))
 	}
 
 	var templateName string
@@ -386,6 +466,11 @@ func configureExport(defaultOutputDir string, theme *huh.Theme) (*exportConfigur
 		return nil, err
 	}
 
+	// Check if back button was selected
+	if allowBack && templateName == backSentinel {
+		return nil, nil // Return nil as signal for back navigation
+	}
+
 	// Convert parallel string to int
 	if config.parallelStr != "" {
 		if _, err := fmt.Sscanf(config.parallelStr, "%d", &config.parallel); err != nil {
@@ -431,7 +516,8 @@ func configureExport(defaultOutputDir string, theme *huh.Theme) (*exportConfigur
 }
 
 // confirmAndExecute shows summary and executes the export
-func confirmAndExecute(ctx context.Context, client *vsphere.VSphereClient, vms []vsphere.VMInfo, cfg *exportConfiguration, log logger.Logger, theme *huh.Theme) error {
+// Returns: 1 = executed successfully, 0 = cancelled, -1 = go back
+func confirmAndExecute(ctx context.Context, client *vsphere.VSphereClient, vms []vsphere.VMInfo, cfg *exportConfiguration, log logger.Logger, theme *huh.Theme, allowBack bool) (int, error) {
 	// Calculate totals
 	var totalCPU int32
 	var totalMemoryMB int32
@@ -480,26 +566,36 @@ func confirmAndExecute(ctx context.Context, client *vsphere.VSphereClient, vms [
 	}
 	pterm.Println()
 
-	// Confirmation
-	var confirm bool
+	// Confirmation with back button option
+	confirmOptions := []huh.Option[string]{
+		huh.NewOption("Yes, export!", "export"),
+		huh.NewOption("Cancel", "cancel"),
+	}
+	if allowBack {
+		confirmOptions = append(confirmOptions, huh.NewOption("← Go Back", backSentinel))
+	}
+
+	var action string
 	confirmForm := huh.NewForm(
 		huh.NewGroup(
-			huh.NewConfirm().
+			huh.NewSelect[string]().
 				Title("Proceed with Export?").
 				Description("This will export the selected VMs").
-				Affirmative("Yes, export!").
-				Negative("Cancel").
-				Value(&confirm),
+				Options(confirmOptions...).
+				Value(&action),
 		),
 	).WithTheme(theme)
 
 	if err := confirmForm.Run(); err != nil {
-		return err
+		return 0, err
 	}
 
-	if !confirm {
-		pterm.Info.Println("Export cancelled")
-		return nil
+	// Check action
+	if action == backSentinel {
+		return -1, nil // Go back
+	}
+	if action == "cancel" {
+		return 0, nil // Cancelled
 	}
 
 	// Execute exports
@@ -515,18 +611,18 @@ func confirmAndExecute(ctx context.Context, client *vsphere.VSphereClient, vms [
 		// Validate path to prevent directory traversal
 		absOutputDir, err := filepath.Abs(cfg.outputDir)
 		if err != nil {
-			return fmt.Errorf("resolve output directory path: %w", err)
+			return 0, fmt.Errorf("resolve output directory path: %w", err)
 		}
 		absVMDir, err := filepath.Abs(vmOutputDir)
 		if err != nil {
-			return fmt.Errorf("resolve VM output directory path: %w", err)
+			return 0, fmt.Errorf("resolve VM output directory path: %w", err)
 		}
 		if !strings.HasPrefix(absVMDir, absOutputDir+string(filepath.Separator)) {
-			return fmt.Errorf("security: invalid VM name would escape output directory")
+			return 0, fmt.Errorf("security: invalid VM name would escape output directory")
 		}
 
 		if err := os.MkdirAll(vmOutputDir, 0755); err != nil {
-			return fmt.Errorf("create output directory: %w", err)
+			return 0, fmt.Errorf("create output directory: %w", err)
 		}
 
 		// Create export options
@@ -569,7 +665,7 @@ func confirmAndExecute(ctx context.Context, client *vsphere.VSphereClient, vms [
 				),
 			).WithTheme(theme)
 			if err := continueForm.Run(); err != nil || !continueExport {
-				return fmt.Errorf("export aborted")
+				return 0, fmt.Errorf("export aborted")
 			}
 			continue
 		}
@@ -593,7 +689,7 @@ func confirmAndExecute(ctx context.Context, client *vsphere.VSphereClient, vms [
 	// Final summary
 	pterm.Success.Printf("\n✓ Successfully exported %d VMs to %s\n", len(vms), cfg.outputDir)
 
-	return nil
+	return 1, nil // Successfully executed
 }
 
 // Helper functions
