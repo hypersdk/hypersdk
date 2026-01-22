@@ -97,87 +97,152 @@ func handleManifestCreate(args []string) {
 		Version: "1.0",
 	}
 
-	// Step 1: Source configuration
-	pterm.DefaultSection.Println("Step 1: Source Configuration")
-	pterm.Println()
+	currentStep := 1
+	totalSteps := 4
 
-	sourceType := promptSelect("Select source type:", []string{
-		"vmdk", "ova", "ovf", "vhd", "vhdx", "raw", "ami",
-	})
-	manifest.Pipeline.Load.SourceType = sourceType
+	for {
+		switch currentStep {
+		case 1:
+			// Step 1: Source configuration
+			pterm.DefaultSection.Printfln("Step %d/%d: Source Configuration", currentStep, totalSteps)
+			pterm.Println()
 
-	sourcePath := promptInput("Enter source path:", "/path/to/disk."+sourceType)
-	manifest.Pipeline.Load.SourcePath = sourcePath
+			sourceType := promptSelectWithBack("Select source type:", []string{
+				"vmdk", "ova", "ovf", "vhd", "vhdx", "raw", "ami",
+			}, currentStep > 1)
 
-	pterm.Println()
+			if sourceType == "<back>" {
+				currentStep--
+				continue
+			}
+			manifest.Pipeline.Load.SourceType = sourceType
 
-	// Step 2: Pipeline configuration
-	pterm.DefaultSection.Println("Step 2: Pipeline Configuration")
-	pterm.Println()
+			sourcePath := promptInputWithBack("Enter source path:", "/path/to/disk."+sourceType, currentStep > 1)
+			if sourcePath == "<back>" {
+				continue
+			}
+			manifest.Pipeline.Load.SourcePath = sourcePath
 
-	manifest.Pipeline.Inspect.Enabled = promptConfirm("Enable INSPECT stage (detect OS)?", true)
-	if manifest.Pipeline.Inspect.Enabled {
-		manifest.Pipeline.Inspect.DetectOS = true
-	}
+			pterm.Println()
+			currentStep++
 
-	manifest.Pipeline.Fix.Fstab.Enabled = promptConfirm("Enable FIX stage (fstab, grub, initramfs)?", true)
-	if manifest.Pipeline.Fix.Fstab.Enabled {
-		manifest.Pipeline.Fix.Fstab.Mode = "stabilize-all"
-		manifest.Pipeline.Fix.Grub.Enabled = true
-		manifest.Pipeline.Fix.Initramfs.Enabled = true
-		manifest.Pipeline.Fix.Initramfs.Regenerate = true
-		manifest.Pipeline.Fix.Network.Enabled = true
-		manifest.Pipeline.Fix.Network.FixLevel = "full"
-	}
+		case 2:
+			// Step 2: Pipeline configuration
+			pterm.DefaultSection.Printfln("Step %d/%d: Pipeline Configuration", currentStep, totalSteps)
+			pterm.Println()
 
-	pterm.Println()
+			inspect := promptConfirmWithBack("Enable INSPECT stage (detect OS)?", true, true)
+			if inspect == "<back>" {
+				currentStep--
+				continue
+			}
+			manifest.Pipeline.Inspect.Enabled = (inspect == "yes")
+			if manifest.Pipeline.Inspect.Enabled {
+				manifest.Pipeline.Inspect.DetectOS = true
+			}
 
-	// Step 3: Output configuration
-	pterm.DefaultSection.Println("Step 3: Output Configuration")
-	pterm.Println()
+			fix := promptConfirmWithBack("Enable FIX stage (fstab, grub, initramfs)?", true, true)
+			if fix == "<back>" {
+				continue
+			}
+			manifest.Pipeline.Fix.Fstab.Enabled = (fix == "yes")
+			if manifest.Pipeline.Fix.Fstab.Enabled {
+				manifest.Pipeline.Fix.Fstab.Mode = "stabilize-all"
+				manifest.Pipeline.Fix.Grub.Enabled = true
+				manifest.Pipeline.Fix.Initramfs.Enabled = true
+				manifest.Pipeline.Fix.Initramfs.Regenerate = true
+				manifest.Pipeline.Fix.Network.Enabled = true
+				manifest.Pipeline.Fix.Network.FixLevel = "full"
+			}
 
-	outputFormat := promptSelect("Select output format:", []string{
-		"qcow2", "raw", "vmdk", "vdi",
-	})
-	manifest.Pipeline.Convert.OutputFormat = outputFormat
+			pterm.Println()
+			currentStep++
 
-	manifest.Pipeline.Convert.Compress = promptConfirm("Enable compression?", true)
+		case 3:
+			// Step 3: Output configuration
+			pterm.DefaultSection.Printfln("Step %d/%d: Output Configuration", currentStep, totalSteps)
+			pterm.Println()
 
-	manifest.Pipeline.Validate.Enabled = promptConfirm("Enable VALIDATE stage?", true)
-	manifest.Pipeline.Validate.BootTest = false
+			outputFormat := promptSelectWithBack("Select output format:", []string{
+				"qcow2", "raw", "vmdk", "vdi",
+			}, true)
 
-	pterm.Println()
+			if outputFormat == "<back>" {
+				currentStep--
+				continue
+			}
+			manifest.Pipeline.Convert.OutputFormat = outputFormat
 
-	// Step 4: Review and save
-	pterm.DefaultSection.Println("Step 4: Review Manifest")
-	pterm.Println()
+			compress := promptConfirmWithBack("Enable compression?", true, true)
+			if compress == "<back>" {
+				continue
+			}
+			manifest.Pipeline.Convert.Compress = (compress == "yes")
 
-	// Display manifest
-	data, err := json.MarshalIndent(manifest, "", "  ")
-	if err != nil {
-		pterm.Error.Printfln("Failed to generate manifest: %v", err)
-		os.Exit(1)
-	}
+			validate := promptConfirmWithBack("Enable VALIDATE stage?", true, true)
+			if validate == "<back>" {
+				continue
+			}
+			manifest.Pipeline.Validate.Enabled = (validate == "yes")
+			manifest.Pipeline.Validate.BootTest = false
 
-	// Pretty print with syntax highlighting
-	manifestStr := string(data)
-	pterm.DefaultBox.WithTitle("Generated Manifest").Println(manifestStr)
-	pterm.Println()
+			pterm.Println()
+			currentStep++
 
-	// Save to file
-	if promptConfirm("Save manifest to file?", true) {
-		filename := promptInput("Enter filename:", "my-vm-manifest.json")
+		case 4:
+			// Step 4: Review and save
+			pterm.DefaultSection.Printfln("Step %d/%d: Review Manifest", currentStep, totalSteps)
+			pterm.Println()
 
-		if err := os.WriteFile(filename, data, 0644); err != nil {
-			pterm.Error.Printfln("Failed to save manifest: %v", err)
-			os.Exit(1)
-		}
+			// Display manifest
+			data, err := json.MarshalIndent(manifest, "", "  ")
+			if err != nil {
+				pterm.Error.Printfln("Failed to generate manifest: %v", err)
+				os.Exit(1)
+			}
 
-		pterm.Success.Printfln("✅ Manifest saved to: %s", filename)
-		pterm.Println()
+			// Pretty print with syntax highlighting
+			manifestStr := string(data)
+			pterm.DefaultBox.WithTitle("Generated Manifest").Println(manifestStr)
+			pterm.Println()
 
-		if promptConfirm("Submit manifest to workflow daemon?", false) {
-			handleManifestSubmit("", []string{filename})
+			// Options: Save, Go Back, Cancel
+			action := promptSelectWithBack("What would you like to do?", []string{
+				"Save manifest to file",
+				"Cancel (exit without saving)",
+			}, true)
+
+			if action == "<back>" {
+				currentStep--
+				continue
+			}
+
+			if action == "Cancel (exit without saving)" {
+				pterm.Info.Println("Manifest creation cancelled")
+				return
+			}
+
+			// Save to file
+			filename := promptInputWithBack("Enter filename:", "my-vm-manifest.json", true)
+			if filename == "<back>" {
+				continue
+			}
+
+			if err := os.WriteFile(filename, data, 0644); err != nil {
+				pterm.Error.Printfln("Failed to save manifest: %v", err)
+				os.Exit(1)
+			}
+
+			pterm.Success.Printfln("✅ Manifest saved to: %s", filename)
+			pterm.Println()
+
+			if promptConfirm("Submit manifest to workflow daemon?", false) {
+				handleManifestSubmit("", []string{filename})
+			}
+			return
+
+		default:
+			return
 		}
 	}
 }
@@ -506,4 +571,92 @@ func promptConfirm(prompt string, defaultValue bool) bool {
 
 	input = strings.ToLower(input)
 	return input == "y" || input == "yes"
+}
+
+// promptSelectWithBack prompts user to select from options with optional back button
+func promptSelectWithBack(prompt string, options []string, allowBack bool) string {
+	pterm.Info.Println(prompt)
+
+	displayOptions := make([]string, len(options))
+	copy(displayOptions, options)
+
+	if allowBack {
+		displayOptions = append(displayOptions, "← Go Back")
+	}
+
+	for i, opt := range displayOptions {
+		pterm.Println(fmt.Sprintf("  %d. %s", i+1, opt))
+	}
+
+	var choice int
+	fmt.Print("Enter choice (1-" + fmt.Sprintf("%d", len(displayOptions)) + "): ")
+	fmt.Scanf("%d", &choice)
+
+	if choice < 1 || choice > len(displayOptions) {
+		return options[0]
+	}
+
+	selected := displayOptions[choice-1]
+	if selected == "← Go Back" {
+		return "<back>"
+	}
+
+	return selected
+}
+
+// promptInputWithBack prompts user for input with optional back button
+func promptInputWithBack(prompt, defaultValue string, allowBack bool) string {
+	backHint := ""
+	if allowBack {
+		backHint = " (type 'back' to go back)"
+	}
+
+	fmt.Printf("%s [%s]%s: ", prompt, defaultValue, backHint)
+
+	var input string
+	fmt.Scanln(&input)
+
+	if allowBack && strings.ToLower(input) == "back" {
+		return "<back>"
+	}
+
+	if input == "" {
+		return defaultValue
+	}
+	return input
+}
+
+// promptConfirmWithBack prompts user for confirmation with optional back button
+func promptConfirmWithBack(prompt string, defaultValue bool, allowBack bool) string {
+	defaultStr := "y/N"
+	if defaultValue {
+		defaultStr = "Y/n"
+	}
+
+	backHint := ""
+	if allowBack {
+		backHint = " (type 'back' to go back)"
+	}
+
+	fmt.Printf("%s [%s]%s: ", prompt, defaultStr, backHint)
+
+	var input string
+	fmt.Scanln(&input)
+
+	if allowBack && strings.ToLower(input) == "back" {
+		return "<back>"
+	}
+
+	if input == "" {
+		if defaultValue {
+			return "yes"
+		}
+		return "no"
+	}
+
+	input = strings.ToLower(input)
+	if input == "y" || input == "yes" {
+		return "yes"
+	}
+	return "no"
 }
