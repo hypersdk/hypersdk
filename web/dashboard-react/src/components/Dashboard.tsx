@@ -8,6 +8,8 @@ import { JobsTable } from './JobsTable';
 import { AlertsList } from './AlertsList';
 import { ChartContainer } from './ChartContainer';
 import { JobSubmissionForm } from './JobSubmissionForm';
+import { WorkflowDashboard } from './WorkflowDashboard';
+import { ManifestBuilder } from './ManifestBuilder';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { useMetricsHistory } from '../hooks/useMetricsHistory';
 import { formatBytes, formatDuration, getStatusColor } from '../utils/formatters';
@@ -418,6 +420,35 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
           </div>
         </div>
       )}
+
+      {/* Workflow Daemon Integration */}
+      <div style={{
+        backgroundColor: '#f0f2f7',
+        padding: '24px 16px',
+      }}>
+        <div style={{
+          maxWidth: '1400px',
+          margin: '0 auto',
+        }}>
+          <WorkflowDashboard />
+        </div>
+      </div>
+
+      {/* Manifest Builder */}
+      <div style={{
+        backgroundColor: '#f0f2f7',
+        padding: '24px 16px',
+      }}>
+        <div style={{
+          maxWidth: '1400px',
+          margin: '0 auto',
+        }}>
+          <ManifestBuilder onSubmitSuccess={(jobId) => {
+            console.log('Manifest submitted:', jobId);
+            // Could trigger a refresh of workflow status here
+          }} />
+        </div>
+      </div>
 
       {/* System Info */}
       {metrics && (

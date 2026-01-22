@@ -252,9 +252,12 @@ func (es *EnhancedServer) registerEnhancedRoutes() {
 	mux.HandleFunc("/libvirt/backup/verify", es.Server.handleVerifyBackup)
 	mux.HandleFunc("/libvirt/backup/delete", es.Server.handleDeleteBackup)
 
-	// Conversion workflow
-	mux.HandleFunc("/workflow/convert", es.Server.handleConversionWorkflow)
-	mux.HandleFunc("/workflow/status", es.Server.handleWorkflowStatus)
+	// Workflow daemon integration (manifest & disk workflows)
+	mux.HandleFunc("/api/workflow/status", es.Server.WorkflowStatusHandler)
+	mux.HandleFunc("/api/workflow/jobs", es.Server.WorkflowJobsHandler)
+	mux.HandleFunc("/api/workflow/jobs/active", es.Server.WorkflowJobsActiveHandler)
+	mux.HandleFunc("/api/workflow/manifest/submit", es.Server.ManifestSubmitHandler)
+	mux.HandleFunc("/api/workflow/manifest/validate", es.Server.ManifestValidateHandler)
 
 	// Console & display
 	mux.HandleFunc("/console/info", es.Server.handleGetConsoleInfo)

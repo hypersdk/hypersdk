@@ -131,3 +131,73 @@ export interface ConnectionPoolStats {
   total_closed: number;
   health_check_failures: number;
 }
+
+// Workflow daemon types
+export interface WorkflowStatus {
+  mode: 'disk' | 'manifest';
+  running: boolean;
+  queue_depth: number;
+  active_jobs: number;
+  processed_today: number;
+  failed_today: number;
+  max_workers: number;
+  uptime_seconds: number;
+}
+
+export interface WorkflowJob {
+  id: string;
+  name: string;
+  stage: string;
+  progress: number;
+  started_at: string;
+  elapsed_seconds: number;
+  status: 'pending' | 'processing' | 'completed' | 'failed';
+}
+
+export interface ManifestPipeline {
+  load: {
+    source_type: string;
+    source_path: string;
+  };
+  inspect: {
+    enabled: boolean;
+    detect_os: boolean;
+  };
+  fix: {
+    fstab: {
+      enabled: boolean;
+      mode: string;
+    };
+    grub: {
+      enabled: boolean;
+    };
+    initramfs: {
+      enabled: boolean;
+      regenerate: boolean;
+    };
+    network: {
+      enabled: boolean;
+      fix_level: string;
+    };
+  };
+  convert: {
+    output_format: string;
+    compress: boolean;
+    output_path?: string;
+  };
+  validate: {
+    enabled: boolean;
+    boot_test: boolean;
+  };
+}
+
+export interface Manifest {
+  version: string;
+  batch?: boolean;
+  name?: string;
+  pipeline?: ManifestPipeline;
+  vms?: Array<{
+    name: string;
+    pipeline: ManifestPipeline;
+  }>;
+}

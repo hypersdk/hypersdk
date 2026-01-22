@@ -209,9 +209,12 @@ func NewServer(manager *jobs.Manager, detector *capabilities.Detector, log logge
 	mux.HandleFunc("/libvirt/backup/verify", s.handleVerifyBackup)
 	mux.HandleFunc("/libvirt/backup/delete", s.handleDeleteBackup)
 
-	// Conversion Workflow
-	mux.HandleFunc("/workflow/convert", s.handleConversionWorkflow)
-	mux.HandleFunc("/workflow/status", s.handleWorkflowStatus)
+	// Workflow daemon integration
+	mux.HandleFunc("/api/workflow/status", s.WorkflowStatusHandler)
+	mux.HandleFunc("/api/workflow/jobs", s.WorkflowJobsHandler)
+	mux.HandleFunc("/api/workflow/jobs/active", s.WorkflowJobsActiveHandler)
+	mux.HandleFunc("/api/workflow/manifest/submit", s.ManifestSubmitHandler)
+	mux.HandleFunc("/api/workflow/manifest/validate", s.ManifestValidateHandler)
 
 	// Console & Display
 	mux.HandleFunc("/console/info", s.handleGetConsoleInfo)

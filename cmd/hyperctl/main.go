@@ -164,6 +164,13 @@ func main() {
 	webhooksCmd := flag.NewFlagSet("webhooks", flag.ExitOnError)
 
 	manifestCmd := flag.NewFlagSet("manifest", flag.ExitOnError)
+	manifestAction := manifestCmd.String("action", "", "Action: create, validate, submit, generate")
+	_ = manifestCmd.String("file", "", "Manifest file path") // Defined for help text, actual value from Args()
+
+	// Workflow Commands
+	workflowCmd := flag.NewFlagSet("workflow", flag.ExitOnError)
+	workflowOperation := workflowCmd.String("op", "status", "Operation: status, list, queue, watch")
+	workflowDir := workflowCmd.String("dir", "", "Workflow directory path")
 
 	// vSphere Infrastructure Commands
 	hostCmd := flag.NewFlagSet("host", flag.ExitOnError)
@@ -332,16 +339,30 @@ func main() {
 
 	case "manifest":
 		manifestCmd.Parse(os.Args[2:])
-		if len(manifestCmd.Args()) < 1 {
-			pterm.Error.Println("Action required. Usage: hyperctl manifest <convert|generate>")
-			pterm.Info.Println("Examples:")
-			pterm.Println("  hyperctl manifest convert /dc/vm/web01 /exports/web01 -format qcow2 -verify")
-			pterm.Println("  hyperctl manifest generate /dc/vm/db01 /exports/db01 -format raw")
+		if *manifestAction == "" && len(manifestCmd.Args()) < 1 {
+			pterm.Error.Println("Action required. Usage: hyperctl manifest <action>")
+			pterm.Info.Println("Actions:")
+			pterm.Println("  create     - Create new manifest interactively")
+			pterm.Println("  validate   - Validate manifest file")
+			pterm.Println("  submit     - Submit manifest to workflow daemon")
+			pterm.Println("  generate   - Generate manifest from VM path")
 			pterm.Info.Println("")
-			pterm.Info.Println("One-shot workflow: Export → Manifest → hyper2kvm → KVM")
+			pterm.Info.Println("Examples:")
+			pterm.Println("  hyperctl manifest create")
+			pterm.Println("  hyperctl manifest validate -file my-vm.json")
+			pterm.Println("  hyperctl manifest submit -file my-vm.json")
+			pterm.Println("  hyperctl manifest generate /dc/vm/web01 /exports")
 			os.Exit(1)
 		}
-		handleManifest(*daemonURL, manifestCmd.Args()[0], manifestCmd.Args()[1:])
+		action := *manifestAction
+		if action == "" {
+			action = manifestCmd.Args()[0]
+		}
+		handleManifestCmd(*daemonURL, action, manifestCmd.Args()[1:])
+
+	case "workflow":
+		workflowCmd.Parse(os.Args[2:])
+		handleWorkflow(*daemonURL, *workflowOperation, *workflowDir)
 
 	case "host":
 		hostCmd.Parse(os.Args[2:])
@@ -572,6 +593,42 @@ func showUsage() {
 		WithHeaderRowSeparator("-").
 		WithBoxed().
 		WithData(webhookCommands).
+		Render()
+
+	pterm.Println()
+
+	// Workflow Management
+	pterm.DefaultSection.Println("🔄 Workflow Management (NEW)")
+	workflowCommands := [][]string{
+		{"Command", "Description", "Example"},
+		{"workflow -op status", "Show workflow daemon status", "hyperctl workflow -op status"},
+		{"workflow -op list", "List workflow jobs", "hyperctl workflow -op list"},
+		{"workflow -op queue", "Show queue statistics", "hyperctl workflow -op queue"},
+		{"workflow -op watch", "Watch workflow directory", "hyperctl workflow -op watch -dir /path"},
+	}
+	pterm.DefaultTable.
+		WithHasHeader().
+		WithHeaderRowSeparator("-").
+		WithBoxed().
+		WithData(workflowCommands).
+		Render()
+
+	pterm.Println()
+
+	// Manifest Management
+	pterm.DefaultSection.Println("📝 Manifest Management (NEW)")
+	manifestCommands := [][]string{
+		{"Command", "Description", "Example"},
+		{"manifest create", "Create manifest interactively", "hyperctl manifest create"},
+		{"manifest validate", "Validate manifest file", "hyperctl manifest validate -file vm.json"},
+		{"manifest submit", "Submit to workflow daemon", "hyperctl manifest submit -file vm.json"},
+		{"manifest generate", "Generate from VM path", "hyperctl manifest generate /dc/vm/web01 /exports"},
+	}
+	pterm.DefaultTable.
+		WithHasHeader().
+		WithHeaderRowSeparator("-").
+		WithBoxed().
+		WithData(manifestCommands).
 		Render()
 
 	pterm.Println()
