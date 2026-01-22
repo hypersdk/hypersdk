@@ -321,11 +321,26 @@ func configureExport(defaultOutputDir string, theme *huh.Theme, allowBack bool) 
 	}
 
 	var templateName string
-	var customFormat string
-	var compress bool
-	var verify bool
-	var customize bool
-	var configureDaemon bool
+	var configureDaemonStr string
+	var useDaemonStr string
+
+	// Build daemon mode options with back button
+	daemonOptions := []huh.Option[string]{
+		huh.NewOption("Yes, use daemon", "yes"),
+		huh.NewOption("No, direct execution", "no"),
+	}
+	if allowBack {
+		daemonOptions = append(daemonOptions, huh.NewOption("← Go Back", backSentinel))
+	}
+
+	// Build configure daemon options with back button
+	configureDaemonOptions := []huh.Option[string]{
+		huh.NewOption("Yes, customize", "yes"),
+		huh.NewOption("No, use defaults", "no"),
+	}
+	if allowBack {
+		configureDaemonOptions = append(configureDaemonOptions, huh.NewOption("← Go Back", backSentinel))
+	}
 
 	form := huh.NewForm(
 		huh.NewGroup(
@@ -338,13 +353,13 @@ func configureExport(defaultOutputDir string, theme *huh.Theme, allowBack bool) 
 		huh.NewGroup(
 			huh.NewInput().
 				Title("Output Directory").
-				Description("Where to save exported VMs").
+				Description("Where to save exported VMs (press Esc to go back)").
 				Value(&config.outputDir).
 				Placeholder(defaultOutputDir),
 
 			huh.NewInput().
 				Title("Parallel Downloads").
-				Description("Number of concurrent file downloads (1-8)").
+				Description("Number of concurrent file downloads (1-8, press Esc to go back)").
 				Value(&config.parallelStr).
 				Placeholder("4").
 				Validate(func(s string) error {
@@ -359,45 +374,43 @@ func configureExport(defaultOutputDir string, theme *huh.Theme, allowBack bool) 
 				}),
 		),
 		huh.NewGroup(
-			huh.NewConfirm().
+			huh.NewSelect[string]().
 				Title("hyper2kvm Daemon Mode").
 				Description("Use systemd daemon for VM conversion?").
-				Affirmative("Yes, use daemon").
-				Negative("No, direct execution").
-				Value(&config.useDaemon),
+				Options(daemonOptions...).
+				Value(&useDaemonStr),
 		),
 		huh.NewGroup(
-			huh.NewConfirm().
+			huh.NewSelect[string]().
 				Title("Configure Daemon").
 				Description("Customize daemon settings (instance, directories, timeouts)?").
-				Affirmative("Yes, customize").
-				Negative("No, use defaults").
-				Value(&configureDaemon),
+				Options(configureDaemonOptions...).
+				Value(&configureDaemonStr),
 		).WithHideFunc(func() bool {
-			return !config.useDaemon
+			return useDaemonStr != "yes"
 		}),
 		huh.NewGroup(
 			huh.NewInput().
 				Title("Daemon Instance").
-				Description("Systemd instance name (empty for default, e.g., 'vsphere-prod' for hyper2kvm@vsphere-prod.service)").
+				Description("Systemd instance name (empty for default, press Esc to go back)").
 				Value(&config.daemonInstance).
 				Placeholder("(default)"),
 
 			huh.NewInput().
 				Title("Watch Directory").
-				Description("Directory where daemon watches for jobs").
+				Description("Directory where daemon watches for jobs (press Esc to go back)").
 				Value(&config.daemonWatchDir).
 				Placeholder("/var/lib/hyper2kvm/queue"),
 
 			huh.NewInput().
 				Title("Output Directory").
-				Description("Directory where daemon outputs converted VMs").
+				Description("Directory where daemon outputs converted VMs (press Esc to go back)").
 				Value(&config.daemonOutputDir).
 				Placeholder("/var/lib/hyper2kvm/output"),
 
 			huh.NewInput().
 				Title("Poll Interval (seconds)").
-				Description("How often to check for completion (1-60)").
+				Description("How often to check for completion (1-60, press Esc to go back)").
 				Value(&config.pollIntervalStr).
 				Placeholder("5").
 				Validate(func(s string) error {
@@ -413,7 +426,7 @@ func configureExport(defaultOutputDir string, theme *huh.Theme, allowBack bool) 
 
 			huh.NewInput().
 				Title("Daemon Timeout (minutes)").
-				Description("Maximum time to wait for daemon (1-240)").
+				Description("Maximum time to wait for daemon (1-240, press Esc to go back)").
 				Value(&config.daemonTimeoutStr).
 				Placeholder("60").
 				Validate(func(s string) error {
@@ -427,38 +440,7 @@ func configureExport(defaultOutputDir string, theme *huh.Theme, allowBack bool) 
 					return nil
 				}),
 		).WithHideFunc(func() bool {
-			return !config.useDaemon || !configureDaemon
-		}),
-		huh.NewGroup(
-			huh.NewConfirm().
-				Title("Advanced Options").
-				Description("Do you want to customize the export format?").
-				Affirmative("Yes, customize").
-				Negative("No, use template").
-				Value(&customize),
-		).WithHideFunc(func() bool {
-			return templateName == ""
-		}),
-		huh.NewGroup(
-			huh.NewSelect[string]().
-				Title("Export Format").
-				Options(
-					huh.NewOption("OVF (Open Virtualization Format)", "ovf"),
-					huh.NewOption("OVA (Open Virtualization Archive)", "ova"),
-				).
-				Value(&customFormat),
-
-			huh.NewConfirm().
-				Title("Enable Compression").
-				Description("Compress the export (recommended for OVA)").
-				Value(&compress),
-
-			huh.NewConfirm().
-				Title("Enable Verification").
-				Description("Verify export integrity with checksums").
-				Value(&verify),
-		).WithHideFunc(func() bool {
-			return !customize
+			return useDaemonStr != "yes" || configureDaemonStr != "yes"
 		}),
 	).WithTheme(theme)
 
@@ -466,10 +448,13 @@ func configureExport(defaultOutputDir string, theme *huh.Theme, allowBack bool) 
 		return nil, err
 	}
 
-	// Check if back button was selected
-	if allowBack && templateName == backSentinel {
+	// Check if back button was selected in any field
+	if allowBack && (templateName == backSentinel || useDaemonStr == backSentinel || configureDaemonStr == backSentinel) {
 		return nil, nil // Return nil as signal for back navigation
 	}
+
+	// Convert string selections to booleans
+	config.useDaemon = (useDaemonStr == "yes")
 
 	// Convert parallel string to int
 	if config.parallelStr != "" {
@@ -492,23 +477,14 @@ func configureExport(defaultOutputDir string, theme *huh.Theme, allowBack bool) 
 		}
 	}
 
-	// Apply template or custom settings
-	if customize && customFormat != "" {
-		// Custom settings
-		config.format = customFormat
-		config.compress = compress
-		config.verify = verify
-		config.templateName = "Custom"
-	} else {
-		// Apply template
-		for _, t := range templates {
-			if t.name == templateName {
-				config.format = t.format
-				config.compress = t.compress
-				config.verify = t.verify
-				config.templateName = t.name
-				break
-			}
+	// Apply template settings
+	for _, t := range templates {
+		if t.name == templateName {
+			config.format = t.format
+			config.compress = t.compress
+			config.verify = t.verify
+			config.templateName = t.name
+			break
 		}
 	}
 
