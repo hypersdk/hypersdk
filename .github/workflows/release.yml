@@ -118,9 +118,61 @@ jobs:
         name: rpm-packages
         path: "*.rpm"
 
+  build-daemon-rpm:
+    name: Build hyper2kvm-daemon RPM
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - dist: fc39
+            image: fedora:39
+          - dist: fc40
+            image: fedora:40
+          - dist: el8
+            image: rockylinux:8
+          - dist: el9
+            image: rockylinux:9
+
+    container:
+      image: ${{ matrix.image }}
+
+    steps:
+    - name: Install dependencies
+      run: |
+        if [ -f /etc/fedora-release ]; then
+          dnf install -y rpm-build rpmdevtools git
+        else
+          yum install -y rpm-build rpmdevtools git
+        fi
+
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Get version from tag
+      id: get_version
+      run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+    - name: Build hyper2kvm-daemon RPM
+      run: |
+        cd packaging/rpm
+        ./build.sh --version ${{ steps.get_version.outputs.VERSION }} --release 1
+
+    - name: Find and copy RPMs
+      run: |
+        mkdir -p rpms
+        find ~/rpmbuild/RPMS/noarch/ -name "hyper2kvm-daemon-*.rpm" -exec cp {} rpms/ \;
+        find ~/rpmbuild/SRPMS/ -name "hyper2kvm-daemon-*.rpm" -exec cp {} rpms/ \;
+        ls -lh rpms/
+
+    - name: Upload daemon RPM artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: daemon-rpm-${{ matrix.dist }}
+        path: rpms/*.rpm
+
   create-release:
     name: Create GitHub Release
-    needs: [build-binaries, build-rpm]
+    needs: [build-binaries, build-rpm, build-daemon-rpm]
     runs-on: ubuntu-latest
 
     steps:
@@ -179,8 +231,9 @@ jobs:
         - \`hypervisord-windows-amd64.exe\` - Background daemon
         - \`hyperctl-windows-amd64.exe\` - Control CLI
 
-        ### RPM Package (Fedora/RHEL/CentOS)
-        - \`hypersdk-${VERSION}-1.*.rpm\` - Complete package with systemd service
+        ### RPM Packages (Fedora/RHEL/CentOS)
+        - \`hypersdk-${VERSION}-1.*.rpm\` - Main binaries package
+        - \`hyper2kvm-daemon-${VERSION}-1.*.rpm\` - Systemd daemon package (multiple distributions)
 
         ## Installation
 
@@ -198,14 +251,20 @@ jobs:
         ### RPM Installation
 
         \`\`\`bash
-        # Fedora/RHEL/CentOS
+        # Install main binaries
         sudo dnf install hypersdk-${VERSION}-1.*.rpm
+
+        # Install hyper2kvm systemd daemon (optional)
+        sudo dnf install hyper2kvm-daemon-${VERSION}-1.el9.noarch.rpm
 
         # Configure vCenter credentials
         sudo vim /etc/hypersdk/config.yaml
 
-        # Start daemon
+        # Start main daemon
         sudo systemctl enable --now hypervisord
+
+        # Start hyper2kvm daemon (if installed)
+        sudo systemctl enable --now hyper2kvm.service
         \`\`\`
 
         ## What's Included

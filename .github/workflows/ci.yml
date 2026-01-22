@@ -137,6 +137,44 @@ jobs:
           ~/rpmbuild/RPMS/**/*.rpm
           ~/rpmbuild/SRPMS/*.rpm
 
+  build-daemon-rpm:
+    name: Build hyper2kvm-daemon RPM
+    runs-on: ubuntu-latest
+    container: fedora:latest
+
+    steps:
+    - name: Install dependencies
+      run: |
+        dnf install -y rpm-build rpmdevtools git
+
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Build daemon RPM
+      run: |
+        cd packaging/rpm
+        ./build.sh
+
+    - name: Verify RPM package
+      run: |
+        rpm -qpi ~/rpmbuild/RPMS/noarch/hyper2kvm-daemon-*.rpm
+        rpm -qpl ~/rpmbuild/RPMS/noarch/hyper2kvm-daemon-*.rpm
+
+    - name: Test RPM installation
+      run: |
+        rpm -ivh ~/rpmbuild/RPMS/noarch/hyper2kvm-daemon-*.rpm || true
+        test -f /usr/lib/systemd/system/hyper2kvm.service || exit 1
+        test -f /usr/lib/systemd/system/hyper2kvm@.service || exit 1
+        echo "Daemon RPM installation verified"
+
+    - name: Upload daemon RPM
+      uses: actions/upload-artifact@v4
+      with:
+        name: daemon-rpm-packages
+        path: |
+          ~/rpmbuild/RPMS/noarch/*.rpm
+          ~/rpmbuild/SRPMS/*.rpm
+
   integration-test:
     name: Integration Test
     runs-on: ubuntu-latest
