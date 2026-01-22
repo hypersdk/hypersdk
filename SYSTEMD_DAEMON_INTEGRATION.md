@@ -114,6 +114,21 @@ Integration of HyperSDK with hyper2kvm systemd daemon for production deployments
    - Added 6 daemon fields to form state with defaults
    - Submitted with job data to API
 
+8. **Daemon Management Commands** (`cmd/hyperctl/daemon_commands.go`, `cmd/hyperctl/main.go`)
+   - Added `hyperctl daemon` command with two operations:
+     * `hyperctl daemon -op status` - Show status of all daemon instances
+     * `hyperctl daemon -op status -instance <name>` - Show specific instance status
+     * `hyperctl daemon -op list` - List all daemon instances
+   - Displays instance information:
+     * Instance name and service name
+     * Active/inactive status
+     * Process ID (PID)
+     * Uptime
+     * Watch and output directories
+   - Uses systemctl commands to query daemon status
+   - Supports both default (hyper2kvm.service) and named instances (hyper2kvm@name.service)
+   - Added documentation to hyperctl help output
+
 ### 🚧 In Progress
 
 8. **Documentation**
@@ -271,8 +286,8 @@ sudo systemctl start hyper2kvm.service
 
 ### Medium Priority
 
-- [ ] Add daemon status command (`hyperctl daemon status`)
-- [ ] Add daemon instance listing (`hyperctl daemon list`)
+- [x] Add daemon status command (`hyperctl daemon status`)
+- [x] Add daemon instance listing (`hyperctl daemon list`)
 - [ ] Add job queue monitoring
 
 ### Low Priority
@@ -305,6 +320,16 @@ hyperexport --vm test-vm --output /tmp/test \
 sudo systemctl stop hyper2kvm.service
 hyperexport --vm test-vm --output /tmp/test \
   --pipeline --hyper2kvm-daemon
+
+# Check daemon status with hyperctl
+hyperctl daemon -op status                    # Show all instances
+hyperctl daemon -op status -instance vsphere  # Show specific instance
+hyperctl daemon -op list                      # List all instances
+
+# Start/stop daemon instances
+sudo systemctl start hyper2kvm.service              # Start default
+sudo systemctl start hyper2kvm@vsphere.service      # Start named instance
+sudo systemctl stop hyper2kvm@vsphere.service       # Stop named instance
 ```
 
 ## Next Steps

@@ -218,6 +218,12 @@ func main() {
 	cloneTemplate := cloneCmd.Bool("template", false, "Mark as template")
 	cloneBulkFile := cloneCmd.String("bulk", "", "Bulk clone from file (YAML/JSON)")
 
+	// Daemon Commands
+	daemonCmd := flag.NewFlagSet("daemon", flag.ExitOnError)
+	daemonOperation := daemonCmd.String("op", "status", "Operation: status, list")
+	daemonInstance := daemonCmd.String("instance", "", "Daemon instance name (for status)")
+	daemonJSON := daemonCmd.Bool("json", false, "JSON output")
+
 	// Parse global flags
 	flag.Parse()
 
@@ -390,6 +396,19 @@ func main() {
 			handleClone(*daemonURL, spec, "")
 		}
 
+	case "daemon":
+		daemonCmd.Parse(os.Args[2:])
+		switch *daemonOperation {
+		case "status":
+			handleDaemonStatus(*daemonURL, *daemonInstance, *daemonJSON)
+		case "list":
+			handleDaemonList(*daemonJSON)
+		default:
+			pterm.Error.Printfln("Unknown daemon operation: %s", *daemonOperation)
+			pterm.Info.Println("Available operations: status, list")
+			os.Exit(1)
+		}
+
 	case "help", "-h", "--help":
 		showUsage()
 
@@ -553,6 +572,23 @@ func showUsage() {
 		WithHeaderRowSeparator("-").
 		WithBoxed().
 		WithData(webhookCommands).
+		Render()
+
+	pterm.Println()
+
+	// Daemon Management
+	pterm.DefaultSection.Println("🔧 Daemon Management (hyper2kvm)")
+	daemonCommands := [][]string{
+		{"Command", "Description", "Example"},
+		{"daemon -op status", "Show daemon status", "hyperctl daemon -op status"},
+		{"daemon -op status -instance", "Show specific instance status", "hyperctl daemon -op status -instance vsphere"},
+		{"daemon -op list", "List all daemon instances", "hyperctl daemon -op list"},
+	}
+	pterm.DefaultTable.
+		WithHasHeader().
+		WithHeaderRowSeparator("-").
+		WithBoxed().
+		WithData(daemonCommands).
 		Render()
 
 	pterm.Println()
