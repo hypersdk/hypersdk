@@ -129,12 +129,34 @@ Integration of HyperSDK with hyper2kvm systemd daemon for production deployments
    - Supports both default (hyper2kvm.service) and named instances (hyper2kvm@name.service)
    - Added documentation to hyperctl help output
 
+9. **Systemd Unit Files** (`systemd/` directory)
+   - Created production-ready systemd service files:
+     * `hyper2kvm.service` - Default daemon instance
+     * `hyper2kvm@.service` - Template for named instances
+     * `hyper2kvm.target` - Target to manage all instances
+   - Example configuration files:
+     * `hyper2kvm.conf.example` - Default configuration
+     * `hyper2kvm-vsphere.conf.example` - vSphere-specific config
+     * `hyper2kvm-aws.conf.example` - AWS-specific config
+   - Security hardening features:
+     * Runs as non-root `hyper2kvm` user
+     * Resource limits (memory, CPU)
+     * Restricted filesystem access
+     * Minimal capabilities
+     * System call filtering
+   - Created `install.sh` script for automated deployment
+   - Comprehensive `README.md` with:
+     * Installation instructions
+     * Usage examples
+     * Management commands
+     * Troubleshooting guide
+     * Multi-instance setup
+
 ### 🚧 In Progress
 
-8. **Documentation**
+10. **Documentation**
    - TODO: Update PIPELINE_INTEGRATION.md
-   - TODO: Add daemon deployment guide
-   - TODO: Add troubleshooting section
+   - TODO: Add troubleshooting section to main docs
 
 ## Configuration Options
 
@@ -292,7 +314,7 @@ sudo systemctl start hyper2kvm.service
 
 ### Low Priority
 
-- [ ] Add systemd unit files to repository
+- [x] Add systemd unit files to repository
 - [ ] Add RPM/DEB packaging for systemd units
 - [ ] Add Ansible playbook for daemon setup
 
