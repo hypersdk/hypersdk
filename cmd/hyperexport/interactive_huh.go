@@ -205,14 +205,30 @@ type exportConfiguration struct {
 	cloudUpload  bool
 	parallelStr  string // for form input
 	customizeStr string // for form confirmation
+
+	// hyper2kvm daemon options
+	useDaemon          bool
+	daemonInstance     string
+	daemonWatchDir     string
+	daemonOutputDir    string
+	daemonPollInterval int
+	daemonTimeout      int
+	pollIntervalStr    string // for form input
+	daemonTimeoutStr   string // for form input
 }
 
 // configureExport presents export configuration options
 func configureExport(defaultOutputDir string, theme *huh.Theme) (*exportConfiguration, error) {
 	config := &exportConfiguration{
-		outputDir:   defaultOutputDir,
-		parallel:    4,
-		parallelStr: "4",
+		outputDir:          defaultOutputDir,
+		parallel:           4,
+		parallelStr:        "4",
+		daemonWatchDir:     "/var/lib/hyper2kvm/queue",
+		daemonOutputDir:    "/var/lib/hyper2kvm/output",
+		daemonPollInterval: 5,
+		daemonTimeout:      60,
+		pollIntervalStr:    "5",
+		daemonTimeoutStr:   "60",
 	}
 
 	// Template selection
@@ -229,6 +245,7 @@ func configureExport(defaultOutputDir string, theme *huh.Theme) (*exportConfigur
 	var compress bool
 	var verify bool
 	var customize bool
+	var configureDaemon bool
 
 	form := huh.NewForm(
 		huh.NewGroup(
@@ -261,6 +278,77 @@ func configureExport(defaultOutputDir string, theme *huh.Theme) (*exportConfigur
 					return nil
 				}),
 		),
+		huh.NewGroup(
+			huh.NewConfirm().
+				Title("hyper2kvm Daemon Mode").
+				Description("Use systemd daemon for VM conversion?").
+				Affirmative("Yes, use daemon").
+				Negative("No, direct execution").
+				Value(&config.useDaemon),
+		),
+		huh.NewGroup(
+			huh.NewConfirm().
+				Title("Configure Daemon").
+				Description("Customize daemon settings (instance, directories, timeouts)?").
+				Affirmative("Yes, customize").
+				Negative("No, use defaults").
+				Value(&configureDaemon),
+		).WithHideFunc(func() bool {
+			return !config.useDaemon
+		}),
+		huh.NewGroup(
+			huh.NewInput().
+				Title("Daemon Instance").
+				Description("Systemd instance name (empty for default, e.g., 'vsphere-prod' for hyper2kvm@vsphere-prod.service)").
+				Value(&config.daemonInstance).
+				Placeholder("(default)"),
+
+			huh.NewInput().
+				Title("Watch Directory").
+				Description("Directory where daemon watches for jobs").
+				Value(&config.daemonWatchDir).
+				Placeholder("/var/lib/hyper2kvm/queue"),
+
+			huh.NewInput().
+				Title("Output Directory").
+				Description("Directory where daemon outputs converted VMs").
+				Value(&config.daemonOutputDir).
+				Placeholder("/var/lib/hyper2kvm/output"),
+
+			huh.NewInput().
+				Title("Poll Interval (seconds)").
+				Description("How often to check for completion (1-60)").
+				Value(&config.pollIntervalStr).
+				Placeholder("5").
+				Validate(func(s string) error {
+					var num int
+					if _, err := fmt.Sscanf(s, "%d", &num); err != nil {
+						return fmt.Errorf("must be a number")
+					}
+					if num < 1 || num > 60 {
+						return fmt.Errorf("must be between 1 and 60")
+					}
+					return nil
+				}),
+
+			huh.NewInput().
+				Title("Daemon Timeout (minutes)").
+				Description("Maximum time to wait for daemon (1-240)").
+				Value(&config.daemonTimeoutStr).
+				Placeholder("60").
+				Validate(func(s string) error {
+					var num int
+					if _, err := fmt.Sscanf(s, "%d", &num); err != nil {
+						return fmt.Errorf("must be a number")
+					}
+					if num < 1 || num > 240 {
+						return fmt.Errorf("must be between 1 and 240")
+					}
+					return nil
+				}),
+		).WithHideFunc(func() bool {
+			return !config.useDaemon || !configureDaemon
+		}),
 		huh.NewGroup(
 			huh.NewConfirm().
 				Title("Advanced Options").
@@ -302,6 +390,20 @@ func configureExport(defaultOutputDir string, theme *huh.Theme) (*exportConfigur
 	if config.parallelStr != "" {
 		if _, err := fmt.Sscanf(config.parallelStr, "%d", &config.parallel); err != nil {
 			return nil, fmt.Errorf("invalid parallel downloads value: %w", err)
+		}
+	}
+
+	// Convert daemon numeric strings to int
+	if config.useDaemon {
+		if config.pollIntervalStr != "" {
+			if _, err := fmt.Sscanf(config.pollIntervalStr, "%d", &config.daemonPollInterval); err != nil {
+				return nil, fmt.Errorf("invalid poll interval value: %w", err)
+			}
+		}
+		if config.daemonTimeoutStr != "" {
+			if _, err := fmt.Sscanf(config.daemonTimeoutStr, "%d", &config.daemonTimeout); err != nil {
+				return nil, fmt.Errorf("invalid daemon timeout value: %w", err)
+			}
 		}
 	}
 
@@ -361,6 +463,21 @@ func confirmAndExecute(ctx context.Context, client *vsphere.VSphereClient, vms [
 	pterm.Printf("  %s  %v\n", colorOrange.Sprint("Verification:     "), cfg.verify)
 	pterm.Printf("  %s  %d\n", colorOrange.Sprint("Parallel:         "), cfg.parallel)
 	pterm.Printf("  %s  %s\n", colorOrange.Sprint("Output Directory: "), cfg.outputDir)
+
+	// Daemon configuration (if enabled)
+	if cfg.useDaemon {
+		pterm.Println()
+		pterm.Printf("  %s\n", colorOrange.Sprint("Daemon Configuration:"))
+		daemonMode := "Default"
+		if cfg.daemonInstance != "" {
+			daemonMode = fmt.Sprintf("Instance: %s", cfg.daemonInstance)
+		}
+		pterm.Printf("  %s  %s\n", colorOrange.Sprint("  Mode:           "), daemonMode)
+		pterm.Printf("  %s  %s\n", colorOrange.Sprint("  Watch Dir:      "), cfg.daemonWatchDir)
+		pterm.Printf("  %s  %s\n", colorOrange.Sprint("  Output Dir:     "), cfg.daemonOutputDir)
+		pterm.Printf("  %s  %ds\n", colorOrange.Sprint("  Poll Interval:  "), cfg.daemonPollInterval)
+		pterm.Printf("  %s  %dm\n", colorOrange.Sprint("  Timeout:        "), cfg.daemonTimeout)
+	}
 	pterm.Println()
 
 	// Confirmation
@@ -420,6 +537,14 @@ func confirmAndExecute(ctx context.Context, client *vsphere.VSphereClient, vms [
 			ValidateChecksum:  cfg.verify,
 			Compress:          cfg.compress,
 			CleanupOVF:        cfg.format == "ova", // Clean up OVF files after creating OVA
+
+			// hyper2kvm daemon options
+			Hyper2KVMDaemon:        cfg.useDaemon,
+			Hyper2KVMInstance:      cfg.daemonInstance,
+			Hyper2KVMWatchDir:      cfg.daemonWatchDir,
+			Hyper2KVMOutputDir:     cfg.daemonOutputDir,
+			Hyper2KVMPollInterval:  cfg.daemonPollInterval,
+			Hyper2KVMDaemonTimeout: cfg.daemonTimeout,
 		}
 
 		// Export the VM

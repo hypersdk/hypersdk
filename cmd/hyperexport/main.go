@@ -94,6 +94,14 @@ var (
 	libvirtBridge      = flag.String("libvirt-bridge", "virbr0", "Network bridge for VM")
 	libvirtPool        = flag.String("libvirt-pool", "default", "Storage pool for disks")
 
+	// hyper2kvm daemon options
+	hyper2kvmDaemon        = flag.Bool("hyper2kvm-daemon", false, "Use systemd daemon instead of direct execution")
+	hyper2kvmInstance      = flag.String("hyper2kvm-instance", "", "Systemd instance name (e.g., 'vsphere-prod' for hyper2kvm@vsphere-prod.service)")
+	hyper2kvmWatchDir      = flag.String("hyper2kvm-watch-dir", "/var/lib/hyper2kvm/queue", "Daemon watch directory")
+	hyper2kvmOutputDir     = flag.String("hyper2kvm-output-dir", "/var/lib/hyper2kvm/output", "Daemon output directory")
+	hyper2kvmPollInterval  = flag.Int("hyper2kvm-poll-interval", 5, "Poll interval in seconds (daemon mode)")
+	hyper2kvmDaemonTimeout = flag.Int("hyper2kvm-daemon-timeout", 60, "Daemon processing timeout in minutes")
+
 	// Phase 6: Orchestration & Monitoring options
 	enableOrchestration = flag.Bool("orchestrate", false, "Enable Phase 6 migration orchestration")
 	progressAPIPort     = flag.String("progress-api", "", "Enable progress API server (e.g., ':8080')")
@@ -997,6 +1005,14 @@ func run(ctx context.Context, cfg *config.Config, log logger.Logger) error {
 	opts.LibvirtAutoStart = *libvirtAutoStart
 	opts.LibvirtNetworkBridge = *libvirtBridge
 	opts.LibvirtStoragePool = *libvirtPool
+
+	// hyper2kvm daemon options
+	opts.Hyper2KVMDaemon = *hyper2kvmDaemon
+	opts.Hyper2KVMInstance = *hyper2kvmInstance
+	opts.Hyper2KVMWatchDir = *hyper2kvmWatchDir
+	opts.Hyper2KVMOutputDir = *hyper2kvmOutputDir
+	opts.Hyper2KVMPollInterval = *hyper2kvmPollInterval
+	opts.Hyper2KVMDaemonTimeout = *hyper2kvmDaemonTimeout
 
 	// If pipeline is enabled, force manifest generation
 	if opts.EnablePipeline {

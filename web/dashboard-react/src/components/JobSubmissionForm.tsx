@@ -29,6 +29,13 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({ onSubmit }
     libvirt_autostart: false,
     libvirt_bridge: 'virbr0',
     libvirt_pool: 'default',
+    // hyper2kvm daemon integration
+    hyper2kvm_daemon: false,
+    hyper2kvm_instance: '',
+    hyper2kvm_watch_dir: '/var/lib/hyper2kvm/queue',
+    hyper2kvm_output_dir: '/var/lib/hyper2kvm/output',
+    hyper2kvm_poll_interval: 5,
+    hyper2kvm_daemon_timeout: 60,
   });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -667,6 +674,88 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({ onSubmit }
                       <label htmlFor="libvirt_autostart" style={{ fontSize: '13px', cursor: 'pointer' }}>
                         Enable VM auto-start
                       </label>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* hyper2kvm Daemon Mode */}
+              <div style={{ borderTop: '1px solid #333', paddingTop: '16px', marginTop: '16px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+                  <input
+                    type="checkbox"
+                    name="hyper2kvm_daemon"
+                    checked={formData.hyper2kvm_daemon}
+                    onChange={handleChange}
+                    id="hyper2kvm_daemon"
+                    style={{ width: '16px', height: '16px' }}
+                  />
+                  <label htmlFor="hyper2kvm_daemon" style={{ fontSize: '13px', cursor: 'pointer', fontWeight: '600' }}>
+                    Use systemd daemon for VM conversion
+                  </label>
+                </div>
+
+                {formData.hyper2kvm_daemon && (
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                    <div>
+                      <label style={labelStyle}>Daemon Instance</label>
+                      <input
+                        type="text"
+                        name="hyper2kvm_instance"
+                        value={formData.hyper2kvm_instance}
+                        onChange={handleChange}
+                        placeholder="(default) or vsphere-prod"
+                        style={inputStyle}
+                      />
+                      <div style={{ fontSize: '11px', color: '#999', marginTop: '4px' }}>
+                        For hyper2kvm@{'{'}instance{'}'}.service
+                      </div>
+                    </div>
+                    <div>
+                      <label style={labelStyle}>Watch Directory</label>
+                      <input
+                        type="text"
+                        name="hyper2kvm_watch_dir"
+                        value={formData.hyper2kvm_watch_dir}
+                        onChange={handleChange}
+                        placeholder="/var/lib/hyper2kvm/queue"
+                        style={inputStyle}
+                      />
+                    </div>
+                    <div>
+                      <label style={labelStyle}>Output Directory</label>
+                      <input
+                        type="text"
+                        name="hyper2kvm_output_dir"
+                        value={formData.hyper2kvm_output_dir}
+                        onChange={handleChange}
+                        placeholder="/var/lib/hyper2kvm/output"
+                        style={inputStyle}
+                      />
+                    </div>
+                    <div>
+                      <label style={labelStyle}>Poll Interval (seconds)</label>
+                      <input
+                        type="number"
+                        name="hyper2kvm_poll_interval"
+                        value={formData.hyper2kvm_poll_interval}
+                        onChange={handleChange}
+                        min="1"
+                        max="60"
+                        style={inputStyle}
+                      />
+                    </div>
+                    <div>
+                      <label style={labelStyle}>Timeout (minutes)</label>
+                      <input
+                        type="number"
+                        name="hyper2kvm_daemon_timeout"
+                        value={formData.hyper2kvm_daemon_timeout}
+                        onChange={handleChange}
+                        min="1"
+                        max="240"
+                        style={inputStyle}
+                      />
                     </div>
                   </div>
                 )}

@@ -75,28 +75,46 @@ Integration of HyperSDK with hyper2kvm systemd daemon for production deployments
      - Daemon options passed to pipeline config
      - Full integration with export workflow
 
-### 🚧 In Progress
+### ✅ Completed (Continued)
 
 5. **CLI Flags** (`cmd/hyperexport/main.go`)
-   - TODO: Add command-line flags:
+   - Added 6 command-line flags:
      ```bash
      --hyper2kvm-daemon              # Enable daemon mode
      --hyper2kvm-instance <name>     # Instance name (e.g., "vsphere-prod")
-     --hyper2kvm-watch-dir <path>    # Watch directory
-     --hyper2kvm-output-dir <path>   # Output directory
-     --hyper2kvm-poll-interval <sec> # Poll interval
-     --hyper2kvm-daemon-timeout <min># Timeout
+     --hyper2kvm-watch-dir <path>    # Watch directory (default: /var/lib/hyper2kvm/queue)
+     --hyper2kvm-output-dir <path>   # Output directory (default: /var/lib/hyper2kvm/output)
+     --hyper2kvm-poll-interval <sec> # Poll interval (default: 5)
+     --hyper2kvm-daemon-timeout <min># Timeout (default: 60)
      ```
+   - Wired flags to export options
 
-6. **Interactive TUI** (`cmd/hyperctl/interactive.go`)
-   - TODO: Add daemon configuration phase
-   - TODO: Show daemon status in pipeline options
-   - TODO: Allow selection of daemon instance
+6. **Interactive TUI** (`cmd/hyperexport/interactive_huh.go`)
+   - Added daemon configuration phase with conditional display
+   - Daemon mode toggle (Yes/No confirmation)
+   - Advanced daemon configuration (hidden until user opts in)
+   - 5 configuration inputs with validation:
+     * Daemon instance name
+     * Watch directory
+     * Output directory
+     * Poll interval (1-60 seconds)
+     * Timeout (1-240 minutes)
+   - Daemon settings shown in export summary
+   - Full integration with export workflow
 
 7. **Web Dashboard** (`web/dashboard-react/src/components/JobSubmissionForm.tsx`)
-   - TODO: Add daemon configuration section
-   - TODO: Instance selector dropdown
-   - TODO: Show daemon status indicator
+   - Added daemon configuration section in Pipeline Integration
+   - Checkbox to enable daemon mode
+   - Collapsible daemon settings (shown when enabled):
+     * Instance name input with hint text
+     * Watch directory input
+     * Output directory input
+     * Poll interval number input (1-60)
+     * Timeout number input (1-240)
+   - Added 6 daemon fields to form state with defaults
+   - Submitted with job data to API
+
+### 🚧 In Progress
 
 8. **Documentation**
    - TODO: Update PIPELINE_INTEGRATION.md
@@ -246,9 +264,9 @@ sudo systemctl start hyper2kvm.service
 
 ### High Priority
 
-- [ ] Add CLI flags to `cmd/hyperexport/main.go`
-- [ ] Add TUI options to `cmd/hyperctl/interactive.go`
-- [ ] Add web dashboard UI to `JobSubmissionForm.tsx`
+- [x] Add CLI flags to `cmd/hyperexport/main.go`
+- [x] Add TUI options to `cmd/hyperexport/interactive_huh.go`
+- [x] Add web dashboard UI to `JobSubmissionForm.tsx`
 - [ ] Update documentation
 
 ### Medium Priority
