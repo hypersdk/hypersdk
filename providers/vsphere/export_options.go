@@ -48,6 +48,14 @@ type ExportOptions struct {
 	LibvirtNetworkBridge   string        // Network bridge (default: virbr0)
 	LibvirtStoragePool     string        // Storage pool (default: default)
 
+	// hyper2kvm daemon options
+	Hyper2KVMDaemon        bool          // Use systemd daemon instead of direct execution
+	Hyper2KVMInstance      string        // Systemd instance name (e.g., "vsphere-prod")
+	Hyper2KVMWatchDir      string        // Watch directory for daemon mode (default: /var/lib/hyper2kvm/queue)
+	Hyper2KVMOutputDir     string        // Output directory for daemon mode (default: /var/lib/hyper2kvm/output)
+	Hyper2KVMPollInterval  int           // Poll interval in seconds (default: 5)
+	Hyper2KVMDaemonTimeout int           // Daemon timeout in minutes (default: 60)
+
 	// Progress callback for TUI/API integration
 	ProgressCallback func(current, total int64, fileName string, fileIndex, totalFiles int)
 
@@ -80,11 +88,18 @@ func DefaultExportOptions() ExportOptions {
 		PipelineFix:           true,
 		PipelineConvert:       true,
 		PipelineValidate:      true,
-		PipelineCompress:      true,
-		PipelineCompressLevel: 6,
-		LibvirtURI:            "qemu:///system",
-		LibvirtNetworkBridge:  "virbr0",
-		LibvirtStoragePool:    "default",
+		PipelineCompress:       true,
+		PipelineCompressLevel:  6,
+		LibvirtURI:             "qemu:///system",
+		LibvirtNetworkBridge:   "virbr0",
+		LibvirtStoragePool:     "default",
+
+		// Daemon defaults
+		Hyper2KVMDaemon:        false,
+		Hyper2KVMWatchDir:      "/var/lib/hyper2kvm/queue",
+		Hyper2KVMOutputDir:     "/var/lib/hyper2kvm/output",
+		Hyper2KVMPollInterval:  5,
+		Hyper2KVMDaemonTimeout: 60,
 	}
 }
 

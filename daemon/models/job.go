@@ -80,6 +80,14 @@ type ExportOptions struct {
 	LibvirtAutoStart   bool   `json:"libvirt_autostart,omitempty" yaml:"libvirt_autostart,omitempty"`
 	LibvirtBridge      string `json:"libvirt_bridge,omitempty" yaml:"libvirt_bridge,omitempty"`
 	LibvirtPool        string `json:"libvirt_pool,omitempty" yaml:"libvirt_pool,omitempty"`
+
+	// hyper2kvm daemon options
+	Hyper2KVMDaemon        bool   `json:"hyper2kvm_daemon,omitempty" yaml:"hyper2kvm_daemon,omitempty"`
+	Hyper2KVMInstance      string `json:"hyper2kvm_instance,omitempty" yaml:"hyper2kvm_instance,omitempty"`
+	Hyper2KVMWatchDir      string `json:"hyper2kvm_watch_dir,omitempty" yaml:"hyper2kvm_watch_dir,omitempty"`
+	Hyper2KVMOutputDir     string `json:"hyper2kvm_output_dir,omitempty" yaml:"hyper2kvm_output_dir,omitempty"`
+	Hyper2KVMPollInterval  int    `json:"hyper2kvm_poll_interval,omitempty" yaml:"hyper2kvm_poll_interval,omitempty"`
+	Hyper2KVMDaemonTimeout int    `json:"hyper2kvm_daemon_timeout,omitempty" yaml:"hyper2kvm_daemon_timeout,omitempty"`
 }
 
 // Job represents an active or completed export job

@@ -44,6 +44,29 @@ type Hyper2KVMConfig struct {
 
 	// DryRun runs hyper2kvm in dry-run mode (no modifications)
 	DryRun bool
+
+	// UseDaemon uses systemd daemon instead of direct execution
+	UseDaemon bool
+
+	// DaemonInstance is the systemd instance name (e.g., "vsphere-prod")
+	// Used with hyper2kvm@{instance}.service
+	DaemonInstance string
+
+	// DaemonWatchDir is the watch directory for daemon mode
+	// Default: /var/lib/hyper2kvm/queue
+	DaemonWatchDir string
+
+	// DaemonOutputDir is the output directory for daemon mode
+	// Default: /var/lib/hyper2kvm/output
+	DaemonOutputDir string
+
+	// DaemonPollInterval is the poll interval in seconds
+	// Default: 5
+	DaemonPollInterval int
+
+	// DaemonTimeout is the timeout in minutes
+	// Default: 60
+	DaemonTimeout int
 }
 
 // PipelineResult contains the result of pipeline execution
@@ -98,6 +121,30 @@ func NewPipelineExecutor(config *Hyper2KVMConfig, logger Logger) *PipelineExecut
 	}
 }
 
+// detectDaemonMode checks if hyper2kvm daemon is available
+func (e *PipelineExecutor) detectDaemonMode() (bool, string) {
+	// If daemon mode explicitly disabled, return false
+	if !e.config.UseDaemon {
+		return false, "direct"
+	}
+
+	// Check if specific instance requested
+	serviceName := "hyper2kvm.service"
+	if e.config.DaemonInstance != "" {
+		serviceName = fmt.Sprintf("hyper2kvm@%s.service", e.config.DaemonInstance)
+	}
+
+	// Check if systemd service is running
+	cmd := exec.Command("systemctl", "is-active", serviceName)
+	if err := cmd.Run(); err == nil {
+		return true, serviceName
+	}
+
+	// Daemon not available, fall back to direct
+	e.logger.Warn("hyper2kvm daemon not running, using direct execution", "service", serviceName)
+	return false, "direct"
+}
+
 // Execute runs the hyper2kvm pipeline
 func (e *PipelineExecutor) Execute(ctx context.Context) (*PipelineResult, error) {
 	if !e.config.Enabled {
@@ -107,6 +154,22 @@ func (e *PipelineExecutor) Execute(ctx context.Context) (*PipelineResult, error)
 		}, nil
 	}
 
+	// Auto-detect daemon mode if configured
+	if e.config.UseDaemon {
+		isDaemon, serviceName := e.detectDaemonMode()
+		if isDaemon {
+			e.logger.Info("using hyper2kvm daemon", "service", serviceName)
+			return e.ExecuteViaDaemon(ctx)
+		}
+	}
+
+	// Use direct execution
+	e.logger.Info("using direct hyper2kvm execution")
+	return e.ExecuteDirect(ctx)
+}
+
+// ExecuteDirect runs hyper2kvm directly (original implementation)
+func (e *PipelineExecutor) ExecuteDirect(ctx context.Context) (*PipelineResult, error) {
 	startTime := time.Now()
 	result := &PipelineResult{
 		Success: false,
@@ -195,6 +258,136 @@ func (e *PipelineExecutor) Execute(ctx context.Context) (*PipelineResult, error)
 	}
 
 	return result, nil
+}
+
+// ExecuteViaDaemon submits work to hyper2kvm daemon and waits for completion
+func (e *PipelineExecutor) ExecuteViaDaemon(ctx context.Context) (*PipelineResult, error) {
+	startTime := time.Now()
+	result := &PipelineResult{
+		Success: false,
+		Output:  []string{},
+	}
+
+	// Set defaults for daemon configuration
+	watchDir := e.config.DaemonWatchDir
+	if watchDir == "" {
+		watchDir = "/var/lib/hyper2kvm/queue"
+	}
+
+	outputDir := e.config.DaemonOutputDir
+	if outputDir == "" {
+		outputDir = "/var/lib/hyper2kvm/output"
+	}
+
+	pollInterval := e.config.DaemonPollInterval
+	if pollInterval == 0 {
+		pollInterval = 5 // 5 seconds
+	}
+
+	timeout := e.config.DaemonTimeout
+	if timeout == 0 {
+		timeout = 60 // 60 minutes
+	}
+
+	e.logger.Info("submitting to hyper2kvm daemon",
+		"watchDir", watchDir,
+		"outputDir", outputDir,
+		"pollInterval", pollInterval,
+		"timeout", timeout)
+
+	// Verify watch directory exists
+	if _, err := os.Stat(watchDir); err != nil {
+		result.Error = fmt.Errorf("daemon watch directory not found: %s: %w", watchDir, err)
+		return result, result.Error
+	}
+
+	// Verify output directory exists
+	if _, err := os.Stat(outputDir); err != nil {
+		result.Error = fmt.Errorf("daemon output directory not found: %s: %w", outputDir, err)
+		return result, result.Error
+	}
+
+	// Load manifest to get VM name
+	m, err := manifest.ReadFromFile(e.config.ManifestPath)
+	if err != nil {
+		result.Error = fmt.Errorf("read manifest: %w", err)
+		return result, result.Error
+	}
+
+	vmName := m.Source.VMName
+	if vmName == "" {
+		vmName = "vm"
+	}
+
+	// Copy manifest to watch directory
+	manifestDest := filepath.Join(watchDir, filepath.Base(e.config.ManifestPath))
+	e.logger.Info("copying manifest to daemon watch directory", "dest", manifestDest)
+
+	data, err := os.ReadFile(e.config.ManifestPath)
+	if err != nil {
+		result.Error = fmt.Errorf("read manifest: %w", err)
+		return result, result.Error
+	}
+
+	if err := os.WriteFile(manifestDest, data, 0644); err != nil {
+		result.Error = fmt.Errorf("write manifest to watch directory: %w", err)
+		return result, result.Error
+	}
+
+	// Wait for daemon to process
+	e.logger.Info("waiting for daemon to process VM", "vmName", vmName, "timeout", fmt.Sprintf("%dm", timeout))
+
+	ticker := time.NewTicker(time.Duration(pollInterval) * time.Second)
+	defer ticker.Stop()
+
+	timeoutTimer := time.NewTimer(time.Duration(timeout) * time.Minute)
+	defer timeoutTimer.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			result.Error = fmt.Errorf("context cancelled")
+			return result, result.Error
+
+		case <-timeoutTimer.C:
+			result.Duration = time.Since(startTime)
+			result.Error = fmt.Errorf("daemon processing timeout after %dm", timeout)
+			e.logger.Error("daemon timeout", "duration", result.Duration)
+			return result, result.Error
+
+		case <-ticker.C:
+			// Check if output file exists
+			expectedOutput := filepath.Join(outputDir, vmName+".qcow2")
+			if _, err := os.Stat(expectedOutput); err == nil {
+				e.logger.Info("daemon processing complete", "output", expectedOutput)
+				result.Success = true
+				result.OutputPath = expectedOutput
+				result.Duration = time.Since(startTime)
+				result.Output = []string{fmt.Sprintf("Daemon processed VM in %s", result.Duration)}
+
+				// Run libvirt integration if enabled
+				if e.config.LibvirtIntegration && result.OutputPath != "" {
+					e.logger.Info("running libvirt integration")
+					if err := e.runLibvirtIntegration(ctx, result); err != nil {
+						e.logger.Warn("libvirt integration failed (non-fatal)", "error", err)
+					}
+				}
+
+				return result, nil
+			}
+
+			// Check for error files
+			errorFile := filepath.Join(outputDir, vmName+".error")
+			if data, err := os.ReadFile(errorFile); err == nil {
+				result.Duration = time.Since(startTime)
+				result.Error = fmt.Errorf("daemon processing failed: %s", string(data))
+				e.logger.Error("daemon failed", "error", result.Error)
+				return result, result.Error
+			}
+
+			e.logger.Debug("waiting for daemon to complete processing")
+		}
+	}
 }
 
 // findOutputPath parses hyper2kvm output to find the converted disk path

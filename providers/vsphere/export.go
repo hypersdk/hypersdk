@@ -454,6 +454,14 @@ func (c *VSphereClient) ExportOVF(ctx context.Context, vmPath string, opts Expor
 			AutoStart:          opts.LibvirtAutoStart,
 			Verbose:            opts.StreamPipelineOutput,
 			DryRun:             opts.PipelineDryRun,
+
+			// Daemon options
+			UseDaemon:          opts.Hyper2KVMDaemon,
+			DaemonInstance:     opts.Hyper2KVMInstance,
+			DaemonWatchDir:     opts.Hyper2KVMWatchDir,
+			DaemonOutputDir:    opts.Hyper2KVMOutputDir,
+			DaemonPollInterval: opts.Hyper2KVMPollInterval,
+			DaemonTimeout:      opts.Hyper2KVMDaemonTimeout,
 		}
 
 		executor := common.NewPipelineExecutor(pipelineConfig, c.logger)
