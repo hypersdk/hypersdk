@@ -48,6 +48,10 @@ func NewSnapshotManager(client *vsphere.VSphereClient, log logger.Logger) *Snaps
 
 // CreateExportSnapshot creates a snapshot for export
 func (sm *SnapshotManager) CreateExportSnapshot(ctx context.Context, vmPath string, config *SnapshotConfig) (*SnapshotResult, error) {
+	if sm.client == nil {
+		return nil, fmt.Errorf("vsphere client is nil")
+	}
+
 	if config == nil {
 		config = &SnapshotConfig{
 			CreateSnapshot:  true,
@@ -98,6 +102,10 @@ func (sm *SnapshotManager) CreateExportSnapshot(ctx context.Context, vmPath stri
 
 // DeleteSnapshot removes a snapshot
 func (sm *SnapshotManager) DeleteSnapshot(ctx context.Context, vmPath, snapshotRef string) error {
+	if sm.client == nil {
+		return fmt.Errorf("vsphere client is nil")
+	}
+
 	sm.log.Info("deleting snapshot", "vm", vmPath, "ref", snapshotRef)
 
 	// TODO: Implement DeleteSnapshot in vsphere.VSphereClient
@@ -113,6 +121,10 @@ func (sm *SnapshotManager) DeleteSnapshot(ctx context.Context, vmPath, snapshotR
 
 // ListSnapshots returns all snapshots for a VM
 func (sm *SnapshotManager) ListSnapshots(ctx context.Context, vmPath string) ([]string, error) {
+	if sm.client == nil {
+		return nil, fmt.Errorf("vsphere client is nil")
+	}
+
 	sm.log.Info("listing snapshots", "vm", vmPath)
 
 	// TODO: Implement ListSnapshots in vsphere.VSphereClient

@@ -72,11 +72,27 @@ var (
 	manifestChecksum     = flag.Bool("manifest-checksum", true, "Compute SHA-256 checksums for disks in manifest")
 	manifestTargetFormat = flag.String("manifest-target", "qcow2", "Target disk format for conversion (qcow2, raw, vdi)")
 
-	// Automatic conversion options (Phase 2)
-	autoConvert       = flag.Bool("convert", false, "Automatically convert with hyper2kvm after export")
-	hyper2kvmBinary   = flag.String("hyper2kvm-binary", "", "Path to hyper2kvm binary (auto-detect if empty)")
-	conversionTimeout = flag.Duration("conversion-timeout", 2*time.Hour, "Timeout for hyper2kvm conversion")
-	streamConversion  = flag.Bool("stream-conversion", true, "Stream hyper2kvm output to console")
+	// Pipeline integration options
+	enablePipeline     = flag.Bool("pipeline", false, "Enable hyper2kvm pipeline after export")
+	hyper2kvmPath      = flag.String("hyper2kvm-path", "/home/tt/hyper2kvm/hyper2kvm", "Path to hyper2kvm executable")
+	pipelineTimeout    = flag.Duration("pipeline-timeout", 30*time.Minute, "Timeout for pipeline execution")
+	streamPipeline     = flag.Bool("stream-pipeline", true, "Stream hyper2kvm output to console")
+	pipelineDryRun     = flag.Bool("pipeline-dry-run", false, "Run pipeline in dry-run mode (no modifications)")
+
+	// Pipeline stage configuration
+	pipelineInspect   = flag.Bool("pipeline-inspect", true, "Enable INSPECT stage (collect guest info)")
+	pipelineFix       = flag.Bool("pipeline-fix", true, "Enable FIX stage (fix fstab, grub, initramfs)")
+	pipelineConvert   = flag.Bool("pipeline-convert", true, "Enable CONVERT stage (convert to qcow2)")
+	pipelineValidate  = flag.Bool("pipeline-validate", true, "Enable VALIDATE stage (check image integrity)")
+	pipelineCompress  = flag.Bool("pipeline-compress", true, "Enable qcow2 compression")
+	compressLevel     = flag.Int("compress-level", 6, "qcow2 compression level 1-9")
+
+	// Libvirt integration options
+	libvirtIntegration = flag.Bool("libvirt", false, "Define VM in libvirt after conversion")
+	libvirtURI         = flag.String("libvirt-uri", "qemu:///system", "Libvirt connection URI")
+	libvirtAutoStart   = flag.Bool("libvirt-autostart", false, "Enable VM auto-start in libvirt")
+	libvirtBridge      = flag.String("libvirt-bridge", "virbr0", "Network bridge for VM")
+	libvirtPool        = flag.String("libvirt-pool", "default", "Storage pool for disks")
 
 	// Phase 6: Orchestration & Monitoring options
 	enableOrchestration = flag.Bool("orchestrate", false, "Enable Phase 6 migration orchestration")
@@ -433,12 +449,8 @@ func main() {
 			*manifestTargetFormat = loadedProfile.ManifestTargetFormat
 		}
 
-		// Apply conversion settings (Phase 2)
-		*autoConvert = loadedProfile.AutoConvert
-		if loadedProfile.Hyper2KVMBinary != "" {
-			*hyper2kvmBinary = loadedProfile.Hyper2KVMBinary
-		}
-		*streamConversion = loadedProfile.StreamConversion
+		// TODO: Apply pipeline settings from profile if needed
+		// Pipeline settings are configured via command-line flags for now
 	}
 
 	// Handle history operations (don't require provider connection)
@@ -896,7 +908,7 @@ func run(ctx context.Context, cfg *config.Config, log logger.Logger) error {
 
 		// Create orchestrator configuration
 		orchConfig := &common.OrchestratorConfig{
-			EnableConversion:   *autoConvert,
+			EnableConversion:   *enablePipeline,
 			EnableProgress:     *progressAPIPort != "",
 			EnableMetrics:      *metricsAPIPort != "",
 			EnableAuditLogging: *auditLogPath != "",
@@ -966,17 +978,31 @@ func run(ctx context.Context, cfg *config.Config, log logger.Logger) error {
 	opts.ManifestComputeChecksum = *manifestChecksum
 	opts.ManifestTargetFormat = *manifestTargetFormat
 
-	// Automatic conversion options (Phase 2)
-	opts.AutoConvert = *autoConvert
-	opts.Hyper2KVMBinary = *hyper2kvmBinary
-	opts.ConversionTimeout = *conversionTimeout
-	opts.StreamConversionOutput = *streamConversion
+	// Pipeline integration options
+	opts.EnablePipeline = *enablePipeline
+	opts.Hyper2KVMPath = *hyper2kvmPath
+	opts.PipelineTimeout = *pipelineTimeout
+	opts.StreamPipelineOutput = *streamPipeline
+	opts.PipelineDryRun = *pipelineDryRun
+	opts.PipelineInspect = *pipelineInspect
+	opts.PipelineFix = *pipelineFix
+	opts.PipelineConvert = *pipelineConvert
+	opts.PipelineValidate = *pipelineValidate
+	opts.PipelineCompress = *pipelineCompress
+	opts.PipelineCompressLevel = *compressLevel
 
-	// If auto-convert is enabled, force manifest generation
-	if opts.AutoConvert {
+	// Libvirt integration options
+	opts.LibvirtIntegration = *libvirtIntegration
+	opts.LibvirtURI = *libvirtURI
+	opts.LibvirtAutoStart = *libvirtAutoStart
+	opts.LibvirtNetworkBridge = *libvirtBridge
+	opts.LibvirtStoragePool = *libvirtPool
+
+	// If pipeline is enabled, force manifest generation
+	if opts.EnablePipeline {
 		opts.GenerateManifest = true
 		if !*quiet {
-			pterm.Info.Println("Auto-convert enabled: manifest generation forced")
+			pterm.Info.Println("Pipeline enabled: manifest generation forced")
 		}
 	}
 

@@ -64,6 +64,10 @@ var (
 	successStyle = lipgloss.NewStyle().
 			Bold(true).
 			Foreground(lipgloss.Color("#00ff00"))
+
+	orangeStyle = lipgloss.NewStyle().
+			Bold(true).
+			Foreground(lipgloss.Color("#ff8800")) // Bright orange for HyperSDK
 )
 
 type vmItem struct {
@@ -81,7 +85,7 @@ type model struct {
 	outputDir      string
 	autoConvert    bool
 	autoImport     bool
-	phase          string // "select", "confirm", "run-mode", "export", "convert", "done", "detail", "filter", "sort", "regex", "template", "quick-filter"
+	phase          string // "select", "confirm", "run-mode", "export", "convert", "done", "detail", "filter", "sort", "regex", "template", "quick-filter", "bulk-operation", "bulk-confirm", "bulk-progress"
 	currentExport  int
 	message        string
 	err            error
@@ -109,6 +113,10 @@ type model struct {
 
 	// Quick filter
 	quickFilter string
+
+	// Bulk operations
+	bulkOperation string   // "clone", "snapshot", "poweroff", "delete", "pool", "metrics"
+	bulkResults   []string // Results from bulk operations
 }
 
 type exportProgress struct {
@@ -267,6 +275,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.handleTemplateKeys(msg)
 		case "quick-filter":
 			return m.handleQuickFilterKeys(msg)
+		case "bulk-operation":
+			return m.handleBulkOperationKeys(msg)
+		case "bulk-confirm":
+			return m.handleBulkConfirmKeys(msg)
 		}
 
 	case exportDoneMsg:
@@ -405,6 +417,41 @@ func (m model) handleSelectionKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.message = "Help panel shown"
 		} else {
 			m.message = "Help panel hidden"
+		}
+		return m, nil
+
+	case "b", "B":
+		// Enter bulk operations menu
+		selectedCount := m.countSelected()
+		if selectedCount == 0 {
+			m.message = "No VMs selected for bulk operation"
+			return m, nil
+		}
+		m.phase = "bulk-operation"
+		m.message = "Select bulk operation"
+		return m, nil
+
+	case "m", "M":
+		// Show metrics for current VM
+		vms := m.getVisibleVMs()
+		if m.cursor < len(vms) {
+			m.message = fmt.Sprintf("Metrics feature for %s (requires daemon integration)", vms[m.cursor].vm.Name)
+		}
+		return m, nil
+
+	case "e", "E":
+		// Show events for current VM
+		vms := m.getVisibleVMs()
+		if m.cursor < len(vms) {
+			m.message = fmt.Sprintf("Events feature for %s (requires daemon integration)", vms[m.cursor].vm.Name)
+		}
+		return m, nil
+
+	case "C":
+		// Clone current VM
+		vms := m.getVisibleVMs()
+		if m.cursor < len(vms) {
+			m.message = fmt.Sprintf("Clone feature for %s (requires daemon integration)", vms[m.cursor].vm.Name)
 		}
 		return m, nil
 
@@ -933,6 +980,10 @@ func (m model) View() string {
 		return renderExportTemplates(m.cursor)
 	case "quick-filter":
 		return renderQuickFilterMenu(m)
+	case "bulk-operation":
+		return m.renderBulkOperation()
+	case "bulk-confirm":
+		return m.renderBulkConfirm()
 	}
 
 	// Show loading message based on connection mode
@@ -947,7 +998,9 @@ func (m model) View() string {
 func (m model) renderSelection() string {
 	var b strings.Builder
 
-	// Title
+	// Title with HyperSDK in orange
+	b.WriteString(orangeStyle.Render("HyperSDK"))
+	b.WriteString(" ")
 	b.WriteString(titleStyle.Render("Interactive VM migration tool"))
 	b.WriteString("\n\n")
 
@@ -1762,6 +1815,127 @@ func runInteractive(daemonURL, outputDir string, autoConvert, autoImport bool) {
 
 	pterm.Println()
 	pterm.Success.Println("✅ Interactive migration complete!")
+}
+
+// Bulk Operations Handlers
+
+func (m model) handleBulkOperationKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "ctrl+c", "q":
+		return m, tea.Quit
+
+	case "escape":
+		// Go back to selection
+		m.phase = "select"
+		m.message = ""
+		return m, nil
+
+	case "1", "c":
+		m.bulkOperation = "clone"
+		m.phase = "bulk-confirm"
+		return m, nil
+
+	case "2", "p":
+		m.bulkOperation = "poweroff"
+		m.phase = "bulk-confirm"
+		return m, nil
+
+	case "3", "d":
+		m.bulkOperation = "delete"
+		m.phase = "bulk-confirm"
+		return m, nil
+
+	case "4", "r":
+		m.bulkOperation = "pool"
+		m.phase = "bulk-confirm"
+		return m, nil
+	}
+
+	return m, nil
+}
+
+func (m model) handleBulkConfirmKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "ctrl+c", "q":
+		return m, tea.Quit
+
+	case "escape", "n", "N":
+		// Go back to bulk operation menu
+		m.phase = "bulk-operation"
+		m.message = ""
+		return m, nil
+
+	case "y", "Y":
+		// Execute bulk operation
+		m.message = fmt.Sprintf("Executing bulk %s operation...", m.bulkOperation)
+		// For now, just show a message
+		// In a full implementation, this would call the daemon API
+		m.phase = "select"
+		return m, nil
+	}
+
+	return m, nil
+}
+
+func (m model) renderBulkOperation() string {
+	var b strings.Builder
+
+	b.WriteString(orangeStyle.Render("HyperSDK"))
+	b.WriteString(" ")
+	b.WriteString(titleStyle.Render("Bulk Operations"))
+	b.WriteString("\n\n")
+
+	selectedCount := m.countSelected()
+	b.WriteString(infoStyle.Render(fmt.Sprintf("Selected: %d VMs", selectedCount)))
+	b.WriteString("\n\n")
+
+	b.WriteString("Choose operation:\n\n")
+	b.WriteString("  1 [c] Clone VMs - Duplicate selected VMs\n")
+	b.WriteString("  2 [p] Power Off VMs - Graceful shutdown\n")
+	b.WriteString("  3 [d] Delete VMs - Remove selected VMs\n")
+	b.WriteString("  4 [r] Change Resource Pool - Modify pool assignment\n")
+
+	b.WriteString("\n\n")
+	b.WriteString(helpStyle.Render("1-4: Select operation | Esc: Cancel | q: Quit"))
+
+	return b.String()
+}
+
+func (m model) renderBulkConfirm() string {
+	var b strings.Builder
+
+	b.WriteString(orangeStyle.Render("HyperSDK"))
+	b.WriteString(" ")
+	b.WriteString(titleStyle.Render("Confirm Bulk Operation"))
+	b.WriteString("\n\n")
+
+	selectedCount := m.countSelected()
+	operationName := strings.ToUpper(m.bulkOperation)
+
+	b.WriteString(errorStyle.Render(fmt.Sprintf("⚠️  WARNING: You are about to %s %d VMs!", operationName, selectedCount)))
+	b.WriteString("\n\n")
+
+	b.WriteString("Selected VMs:\n")
+	count := 0
+	for _, item := range m.vms {
+		if item.selected {
+			count++
+			if count <= 10 {
+				b.WriteString(fmt.Sprintf("  • %s\n", item.vm.Name))
+			}
+		}
+	}
+	if count > 10 {
+		b.WriteString(fmt.Sprintf("  ... and %d more\n", count-10))
+	}
+
+	b.WriteString("\n")
+	b.WriteString(infoStyle.Render("This operation cannot be undone!"))
+	b.WriteString("\n\n")
+
+	b.WriteString(helpStyle.Render("y: Confirm and Execute | n/Esc: Cancel | q: Quit"))
+
+	return b.String()
 }
 
 func isatty() bool {

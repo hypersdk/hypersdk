@@ -9,15 +9,16 @@ import (
 )
 
 func TestNewSnapshotManager(t *testing.T) {
-	sm := NewSnapshotManager(nil, logger.NewTestLogger(t))
+	log := logger.NewTestLogger(t)
+	sm := NewSnapshotManager(nil, log)
 	if sm == nil {
 		t.Fatal("NewSnapshotManager returned nil")
 	}
 	if sm.client != nil {
 		t.Error("Expected nil client")
 	}
-	if sm.log != nil {
-		t.Error("Expected nil logger")
+	if sm.log == nil {
+		t.Error("Expected non-nil logger")
 	}
 }
 

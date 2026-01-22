@@ -63,6 +63,23 @@ type ExportOptions struct {
 	ParallelDownloads      int  `json:"parallel_downloads,omitempty" yaml:"parallel_downloads,omitempty"`
 	RemoveCDROM            bool `json:"remove_cdrom,omitempty" yaml:"remove_cdrom,omitempty"`
 	ShowIndividualProgress bool `json:"show_individual_progress,omitempty" yaml:"show_individual_progress,omitempty"`
+
+	// Pipeline integration options
+	EnablePipeline      bool   `json:"enable_pipeline,omitempty" yaml:"enable_pipeline,omitempty"`
+	Hyper2KVMPath       string `json:"hyper2kvm_path,omitempty" yaml:"hyper2kvm_path,omitempty"`
+	PipelineInspect     bool   `json:"pipeline_inspect,omitempty" yaml:"pipeline_inspect,omitempty"`
+	PipelineFix         bool   `json:"pipeline_fix,omitempty" yaml:"pipeline_fix,omitempty"`
+	PipelineConvert     bool   `json:"pipeline_convert,omitempty" yaml:"pipeline_convert,omitempty"`
+	PipelineValidate    bool   `json:"pipeline_validate,omitempty" yaml:"pipeline_validate,omitempty"`
+	PipelineCompress    bool   `json:"pipeline_compress,omitempty" yaml:"pipeline_compress,omitempty"`
+	CompressLevel       int    `json:"compress_level,omitempty" yaml:"compress_level,omitempty"`
+
+	// Libvirt integration options
+	LibvirtIntegration bool   `json:"libvirt_integration,omitempty" yaml:"libvirt_integration,omitempty"`
+	LibvirtURI         string `json:"libvirt_uri,omitempty" yaml:"libvirt_uri,omitempty"`
+	LibvirtAutoStart   bool   `json:"libvirt_autostart,omitempty" yaml:"libvirt_autostart,omitempty"`
+	LibvirtBridge      string `json:"libvirt_bridge,omitempty" yaml:"libvirt_bridge,omitempty"`
+	LibvirtPool        string `json:"libvirt_pool,omitempty" yaml:"libvirt_pool,omitempty"`
 }
 
 // Job represents an active or completed export job

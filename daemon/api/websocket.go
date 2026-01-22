@@ -35,12 +35,13 @@ type WSClient struct {
 
 // WSHub manages WebSocket clients and broadcasts
 type WSHub struct {
-	clients    map[*WSClient]bool
-	broadcast  chan WSMessage
-	register   chan *WSClient
-	unregister chan *WSClient
-	mu         sync.RWMutex
-	logger     interface {
+	clients          map[*WSClient]bool
+	broadcast        chan WSMessage
+	register         chan *WSClient
+	unregister       chan *WSClient
+	mu               sync.RWMutex
+	onDisconnect     func() // Callback for client disconnect
+	logger           interface {
 		Debug(msg string, keysAndValues ...interface{})
 		Info(msg string, keysAndValues ...interface{})
 		Warn(msg string, keysAndValues ...interface{})
@@ -66,6 +67,11 @@ func (h *WSHub) SetLogger(logger interface {
 	Error(msg string, keysAndValues ...interface{})
 }) {
 	h.logger = logger
+}
+
+// SetOnDisconnect sets the callback for client disconnects
+func (h *WSHub) SetOnDisconnect(callback func()) {
+	h.onDisconnect = callback
 }
 
 // Run starts the WebSocket hub with context for graceful shutdown
@@ -103,6 +109,10 @@ func (h *WSHub) Run(ctx context.Context) {
 				})
 				if h.logger != nil {
 					h.logger.Debug("WebSocket client unregistered", "total_clients", len(h.clients))
+				}
+				// Call disconnect callback if set
+				if h.onDisconnect != nil {
+					h.onDisconnect()
 				}
 			}
 			h.mu.Unlock()
@@ -379,6 +389,7 @@ func (es *EnhancedServer) handleWebSocket(w http.ResponseWriter, r *http.Request
 	}
 
 	es.wsHub.register <- client
+	es.systemMetrics.RecordWSConnection()
 
 	// Send initial data
 	go func() {
@@ -513,6 +524,9 @@ func (es *EnhancedServer) broadcastDashboardMetrics() {
 		recentJobs = append(recentJobs, jobInfo)
 	}
 
+	// Get system metrics snapshot
+	sysMetrics := es.systemMetrics.GetSnapshot()
+
 	// Build complete metrics object matching the React dashboard's Metrics interface
 	metrics := map[string]interface{}{
 		"timestamp":          time.Now().Format(time.RFC3339),
@@ -522,19 +536,19 @@ func (es *EnhancedServer) broadcastDashboardMetrics() {
 		"jobs_pending":       status.TotalJobs - status.RunningJobs - status.CompletedJobs - status.FailedJobs,
 		"jobs_cancelled":     0, // TODO: Add cancelled count to status
 		"queue_length":       status.TotalJobs,
-		"http_requests":      0, // TODO: Add HTTP metrics
-		"http_errors":        0,
-		"avg_response_time":  0.0,
-		"memory_usage":       0,   // TODO: Add memory metrics
-		"cpu_usage":          0.0, // TODO: Add CPU metrics
-		"goroutines":         0,   // TODO: Add goroutine count
-		"active_connections": 0,
+		"http_requests":      sysMetrics.HTTPRequests,
+		"http_errors":        sysMetrics.HTTPErrors,
+		"avg_response_time":  sysMetrics.AvgResponseTime,
+		"memory_usage":       sysMetrics.MemoryUsage,
+		"cpu_usage":          0.0, // Goroutine count as proxy
+		"goroutines":         sysMetrics.GoroutineCount,
+		"active_connections": sysMetrics.WSConnections,
 		"websocket_clients":  es.wsHub.GetClientCount(),
 		"provider_stats":     map[string]interface{}{},
 		"recent_jobs":        recentJobs,
 		"system_health":      "healthy",
 		"alerts":             []interface{}{},
-		"uptime_seconds":     time.Since(time.Now().Add(-time.Hour)).Seconds(), // TODO: Track actual uptime
+		"uptime_seconds":     sysMetrics.UptimeSeconds,
 	}
 
 	// Send metrics directly as JSON (not wrapped in WSMessage)

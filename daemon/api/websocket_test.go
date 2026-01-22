@@ -346,20 +346,41 @@ func TestStartStatusBroadcaster(t *testing.T) {
 	server.wsHub.register <- client
 	time.Sleep(10 * time.Millisecond)
 
-	// Wait for status broadcast (every 2 seconds)
+	// Wait for metrics broadcast (every 1 second)
 	select {
 	case msg := <-client.send:
-		if msg.Type != "status" {
-			t.Errorf("Expected type 'status', got '%s'", msg.Type)
+		// First message should be initial status
+		if msg.Type != "status" && msg.Type != "metrics" {
+			t.Errorf("Expected type 'status' or 'metrics', got '%s'", msg.Type)
 		}
-		if _, ok := msg.Data["total_jobs"]; !ok {
-			t.Error("Missing total_jobs in status data")
-		}
-		if _, ok := msg.Data["running_jobs"]; !ok {
-			t.Error("Missing running_jobs in status data")
+		// Check for metrics structure (new format with raw wrapper)
+		if msg.Type == "metrics" {
+			if raw, ok := msg.Data["raw"]; ok {
+				rawMap, ok := raw.(map[string]interface{})
+				if !ok {
+					t.Error("Expected raw to be a map")
+				} else {
+					if _, ok := rawMap["jobs_active"]; !ok {
+						t.Error("Missing jobs_active in metrics data")
+					}
+					if _, ok := rawMap["jobs_completed"]; !ok {
+						t.Error("Missing jobs_completed in metrics data")
+					}
+				}
+			} else {
+				t.Error("Missing raw data in metrics message")
+			}
+		} else if msg.Type == "status" {
+			// Old format compatibility check
+			if _, ok := msg.Data["total_jobs"]; !ok {
+				t.Error("Missing total_jobs in status data")
+			}
+			if _, ok := msg.Data["running_jobs"]; !ok {
+				t.Error("Missing running_jobs in status data")
+			}
 		}
 	case <-time.After(3 * time.Second):
-		t.Error("Timeout waiting for status broadcast")
+		t.Error("Timeout waiting for status/metrics broadcast")
 	}
 }
 

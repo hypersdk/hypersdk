@@ -14,6 +14,21 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({ onSubmit }
     output_dir: '/tmp/exports',
     format: 'ova',
     compress: false,
+    // Pipeline integration
+    enable_pipeline: false,
+    hyper2kvm_path: '/home/tt/hyper2kvm/hyper2kvm',
+    pipeline_inspect: true,
+    pipeline_fix: true,
+    pipeline_convert: true,
+    pipeline_validate: true,
+    pipeline_compress: true,
+    compress_level: 6,
+    // Libvirt integration
+    libvirt_integration: false,
+    libvirt_uri: 'qemu:///system',
+    libvirt_autostart: false,
+    libvirt_bridge: 'virbr0',
+    libvirt_pool: 'default',
   });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -482,6 +497,182 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({ onSubmit }
               <label htmlFor="compress" style={{ fontSize: '13px', cursor: 'pointer' }}>Compress output</label>
             </div>
           </div>
+        </div>
+
+        {/* Pipeline Integration */}
+        <div style={{ marginBottom: '12px', padding: '12px', backgroundColor: '#1a1a1a', borderRadius: '4px' }}>
+          <h3 style={{ fontSize: '14px', fontWeight: '600', marginBottom: '8px', color: '#fff' }}>
+            Pipeline integration <span style={{ fontSize: '11px', fontWeight: 'normal', color: '#f0583a' }}>(hyper2kvm + libvirt)</span>
+          </h3>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+            <input
+              type="checkbox"
+              name="enable_pipeline"
+              checked={formData.enable_pipeline}
+              onChange={handleChange}
+              id="enable_pipeline"
+              style={{ width: '16px', height: '16px' }}
+            />
+            <label htmlFor="enable_pipeline" style={{ fontSize: '13px', cursor: 'pointer', fontWeight: '600' }}>
+              Enable hyper2kvm pipeline after export
+            </label>
+          </div>
+
+          {formData.enable_pipeline && (
+            <>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '16px' }}>
+                <div>
+                  <label style={labelStyle}>hyper2kvm Path</label>
+                  <input
+                    type="text"
+                    name="hyper2kvm_path"
+                    value={formData.hyper2kvm_path}
+                    onChange={handleChange}
+                    placeholder="/home/tt/hyper2kvm/hyper2kvm"
+                    style={inputStyle}
+                  />
+                </div>
+                <div>
+                  <label style={labelStyle}>Compression Level (1-9)</label>
+                  <input
+                    type="number"
+                    name="compress_level"
+                    value={formData.compress_level}
+                    onChange={handleChange}
+                    min="1"
+                    max="9"
+                    style={inputStyle}
+                  />
+                </div>
+              </div>
+
+              <div style={{ marginBottom: '16px' }}>
+                <label style={{ ...labelStyle, marginBottom: '8px' }}>Pipeline Stages</label>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <input
+                      type="checkbox"
+                      name="pipeline_inspect"
+                      checked={formData.pipeline_inspect}
+                      onChange={handleChange}
+                      id="pipeline_inspect"
+                      style={{ width: '16px', height: '16px' }}
+                    />
+                    <label htmlFor="pipeline_inspect" style={{ fontSize: '13px', cursor: 'pointer' }}>
+                      INSPECT (detect OS, drivers)
+                    </label>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <input
+                      type="checkbox"
+                      name="pipeline_fix"
+                      checked={formData.pipeline_fix}
+                      onChange={handleChange}
+                      id="pipeline_fix"
+                      style={{ width: '16px', height: '16px' }}
+                    />
+                    <label htmlFor="pipeline_fix" style={{ fontSize: '13px', cursor: 'pointer' }}>
+                      FIX (fstab, grub, initramfs)
+                    </label>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <input
+                      type="checkbox"
+                      name="pipeline_convert"
+                      checked={formData.pipeline_convert}
+                      onChange={handleChange}
+                      id="pipeline_convert"
+                      style={{ width: '16px', height: '16px' }}
+                    />
+                    <label htmlFor="pipeline_convert" style={{ fontSize: '13px', cursor: 'pointer' }}>
+                      CONVERT (vmdk → qcow2)
+                    </label>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <input
+                      type="checkbox"
+                      name="pipeline_validate"
+                      checked={formData.pipeline_validate}
+                      onChange={handleChange}
+                      id="pipeline_validate"
+                      style={{ width: '16px', height: '16px' }}
+                    />
+                    <label htmlFor="pipeline_validate" style={{ fontSize: '13px', cursor: 'pointer' }}>
+                      VALIDATE (check integrity)
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ borderTop: '1px solid #333', paddingTop: '16px', marginTop: '16px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+                  <input
+                    type="checkbox"
+                    name="libvirt_integration"
+                    checked={formData.libvirt_integration}
+                    onChange={handleChange}
+                    id="libvirt_integration"
+                    style={{ width: '16px', height: '16px' }}
+                  />
+                  <label htmlFor="libvirt_integration" style={{ fontSize: '13px', cursor: 'pointer', fontWeight: '600' }}>
+                    Define VM in libvirt after conversion
+                  </label>
+                </div>
+
+                {formData.libvirt_integration && (
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                    <div>
+                      <label style={labelStyle}>Libvirt URI</label>
+                      <input
+                        type="text"
+                        name="libvirt_uri"
+                        value={formData.libvirt_uri}
+                        onChange={handleChange}
+                        placeholder="qemu:///system"
+                        style={inputStyle}
+                      />
+                    </div>
+                    <div>
+                      <label style={labelStyle}>Network Bridge</label>
+                      <input
+                        type="text"
+                        name="libvirt_bridge"
+                        value={formData.libvirt_bridge}
+                        onChange={handleChange}
+                        placeholder="virbr0"
+                        style={inputStyle}
+                      />
+                    </div>
+                    <div>
+                      <label style={labelStyle}>Storage Pool</label>
+                      <input
+                        type="text"
+                        name="libvirt_pool"
+                        value={formData.libvirt_pool}
+                        onChange={handleChange}
+                        placeholder="default"
+                        style={inputStyle}
+                      />
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', paddingTop: '28px' }}>
+                      <input
+                        type="checkbox"
+                        name="libvirt_autostart"
+                        checked={formData.libvirt_autostart}
+                        onChange={handleChange}
+                        id="libvirt_autostart"
+                        style={{ width: '16px', height: '16px' }}
+                      />
+                      <label htmlFor="libvirt_autostart" style={{ fontSize: '13px', cursor: 'pointer' }}>
+                        Enable VM auto-start
+                      </label>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
         </div>
 
         {/* Submit */}

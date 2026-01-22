@@ -26,14 +26,40 @@ type ExportOptions struct {
 	ManifestComputeChecksum bool   // Compute SHA-256 checksums for all disks
 	ManifestTargetFormat    string // Target format for hyper2kvm conversion (e.g., "qcow2")
 
-	// Automatic conversion options (Phase 2)
-	AutoConvert            bool          // Automatically run hyper2kvm after export
-	Hyper2KVMBinary        string        // Path to hyper2kvm binary (auto-detect if empty)
-	ConversionTimeout      time.Duration // Timeout for conversion process
-	StreamConversionOutput bool          // Stream hyper2kvm output to console
+	// Pipeline integration options
+	EnablePipeline         bool          // Enable hyper2kvm pipeline after export
+	Hyper2KVMPath          string        // Path to hyper2kvm binary (auto-detect if empty)
+	PipelineTimeout        time.Duration // Timeout for pipeline process
+	StreamPipelineOutput   bool          // Stream hyper2kvm output to console
+	PipelineDryRun         bool          // Run hyper2kvm in dry-run mode
+
+	// Pipeline stage configuration
+	PipelineInspect        bool          // Enable INSPECT stage (collect guest info)
+	PipelineFix            bool          // Enable FIX stage (fix fstab, grub, initramfs)
+	PipelineConvert        bool          // Enable CONVERT stage (convert to qcow2)
+	PipelineValidate       bool          // Enable VALIDATE stage (check image integrity)
+	PipelineCompress       bool          // Enable qcow2 compression
+	PipelineCompressLevel  int           // Compression level 1-9 (default 6)
+
+	// Libvirt integration options
+	LibvirtIntegration     bool          // Enable libvirt VM definition after conversion
+	LibvirtURI             string        // Libvirt connection URI (default: qemu:///system)
+	LibvirtAutoStart       bool          // Enable VM auto-start in libvirt
+	LibvirtNetworkBridge   string        // Network bridge (default: virbr0)
+	LibvirtStoragePool     string        // Storage pool (default: default)
 
 	// Progress callback for TUI/API integration
 	ProgressCallback func(current, total int64, fileName string, fileIndex, totalFiles int)
+
+	// Bandwidth throttling
+	BandwidthLimit int64 // bytes per second (0 = unlimited)
+	BandwidthBurst int   // burst size in bytes (0 = auto)
+
+	// Export resumption
+	EnableCheckpoints    bool          // Enable checkpoint-based resumption
+	CheckpointInterval   time.Duration // How often to save checkpoints (0 = after each file)
+	ResumeFromCheckpoint bool          // Resume from existing checkpoint if found
+	CheckpointPath       string        // Custom checkpoint file path (empty = auto)
 }
 
 func DefaultExportOptions() ExportOptions {
@@ -45,6 +71,20 @@ func DefaultExportOptions() ExportOptions {
 		ValidateChecksum:       true,
 		ShowIndividualProgress: false,
 		ShowOverallProgress:    true,
+
+		// Pipeline defaults
+		EnablePipeline:        false,
+		PipelineTimeout:       30 * time.Minute,
+		StreamPipelineOutput:  true,
+		PipelineInspect:       true,
+		PipelineFix:           true,
+		PipelineConvert:       true,
+		PipelineValidate:      true,
+		PipelineCompress:      true,
+		PipelineCompressLevel: 6,
+		LibvirtURI:            "qemu:///system",
+		LibvirtNetworkBridge:  "virbr0",
+		LibvirtStoragePool:    "default",
 	}
 }
 

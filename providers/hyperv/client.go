@@ -6,10 +6,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"hypersdk/logger"
@@ -268,6 +270,184 @@ func (c *Client) ExportVHD(ctx context.Context, vmName, outputPath string, repor
 	}
 
 	return exportedPaths, nil
+}
+
+// ExportVMWithOptions exports a Hyper-V VM using ExportOptions
+func (c *Client) ExportVMWithOptions(ctx context.Context, vmName string, opts ExportOptions) error {
+	c.logger.Info("starting Hyper-V VM export with options", "vm", vmName)
+
+	// Validate options
+	if err := opts.Validate(); err != nil {
+		return fmt.Errorf("invalid export options: %w", err)
+	}
+
+	// Get VM info
+	vmInfo, err := c.GetVM(ctx, vmName)
+	if err != nil {
+		return fmt.Errorf("get VM info: %w", err)
+	}
+
+	// Create output directory
+	exportDir := filepath.Join(opts.OutputPath, vmName)
+
+	// Export based on type
+	if opts.ExportType == "vm" {
+		// Full VM export
+		script := fmt.Sprintf(`Export-VM -Name '%s' -Path '%s' -ErrorAction Stop`, vmName, opts.OutputPath)
+		c.logger.Info("executing VM export", "vm", vmName)
+
+		output, err := c.executePowerShell(ctx, script)
+		if err != nil {
+			return fmt.Errorf("export VM failed: %w (output: %s)", err, output)
+		}
+
+		c.logger.Info("VM export completed", "vm", vmName, "output", exportDir)
+
+		// Save metadata
+		metadataPath := filepath.Join(opts.OutputPath, fmt.Sprintf("%s-metadata.json", vmName))
+		if err := c.saveMetadata(vmInfo, metadataPath); err != nil {
+			c.logger.Warn("failed to save metadata", "error", err)
+		}
+
+		// Notify completion via callback if provided
+		if opts.ProgressCallback != nil {
+			opts.ProgressCallback(100, 100, vmName, 1, 1)
+		}
+
+	} else if opts.ExportType == "vhd-only" {
+		// VHD-only export
+		vhdPaths, err := c.exportVHDWithOptions(ctx, vmName, opts)
+		if err != nil {
+			return fmt.Errorf("export VHD failed: %w", err)
+		}
+
+		c.logger.Info("VHD export completed", "vm", vmName, "vhd_count", len(vhdPaths))
+	}
+
+	return nil
+}
+
+// exportVHDWithOptions exports VHD files with progress callback support
+func (c *Client) exportVHDWithOptions(ctx context.Context, vmName string, opts ExportOptions) ([]string, error) {
+	c.logger.Info("exporting Hyper-V VM VHDs with options", "vm", vmName)
+
+	// Get VM VHD paths
+	vhdPaths, err := c.getVMVHDPaths(ctx, vmName)
+	if err != nil {
+		return nil, fmt.Errorf("get VHD paths: %w", err)
+	}
+
+	if len(vhdPaths) == 0 {
+		return nil, fmt.Errorf("VM has no VHD files")
+	}
+
+	exportedPaths := make([]string, 0, len(vhdPaths))
+
+	for i, vhdPath := range vhdPaths {
+		vhdName := filepath.Base(vhdPath)
+		destPath := filepath.Join(opts.OutputPath, vhdName)
+
+		c.logger.Info("copying VHD", "source", vhdPath, "dest", destPath)
+
+		// Copy VHD file with progress tracking
+		if opts.ProgressCallback != nil {
+			// Copy with progress callback
+			err = c.copyFileWithProgress(ctx, vhdPath, destPath, opts.ProgressCallback, i+1, len(vhdPaths))
+		} else {
+			// Simple copy
+			script := fmt.Sprintf(`Copy-Item -Path '%s' -Destination '%s' -Force`, vhdPath, destPath)
+			_, err = c.executePowerShell(ctx, script)
+		}
+
+		if err != nil {
+			c.logger.Error("failed to copy VHD", "vhd", vhdPath, "error", err)
+			continue
+		}
+
+		exportedPaths = append(exportedPaths, destPath)
+		c.logger.Info("VHD copied", "path", destPath)
+	}
+
+	if len(exportedPaths) == 0 {
+		return nil, fmt.Errorf("failed to export any VHDs")
+	}
+
+	return exportedPaths, nil
+}
+
+// copyFileWithProgress copies a file with progress callback
+func (c *Client) copyFileWithProgress(ctx context.Context, src, dst string, callback func(current, total int64, fileName string, fileIndex, totalFiles int), fileIndex, totalFiles int) error {
+	// Get source file size
+	srcFile, err := os.Open(src)
+	if err != nil {
+		return fmt.Errorf("open source file: %w", err)
+	}
+	defer srcFile.Close()
+
+	srcInfo, err := srcFile.Stat()
+	if err != nil {
+		return fmt.Errorf("stat source file: %w", err)
+	}
+
+	totalSize := srcInfo.Size()
+
+	// Create destination file
+	if err := os.MkdirAll(filepath.Dir(dst), 0755); err != nil {
+		return fmt.Errorf("create destination directory: %w", err)
+	}
+
+	dstFile, err := os.Create(dst)
+	if err != nil {
+		return fmt.Errorf("create destination file: %w", err)
+	}
+	defer dstFile.Close()
+
+	// Copy with progress tracking
+	var currentBytes int64
+	var reader io.Reader = &callbackProgressReader{
+		reader:       srcFile,
+		total:        totalSize,
+		currentBytes: &currentBytes,
+		callback:     callback,
+		fileName:     filepath.Base(src),
+		fileIndex:    fileIndex,
+		totalFiles:   totalFiles,
+	}
+
+	// Note: Bandwidth throttling not applicable for local file copy
+	// Hyper-V exports are local operations
+
+	_, err = io.Copy(dstFile, reader)
+	if err != nil {
+		return fmt.Errorf("copy file: %w", err)
+	}
+
+	return nil
+}
+
+// callbackProgressReader wraps an io.Reader to call progress callback
+type callbackProgressReader struct {
+	reader       io.Reader
+	total        int64
+	currentBytes *int64
+	callback     func(current, total int64, fileName string, fileIndex, totalFiles int)
+	fileName     string
+	fileIndex    int
+	totalFiles   int
+}
+
+func (cpr *callbackProgressReader) Read(p []byte) (int, error) {
+	n, err := cpr.reader.Read(p)
+
+	// Atomically update current bytes
+	current := atomic.AddInt64(cpr.currentBytes, int64(n))
+
+	// Call progress callback
+	if cpr.callback != nil {
+		cpr.callback(current, cpr.total, cpr.fileName, cpr.fileIndex, cpr.totalFiles)
+	}
+
+	return n, err
 }
 
 // StartVM starts a Hyper-V VM

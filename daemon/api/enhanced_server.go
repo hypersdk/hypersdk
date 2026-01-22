@@ -62,6 +62,7 @@ type EnhancedServer struct {
 	shutdownCtx    context.Context
 	shutdownCancel context.CancelFunc
 	authMgr        *auth.AuthManager
+	systemMetrics  *metrics.SystemMetrics
 }
 
 // jobExecutorAdapter adapts jobs.Manager to scheduler.JobExecutor interface
@@ -101,6 +102,7 @@ func NewEnhancedServer(manager *jobs.Manager, detector *capabilities.Detector, l
 		config:         config,
 		shutdownCtx:    ctx,
 		shutdownCancel: cancel,
+		systemMetrics:  metrics.NewSystemMetrics(),
 	}
 
 	// Initialize job store if database path is provided
@@ -134,6 +136,9 @@ func NewEnhancedServer(manager *jobs.Manager, detector *capabilities.Detector, l
 	// Initialize WebSocket hub with shutdown context
 	es.wsHub = NewWSHub()
 	es.wsHub.SetLogger(log)
+	es.wsHub.SetOnDisconnect(func() {
+		es.systemMetrics.RecordWSDisconnection()
+	})
 	go es.wsHub.Run(es.shutdownCtx)
 	es.statusTicker = es.StartStatusBroadcaster(es.shutdownCtx)
 	log.Info("websocket support enabled")
@@ -351,13 +356,60 @@ func (es *EnhancedServer) registerEnhancedRoutes() {
 	mux.HandleFunc("/webhooks/test", es.handleTestWebhook)
 	mux.HandleFunc("/webhooks/", es.handleDeleteWebhook)
 
+	// vSphere Infrastructure Management
+	mux.HandleFunc("/vsphere/hosts", es.handleListHosts)
+	mux.HandleFunc("/vsphere/clusters", es.handleListClusters)
+	mux.HandleFunc("/vsphere/datacenters", es.handleListDatacenters)
+	mux.HandleFunc("/vsphere/vcenter/info", es.handleGetVCenterInfo)
+
+	// vSphere Performance Metrics
+	mux.HandleFunc("/vsphere/metrics", es.handleGetMetrics)
+	mux.HandleFunc("/vsphere/metrics/stream", es.handleMetricsStream) // WebSocket
+
+	// vSphere Resource Pools
+	mux.HandleFunc("/vsphere/pools", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			es.handleListResourcePools(w, r)
+		case http.MethodPost:
+			es.handleCreateResourcePool(w, r)
+		default:
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		}
+	})
+	mux.HandleFunc("/vsphere/pools/", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodPut:
+			es.handleUpdateResourcePool(w, r)
+		case http.MethodDelete:
+			es.handleDeleteResourcePool(w, r)
+		default:
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		}
+	})
+
+	// vSphere Events & Monitoring
+	mux.HandleFunc("/vsphere/events", es.handleGetRecentEvents)
+	mux.HandleFunc("/vsphere/events/stream", es.handleEventsStream) // WebSocket
+	mux.HandleFunc("/vsphere/tasks", es.handleGetRecentTasks)
+	mux.HandleFunc("/vsphere/tasks/stream", es.handleTasksStream) // WebSocket
+
+	// vSphere VM Cloning & Templates
+	mux.HandleFunc("/vsphere/clone", es.handleCloneVM)
+	mux.HandleFunc("/vsphere/clone/bulk", es.handleBulkClone)
+	mux.HandleFunc("/vsphere/template/create", es.handleCreateTemplate)
+	mux.HandleFunc("/vsphere/template/deploy", es.handleDeployFromTemplate)
+
 	// Create a wrapper handler that bypasses middleware for WebSocket endpoint
 	wsHandler := http.HandlerFunc(es.handleWebSocket)
 
 	// Update the HTTP server with middleware chain
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Bypass all middleware for WebSocket connections
-		if r.URL.Path == "/ws" {
+		if r.URL.Path == "/ws" ||
+		   r.URL.Path == "/vsphere/metrics/stream" ||
+		   r.URL.Path == "/vsphere/events/stream" ||
+		   r.URL.Path == "/vsphere/tasks/stream" {
 			wsHandler.ServeHTTP(w, r)
 			return
 		}
@@ -498,17 +550,25 @@ func (es *EnhancedServer) loggingMiddleware(next http.Handler) http.Handler {
 
 		next.ServeHTTP(rw, r)
 
-		duration := time.Since(start).Seconds()
+		duration := time.Since(start)
+		durationSeconds := duration.Seconds()
 
 		// Log request
 		es.logger.Debug("http request",
 			"method", r.Method,
 			"path", r.URL.Path,
 			"status", rw.statusCode,
-			"duration", duration)
+			"duration", durationSeconds)
 
 		// Record metrics
-		metrics.RecordAPIRequest(r.Method, r.URL.Path, http.StatusText(rw.statusCode), duration)
+		metrics.RecordAPIRequest(r.Method, r.URL.Path, http.StatusText(rw.statusCode), durationSeconds)
+
+		// Record system metrics
+		es.systemMetrics.RecordHTTPRequest()
+		es.systemMetrics.RecordResponseTime(duration)
+		if rw.statusCode >= 400 {
+			es.systemMetrics.RecordHTTPError()
+		}
 	})
 }
 

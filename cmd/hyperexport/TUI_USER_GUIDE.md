@@ -870,6 +870,208 @@ All checks must pass to proceed:
 
 ---
 
+### 16. Concurrent Multi-VM Exports with Live Progress (Enhancement #23)
+**Automatic Feature** (activates after export confirmation)
+
+**Description:** Export multiple VMs simultaneously with real-time progress tracking in split-screen layout
+
+**Features:**
+- Concurrent export operations (multiple VMs export in parallel)
+- Split-screen layout (60% VM list / 40% export progress pane)
+- Live progress tracking for all exports
+- Real-time download speeds and ETAs
+- Individual progress bars per VM
+- Continue selecting more VMs while exports run
+- Cancel exports with Ctrl+C or `q`
+
+**How It Works:**
+
+**Automatic Activation:**
+1. Select multiple VMs for export
+2. Press `Enter` to confirm
+3. Validation screen appears
+4. Press `y` or `Enter` to start
+5. **Automatically** returns to VM selection with split-screen enabled
+6. All exports start concurrently in the background
+
+**Split-Screen Layout:**
+```
+┌─────────────────────────────────┬──────────────────────────┐
+│ VM List (60%)                   │ Export Progress (40%)     │
+│                                 │                          │
+│ ▶ VM-web-01      [SELECTED]    │ Active Exports: 3        │
+│   VM-db-01       [SELECTED]    │ Completed: 1             │
+│   VM-app-01                    │ Running: 2               │
+│                                 │ Failed: 0                │
+│                                 │                          │
+│                                 │ ⬇ VM-web-01             │
+│                                 │   ████████░░░░ 65%      │
+│                                 │   450MB / 680MB         │
+│                                 │   23.5 MB/s • ETA: 10s  │
+│                                 │                          │
+│                                 │ ⬇ VM-db-01              │
+│                                 │   ███░░░░░░░░ 30%       │
+│                                 │   File 2/5              │
+│                                 │   18.2 MB/s • ETA: 45s  │
+└─────────────────────────────────┴──────────────────────────┘
+```
+
+**Export Status Indicators:**
+
+**Status Icons:**
+- `⬇` - Downloading (blue)
+- `✓` - Completed (green)
+- `✗` - Failed (red)
+- `⊘` - Cancelled (yellow)
+- `⋯` - Starting (gray)
+
+**Progress Information Per Export:**
+- VM name and current status
+- Progress bar (40 characters width)
+- Percentage complete (0-100%)
+- Current file being downloaded
+- File count progress (e.g., "File 3/7")
+- Data transferred / Total size
+- Real-time download speed (MB/s)
+- Estimated time remaining (ETA)
+
+**Usage While Exports Run:**
+
+**Continue Working:**
+- Navigate VM list normally with `↑↓/k/j`
+- Select additional VMs with `Space`
+- Apply filters with `/`, `s`, `p`
+- View VM details with `i`
+- Start more exports by selecting and pressing `Enter`
+
+**Monitor Progress:**
+- Right pane shows all active exports automatically
+- Progress updates in real-time (every 500ms)
+- Speed calculated from last 2 seconds of data
+- ETA based on current speed
+
+**Cancel Exports:**
+- Press `Ctrl+C` to cancel all running exports
+- Press `q` to quit (exports continue in background)
+- Individual export cancellation: coming soon
+
+**Export States:**
+
+1. **Starting** - Export initialization
+   - Setting up export directory
+   - Creating snapshot (if enabled)
+   - Preparing file list
+
+2. **Downloading** - Active download
+   - Shows progress bar
+   - Displays current file name
+   - Updates speed and ETA
+   - File X/Y indicator
+
+3. **Completed** - Successfully finished
+   - Shows completion checkmark
+   - Displays total size
+   - Shows elapsed time
+   - Files remain in export directory
+
+4. **Failed** - Error occurred
+   - Shows error icon
+   - Displays error message
+   - Check logs with `L` for details
+   - Can retry export
+
+5. **Cancelled** - User aborted
+   - Shows cancellation icon
+   - Partial files may remain
+   - Can restart export
+
+**Performance:**
+
+**Parallel Downloads:**
+- Each VM export uses 3 parallel downloads (default)
+- Multiple VMs export concurrently (limited by system resources)
+- Total concurrent downloads = VMs × 3
+- Throttled to prevent system overload
+
+**Resource Usage:**
+- Memory: ~50MB per concurrent export
+- Network: Limited by vSphere server and network bandwidth
+- CPU: Minimal (I/O bound operation)
+- Disk: Requires sufficient free space for all exports
+
+**Progress Update Throttling:**
+- UI updates every 500ms maximum
+- Prevents excessive screen redraws
+- Keeps terminal responsive
+- Progress tracked continuously in background
+
+**Best Practices:**
+
+**Disk Space:**
+- Ensure sufficient disk space before starting multiple exports
+- Use export preview (`p`) to check size requirements
+- Monitor available space during exports
+
+**Network Considerations:**
+- Start fewer concurrent exports on slow networks
+- Monitor total bandwidth usage
+- vSphere server may throttle connections
+
+**System Resources:**
+- Don't export too many VMs simultaneously (recommended: 3-5)
+- Monitor system memory and CPU
+- Close other applications if needed
+
+**Workflow Tips:**
+- Select and export smaller VMs first
+- Group VMs by size for better management
+- Use filters to organize export batches
+- Monitor logs (`L`) for issues
+
+**Example Workflow:**
+
+**Export Multiple VMs:**
+```
+1. Select 3 VMs with Space
+2. Press Enter to confirm
+3. Validation runs automatically
+4. Press y to start exports
+5. Screen splits automatically:
+   - Left: VM list (continue selecting)
+   - Right: Export progress (all 3 VMs)
+6. Select 2 more VMs while exports run
+7. Press Enter again to export new VMs
+8. All 5 exports now visible in progress pane
+9. Monitor progress in real-time
+10. Exports complete automatically
+```
+
+**Troubleshooting:**
+
+**Progress Not Updating:**
+- Check network connection
+- Verify vSphere connectivity
+- Look for errors in logs (`L`)
+
+**Slow Export Speed:**
+- Network bandwidth limitation
+- vSphere server throttling
+- Too many concurrent exports
+- Reduce parallel export count
+
+**Export Fails:**
+- Check disk space
+- Verify permissions
+- Review error in logs (`L`)
+- Check export history (`H`)
+
+**Split-Screen Not Showing:**
+- Ensure terminal is wide enough (minimum 100 columns)
+- Resize terminal window
+- Feature activates automatically after confirmation
+
+---
+
 ## Keyboard Shortcuts Reference
 
 ### Global Navigation

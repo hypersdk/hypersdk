@@ -169,6 +169,33 @@ func (c *VSphereClient) ExportOVF(ctx context.Context, vmPath string, opts Expor
 	}
 	vm = vmResult.(*object.VirtualMachine)
 
+	// Initialize or load checkpoint if enabled
+	var checkpoint *common.Checkpoint
+	var checkpointPath string
+	if opts.EnableCheckpoints {
+		// Determine checkpoint path
+		if opts.CheckpointPath != "" {
+			checkpointPath = opts.CheckpointPath
+		} else {
+			checkpointPath = common.GetCheckpointPath(outputDir, sanitizeVMName(vm.Name()))
+		}
+
+		// Try to load existing checkpoint if resumption is enabled
+		if opts.ResumeFromCheckpoint && common.CheckpointExists(checkpointPath) {
+			loadedCheckpoint, err := common.LoadCheckpoint(checkpointPath)
+			if err != nil {
+				c.logger.Warn("failed to load checkpoint, starting fresh", "error", err)
+				checkpoint = common.NewCheckpoint(vm.Name(), "vsphere", opts.Format, outputDir)
+			} else {
+				c.logger.Info("resuming from checkpoint", "progress", loadedCheckpoint.GetProgress())
+				checkpoint = loadedCheckpoint
+			}
+		} else {
+			// Create new checkpoint
+			checkpoint = common.NewCheckpoint(vm.Name(), "vsphere", opts.Format, outputDir)
+		}
+	}
+
 	// Remove CD/DVD devices if requested
 	if opts.RemoveCDROM {
 		if err := c.RemoveCDROMDevices(ctx, vmPath); err != nil {
@@ -279,6 +306,11 @@ func (c *VSphereClient) ExportOVF(ctx context.Context, vmPath string, opts Expor
 		fileBars,
 		opts.ProgressCallback,
 		totalSize,
+		opts.BandwidthLimit,
+		opts.BandwidthBurst,
+		checkpoint,
+		checkpointPath,
+		opts.CheckpointInterval,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("download files: %w", err)
@@ -389,41 +421,7 @@ func (c *VSphereClient) ExportOVF(ctx context.Context, vmPath string, opts Expor
 				}
 			}
 
-			// Run automatic conversion if requested (Phase 2)
-			if opts.AutoConvert {
-				c.logger.Info("starting automatic conversion with hyper2kvm")
-
-				converter, err := NewHyper2KVMConverter(opts.Hyper2KVMBinary, c.logger)
-				if err != nil {
-					c.logger.Error("failed to initialize hyper2kvm converter", "error", err)
-					// Don't fail the export, just skip conversion
-				} else {
-					// Create conversion context with timeout
-					convCtx, convCancel := context.WithTimeout(ctx, opts.ConversionTimeout)
-					defer convCancel()
-
-					convertOpts := common.ConvertOptions{
-						StreamOutput: opts.StreamConversionOutput,
-						Verbose:      c.config.LogLevel == "debug",
-						DryRun:       false,
-					}
-
-					convResult, err := converter.Convert(convCtx, manifestPath, convertOpts)
-					if err != nil {
-						c.logger.Error("hyper2kvm conversion failed", "error", err)
-						// Store the error in result
-						result.ConversionResult = &common.ConversionResult{
-							Success: false,
-							Error:   err.Error(),
-						}
-					} else {
-						result.ConversionResult = convResult
-						c.logger.Info("hyper2kvm conversion completed successfully",
-							"converted_files", len(convResult.ConvertedFiles),
-							"duration", convResult.Duration)
-					}
-				}
-			}
+			// Note: Old AutoConvert code removed - replaced with pipeline integration below
 		}
 	}
 
@@ -433,6 +431,68 @@ func (c *VSphereClient) ExportOVF(ctx context.Context, vmPath string, opts Expor
 		"duration", duration,
 		"totalSize", totalSize,
 		"files", len(downloadedFiles))
+
+	// Delete checkpoint file on successful completion
+	if checkpoint != nil && checkpointPath != "" {
+		if err := common.DeleteCheckpoint(checkpointPath); err != nil {
+			c.logger.Warn("failed to delete checkpoint", "error", err)
+		} else {
+			c.logger.Info("checkpoint deleted after successful export")
+		}
+	}
+
+	// Run hyper2kvm pipeline if enabled
+	if opts.EnablePipeline && result.ManifestPath != "" {
+		c.logger.Info("starting hyper2kvm pipeline", "manifest", result.ManifestPath)
+
+		pipelineConfig := &common.Hyper2KVMConfig{
+			Enabled:            true,
+			Hyper2KVMPath:      opts.Hyper2KVMPath,
+			ManifestPath:       result.ManifestPath,
+			LibvirtIntegration: opts.LibvirtIntegration,
+			LibvirtURI:         opts.LibvirtURI,
+			AutoStart:          opts.LibvirtAutoStart,
+			Verbose:            opts.StreamPipelineOutput,
+			DryRun:             opts.PipelineDryRun,
+		}
+
+		executor := common.NewPipelineExecutor(pipelineConfig, c.logger)
+
+		pipelineCtx := ctx
+		if opts.PipelineTimeout > 0 {
+			var cancel context.CancelFunc
+			pipelineCtx, cancel = context.WithTimeout(ctx, opts.PipelineTimeout)
+			defer cancel()
+		}
+
+		pipelineResult, err := executor.Execute(pipelineCtx)
+		if err != nil {
+			c.logger.Error("pipeline failed (non-fatal)", "error", err)
+			// Store pipeline error in result metadata but don't fail the export
+			if result.Metadata == nil {
+				result.Metadata = make(map[string]interface{})
+			}
+			result.Metadata["pipeline_error"] = err.Error()
+			result.Metadata["pipeline_success"] = false
+		} else {
+			c.logger.Info("pipeline completed successfully",
+				"duration", pipelineResult.Duration,
+				"output_path", pipelineResult.OutputPath,
+				"libvirt_domain", pipelineResult.LibvirtDomain)
+
+			// Store pipeline result in metadata
+			if result.Metadata == nil {
+				result.Metadata = make(map[string]interface{})
+			}
+			result.Metadata["pipeline_success"] = pipelineResult.Success
+			result.Metadata["pipeline_duration"] = pipelineResult.Duration.String()
+			result.Metadata["converted_path"] = pipelineResult.OutputPath
+			if pipelineResult.LibvirtDomain != "" {
+				result.Metadata["libvirt_domain"] = pipelineResult.LibvirtDomain
+				result.Metadata["libvirt_uri"] = opts.LibvirtURI
+			}
+		}
+	}
 
 	return result, nil
 }
@@ -489,6 +549,11 @@ func (c *VSphereClient) downloadFilesParallel(
 	fileBars []*progress.BarProgress,
 	progressCallback func(current, total int64, fileName string, fileIndex, totalFiles int),
 	totalSize int64,
+	bandwidthLimit int64,
+	bandwidthBurst int,
+	checkpoint *common.Checkpoint,
+	checkpointPath string,
+	checkpointInterval time.Duration,
 ) ([]string, error) {
 	if concurrency < 1 {
 		concurrency = 1
@@ -501,7 +566,24 @@ func (c *VSphereClient) downloadFilesParallel(
 		results           = make([]string, len(items))
 		resultsMux        sync.Mutex
 		totalBytesDownloaded int64 // Track cumulative progress
+		checkpointMux     sync.Mutex // Protect checkpoint updates
+		lastCheckpointSave time.Time
 	)
+
+	// Initialize checkpoint with all files if enabled
+	if checkpoint != nil {
+		for _, item := range items {
+			// Check if file already exists in checkpoint
+			if checkpoint.GetFileProgress(item.Path) == nil {
+				checkpoint.AddFile(item.Path, item.URL.String(), item.Size)
+			}
+		}
+		// Save initial checkpoint
+		if err := checkpoint.Save(checkpointPath); err != nil {
+			c.logger.Warn("failed to save initial checkpoint", "error", err)
+		}
+		lastCheckpointSave = time.Now()
+	}
 
 	// Download files
 	for i, item := range items {
@@ -513,6 +595,38 @@ func (c *VSphereClient) downloadFilesParallel(
 			defer func() { <-sem }()
 
 			filePath := filepath.Join(outputDir, item.Path)
+
+			// Check if file is already completed in checkpoint
+			if checkpoint != nil {
+				checkpointMux.Lock()
+				fileProgress := checkpoint.GetFileProgress(item.Path)
+				checkpointMux.Unlock()
+
+				if fileProgress != nil && fileProgress.Status == "completed" {
+					// Verify file exists and has correct size
+					fileInfo, err := os.Stat(filePath)
+					if err == nil && fileInfo.Size() == item.Size {
+						c.logger.Info("skipping already completed file", "file", item.Path)
+
+						// Store result
+						resultsMux.Lock()
+						results[idx] = filePath
+						resultsMux.Unlock()
+
+						// Update overall progress
+						if overallBar != nil {
+							overallBar.Add(1)
+						}
+
+						// Update total bytes downloaded for accurate progress
+						atomic.AddInt64(&totalBytesDownloaded, item.Size)
+
+						return
+					}
+					// File missing or size mismatch, re-download
+					c.logger.Warn("file incomplete or missing, re-downloading", "file", item.Path)
+				}
+			}
 
 			// Create directory if needed
 			if err := os.MkdirAll(filepath.Dir(filePath), defaultDirPerm); err != nil {
@@ -540,8 +654,14 @@ func (c *VSphereClient) downloadFilesParallel(
 			}
 
 			// Download with retry
-			bytes, err := c.downloadFileWithRetry(ctx, item.URL.String(), filePath, c.config.RetryAttempts, fileBar)
+			bytes, err := c.downloadFileWithRetry(ctx, item.URL.String(), filePath, c.config.RetryAttempts, fileBar, bandwidthLimit, bandwidthBurst)
 			if err != nil {
+				// Update checkpoint with failed status
+				if checkpoint != nil {
+					checkpointMux.Lock()
+					checkpoint.UpdateFileProgress(item.Path, 0, "failed")
+					checkpointMux.Unlock()
+				}
 				errCh <- fmt.Errorf("download %s: %w", item.Path, err)
 				return
 			}
@@ -550,6 +670,32 @@ func (c *VSphereClient) downloadFilesParallel(
 			resultsMux.Lock()
 			results[idx] = filePath
 			resultsMux.Unlock()
+
+			// Update checkpoint with completed status
+			if checkpoint != nil {
+				checkpointMux.Lock()
+				checkpoint.UpdateFileProgress(item.Path, bytes, "completed")
+
+				// Save checkpoint periodically or after each file
+				shouldSave := false
+				if checkpointInterval == 0 {
+					// Save after each file
+					shouldSave = true
+				} else if time.Since(lastCheckpointSave) >= checkpointInterval {
+					// Save based on interval
+					shouldSave = true
+					lastCheckpointSave = time.Now()
+				}
+
+				if shouldSave {
+					if err := checkpoint.Save(checkpointPath); err != nil {
+						c.logger.Warn("failed to save checkpoint", "error", err)
+					} else {
+						c.logger.Debug("checkpoint saved", "progress", checkpoint.GetProgress())
+					}
+				}
+				checkpointMux.Unlock()
+			}
 
 			// Update overall progress
 			if overallBar != nil {
@@ -589,6 +735,8 @@ func (c *VSphereClient) downloadFileWithRetry(
 	urlStr, filePath string,
 	maxRetries int,
 	progressBar progress.ProgressReporter,
+	bandwidthLimit int64,
+	bandwidthBurst int,
 ) (int64, error) {
 	fileName := filepath.Base(filePath)
 
@@ -603,7 +751,7 @@ func (c *VSphereClient) downloadFileWithRetry(
 			}
 		}
 
-		bytes, err := c.downloadFileResumable(ctx, urlStr, filePath, progressBar)
+		bytes, err := c.downloadFileResumable(ctx, urlStr, filePath, progressBar, bandwidthLimit, bandwidthBurst)
 		if err != nil {
 			// Check for non-retryable errors (file not found, permission denied, etc.)
 			if strings.Contains(err.Error(), "404") ||
@@ -632,6 +780,8 @@ func (c *VSphereClient) downloadFileResumable(
 	ctx context.Context,
 	urlStr, filePath string,
 	progressBar progress.ProgressReporter,
+	bandwidthLimit int64,
+	bandwidthBurst int,
 ) (int64, error) {
 	// Parse URL
 	u, err := url.Parse(urlStr)
@@ -711,6 +861,11 @@ func (c *VSphereClient) downloadFileResumable(
 		var reader io.Reader = res.Body
 		if progressBar != nil {
 			reader = io.TeeReader(res.Body, &progressWriter{progressBar: progressBar})
+		}
+
+		// Apply bandwidth throttling if enabled
+		if bandwidthLimit > 0 {
+			reader = common.NewThrottledReaderWithContext(ctx, reader, bandwidthLimit, bandwidthBurst)
 		}
 
 		// Copy data
@@ -858,13 +1013,21 @@ func (c *VSphereClient) generateArtifactManifest(
 		},
 	)
 
-	// Configure hyper2kvm pipeline (enable all stages by default)
+	// Configure hyper2kvm pipeline with user settings
 	builder.WithPipeline(
-		true, // inspect
-		true, // fix
-		true, // convert
-		true, // validate
+		opts.PipelineInspect,  // inspect
+		opts.PipelineFix,      // fix
+		opts.PipelineConvert,  // convert
+		opts.PipelineValidate, // validate
 	)
+
+	// Set pipeline options if enabled
+	if opts.EnablePipeline {
+		builder.WithOptions(
+			opts.PipelineDryRun, // dry run
+			1,                   // verbose level (normal)
+		)
+	}
 
 	// Set target format for conversion
 	targetFormat := opts.ManifestTargetFormat

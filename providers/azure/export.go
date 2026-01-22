@@ -10,12 +10,14 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6"
 
 	"hypersdk/progress"
+	"hypersdk/providers/common"
 )
 
 // ExportDiskToVHD exports an Azure managed disk to VHD format in blob storage
@@ -313,4 +315,171 @@ func CreateExportManifest(vmName string, results []*ExportResult, outputPath str
 }`
 
 	return os.WriteFile(manifestPath, []byte(manifest), 0644)
+}
+
+// ExportDiskWithOptions exports an Azure managed disk using ExportOptions
+func (c *Client) ExportDiskWithOptions(ctx context.Context, diskName string, opts ExportOptions) (*ExportResult, error) {
+	c.logger.Info("starting Azure disk export with options", "disk", diskName)
+
+	// Validate options
+	if err := opts.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid export options: %w", err)
+	}
+
+	// Grant read access to the disk
+	grantAccess := &armcompute.GrantAccessData{
+		Access:            to.Ptr(armcompute.AccessLevelRead),
+		DurationInSeconds: to.Ptr(int32(opts.AccessDuration.Seconds())),
+	}
+
+	pollerAccess, err := c.diskClient.BeginGrantAccess(ctx, c.config.ResourceGroup, diskName, *grantAccess, nil)
+	if err != nil {
+		return nil, fmt.Errorf("grant disk access: %w", err)
+	}
+
+	accessResp, err := pollerAccess.PollUntilDone(ctx, nil)
+	if err != nil {
+		return nil, fmt.Errorf("wait for disk access: %w", err)
+	}
+
+	if accessResp.AccessURI.AccessSAS == nil {
+		return nil, fmt.Errorf("failed to get disk SAS URL - AccessSAS is nil")
+	}
+	sasURL := *accessResp.AccessURI.AccessSAS
+	c.logger.Info("disk SAS URL obtained", "disk", diskName)
+
+	// Get disk information
+	diskResp, err := c.diskClient.Get(ctx, c.config.ResourceGroup, diskName, nil)
+	if err != nil {
+		return nil, fmt.Errorf("get disk info: %w", err)
+	}
+
+	diskSizeGB := int64(0)
+	if diskResp.Properties != nil && diskResp.Properties.DiskSizeGB != nil {
+		diskSizeGB = int64(*diskResp.Properties.DiskSizeGB)
+	}
+
+	result := &ExportResult{
+		DiskName:   diskName,
+		Format:     opts.Format,
+		DiskSizeGB: diskSizeGB,
+	}
+
+	// Download VHD to local path if requested
+	if opts.DownloadLocal {
+		localPath := filepath.Join(opts.OutputPath, fmt.Sprintf("%s.vhd", diskName))
+		size, err := c.downloadVHDWithOptions(ctx, sasURL, localPath, opts)
+		if err != nil {
+			return nil, fmt.Errorf("download VHD: %w", err)
+		}
+
+		result.LocalPath = localPath
+		result.Size = size
+
+		c.logger.Info("VHD downloaded successfully", "path", localPath, "size_bytes", size)
+	}
+
+	// Revoke access to disk if requested
+	if opts.RevokeAccess {
+		pollerRevoke, err := c.diskClient.BeginRevokeAccess(ctx, c.config.ResourceGroup, diskName, nil)
+		if err != nil {
+			c.logger.Warn("failed to revoke disk access", "error", err)
+		} else {
+			pollerRevoke.PollUntilDone(ctx, nil)
+			c.logger.Info("disk access revoked", "disk", diskName)
+		}
+	}
+
+	return result, nil
+}
+
+// downloadVHDWithOptions downloads VHD with progress callback support
+func (c *Client) downloadVHDWithOptions(ctx context.Context, sasURL, localPath string, opts ExportOptions) (int64, error) {
+	// Create output directory
+	if err := os.MkdirAll(filepath.Dir(localPath), 0755); err != nil {
+		return 0, fmt.Errorf("create output directory: %w", err)
+	}
+
+	// Create local file
+	file, err := os.Create(localPath)
+	if err != nil {
+		return 0, fmt.Errorf("create local file: %w", err)
+	}
+	defer file.Close()
+
+	// Download VHD
+	httpClient := &http.Client{
+		Timeout: 24 * time.Hour,
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "GET", sasURL, nil)
+	if err != nil {
+		return 0, fmt.Errorf("create download request: %w", err)
+	}
+
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return 0, fmt.Errorf("download VHD: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return 0, fmt.Errorf("download failed with status: %d", resp.StatusCode)
+	}
+
+	totalSize := resp.ContentLength
+	c.logger.Info("downloading VHD", "size_bytes", totalSize)
+
+	// Create progress reader wrapper with callback if provided
+	var reader io.Reader = resp.Body
+	if opts.ProgressCallback != nil && totalSize > 0 {
+		var currentBytes int64
+		reader = &callbackProgressReader{
+			reader:       resp.Body,
+			total:        totalSize,
+			currentBytes: &currentBytes,
+			callback:     opts.ProgressCallback,
+			fileName:     filepath.Base(localPath),
+			fileIndex:    1,
+			totalFiles:   1,
+		}
+	}
+
+	// Apply bandwidth throttling if enabled
+	if opts.BandwidthLimit > 0 {
+		reader = common.NewThrottledReaderWithContext(ctx, reader, opts.BandwidthLimit, opts.BandwidthBurst)
+	}
+
+	// Copy with progress tracking
+	written, err := io.Copy(file, reader)
+	if err != nil {
+		return 0, fmt.Errorf("write VHD to disk: %w", err)
+	}
+
+	return written, nil
+}
+
+// callbackProgressReader wraps an io.Reader to call progress callback
+type callbackProgressReader struct {
+	reader       io.Reader
+	total        int64
+	currentBytes *int64
+	callback     func(current, total int64, fileName string, fileIndex, totalFiles int)
+	fileName     string
+	fileIndex    int
+	totalFiles   int
+}
+
+func (cpr *callbackProgressReader) Read(p []byte) (int, error) {
+	n, err := cpr.reader.Read(p)
+
+	// Atomically update current bytes
+	current := atomic.AddInt64(cpr.currentBytes, int64(n))
+
+	// Call progress callback
+	if cpr.callback != nil {
+		cpr.callback(current, cpr.total, cpr.fileName, cpr.fileIndex, cpr.totalFiles)
+	}
+
+	return n, err
 }

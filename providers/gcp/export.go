@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"cloud.google.com/go/compute/apiv1/computepb"
@@ -16,6 +17,7 @@ import (
 	"google.golang.org/api/option"
 
 	"hypersdk/progress"
+	"hypersdk/providers/common"
 )
 
 // ExportImageToGCS exports a GCP disk image to Google Cloud Storage as VMDK
@@ -376,4 +378,163 @@ func CreateExportManifest(instanceName string, results []*ExportResult, outputPa
 // Helper function to create string pointer
 func makeStringPtr(v string) *string {
 	return &v
+}
+
+// ExportDiskWithOptions exports a GCP persistent disk using ExportOptions
+func (c *Client) ExportDiskWithOptions(ctx context.Context, diskName string, opts ExportOptions) (*ExportResult, error) {
+	c.logger.Info("starting GCP disk export with options", "disk", diskName)
+
+	// Validate options
+	if err := opts.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid export options: %w", err)
+	}
+
+	// Create image from disk if requested
+	var imageName string
+	if opts.CreateImage {
+		imageName = fmt.Sprintf("%s-image-%d", diskName, time.Now().Unix())
+
+		createImageReq := &computepb.InsertImageRequest{
+			Project: c.config.ProjectID,
+			ImageResource: &computepb.Image{
+				Name: &imageName,
+				SourceDisk: makeStringPtr(fmt.Sprintf("projects/%s/zones/%s/disks/%s",
+					c.config.ProjectID, c.config.Zone, diskName)),
+			},
+		}
+
+		op, err := c.imagesClient.Insert(ctx, createImageReq)
+		if err != nil {
+			return nil, fmt.Errorf("create image from disk: %w", err)
+		}
+
+		// Wait for image creation with timeout
+		timeoutCtx, cancel := context.WithTimeout(ctx, opts.ImageTimeout)
+		defer cancel()
+
+		err = op.Wait(timeoutCtx)
+		if err != nil {
+			return nil, fmt.Errorf("wait for image creation: %w", err)
+		}
+
+		c.logger.Info("image created from disk", "image", imageName, "disk", diskName)
+	}
+
+	result := &ExportResult{
+		ImageName:  imageName,
+		DiskName:   diskName,
+		Format:     opts.Format,
+		GCSBucket:  opts.GCSBucket,
+	}
+
+	// Note: Actual export to GCS requires gcloud CLI or Import/Export tools
+	// For now, this is a placeholder that would be implemented with those tools
+
+	return result, nil
+}
+
+// downloadFromGCSWithOptions downloads from GCS with progress callback support
+func (c *Client) downloadFromGCSWithOptions(ctx context.Context, bucket, object, localPath string, opts ExportOptions) (int64, error) {
+	// Create GCS client
+	var clientOpts []option.ClientOption
+	if c.config.CredentialsJSON != "" {
+		if _, err := os.Stat(c.config.CredentialsJSON); err == nil {
+			clientOpts = append(clientOpts, option.WithCredentialsFile(c.config.CredentialsJSON))
+		} else {
+			clientOpts = append(clientOpts, option.WithCredentialsJSON([]byte(c.config.CredentialsJSON)))
+		}
+	}
+
+	gcsClient, err := storage.NewClient(ctx, clientOpts...)
+	if err != nil {
+		return 0, fmt.Errorf("create GCS client: %w", err)
+	}
+	defer gcsClient.Close()
+
+	// Get object attributes to determine size
+	bucketHandle := gcsClient.Bucket(bucket)
+	objectHandle := bucketHandle.Object(object)
+
+	attrs, err := objectHandle.Attrs(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("get object attributes: %w", err)
+	}
+
+	totalSize := attrs.Size
+	c.logger.Info("downloading from GCS", "object", object, "size_bytes", totalSize)
+
+	// Create local file
+	if err := os.MkdirAll(filepath.Dir(localPath), 0755); err != nil {
+		return 0, fmt.Errorf("create output directory: %w", err)
+	}
+
+	file, err := os.Create(localPath)
+	if err != nil {
+		return 0, fmt.Errorf("create local file: %w", err)
+	}
+	defer file.Close()
+
+	// Create reader
+	reader, err := objectHandle.NewReader(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("create GCS reader: %w", err)
+	}
+	defer reader.Close()
+
+	// Create progress reader wrapper with callback if provided
+	var ioReader io.Reader = reader
+	if opts.ProgressCallback != nil && totalSize > 0 {
+		var currentBytes int64
+		ioReader = &callbackProgressReader{
+			reader:       reader,
+			total:        totalSize,
+			currentBytes: &currentBytes,
+			callback:     opts.ProgressCallback,
+			fileName:     filepath.Base(object),
+			fileIndex:    1,
+			totalFiles:   1,
+		}
+	}
+
+	// Apply bandwidth throttling if enabled
+	if opts.BandwidthLimit > 0 {
+		ioReader = common.NewThrottledReaderWithContext(ctx, ioReader, opts.BandwidthLimit, opts.BandwidthBurst)
+	}
+
+	// Copy with progress tracking
+	written, err := io.Copy(file, ioReader)
+	if err != nil {
+		return 0, fmt.Errorf("download file: %w", err)
+	}
+
+	if written != totalSize {
+		return 0, fmt.Errorf("incomplete download: expected %d bytes, got %d", totalSize, written)
+	}
+
+	return written, nil
+}
+
+// callbackProgressReader wraps an io.Reader to call progress callback
+type callbackProgressReader struct {
+	reader       io.Reader
+	total        int64
+	currentBytes *int64
+	callback     func(current, total int64, fileName string, fileIndex, totalFiles int)
+	fileName     string
+	fileIndex    int
+	totalFiles   int
+}
+
+func (cpr *callbackProgressReader) Read(p []byte) (int, error) {
+	n, err := cpr.reader.Read(p)
+
+	// Atomically update current bytes
+	current := atomic.AddInt64(cpr.currentBytes, int64(n))
+
+	// Call progress callback
+	if cpr.callback != nil {
+		cpr.callback(current, cpr.total, cpr.fileName, cpr.fileIndex, cpr.totalFiles)
+	}
+
+	return n, err
 }

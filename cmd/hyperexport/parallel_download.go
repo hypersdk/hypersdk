@@ -182,9 +182,15 @@ func (p *DownloadWorkerPool) downloadFile(workerID int, task DownloadTask) Downl
 
 // Submit adds a download task to the queue
 func (p *DownloadWorkerPool) Submit(task DownloadTask) error {
+	// Check context cancellation first to avoid race condition
 	select {
 	case <-p.ctx.Done():
 		return fmt.Errorf("pool is shutting down")
+	default:
+	}
+
+	// Try to submit task
+	select {
 	case p.tasks <- task:
 		atomic.AddInt64(&p.totalBytes, task.Size)
 		return nil

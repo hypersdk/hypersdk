@@ -165,6 +165,59 @@ func main() {
 
 	manifestCmd := flag.NewFlagSet("manifest", flag.ExitOnError)
 
+	// vSphere Infrastructure Commands
+	hostCmd := flag.NewFlagSet("host", flag.ExitOnError)
+	hostOperation := hostCmd.String("op", "list", "Operation: list, info")
+	hostPattern := hostCmd.String("pattern", "*", "Host name pattern")
+	hostJSON := hostCmd.Bool("json", false, "JSON output")
+
+	clusterCmd := flag.NewFlagSet("cluster", flag.ExitOnError)
+	clusterOperation := clusterCmd.String("op", "list", "Operation: list, info")
+	clusterPattern := clusterCmd.String("pattern", "*", "Cluster name pattern")
+	clusterJSON := clusterCmd.Bool("json", false, "JSON output")
+
+	// Performance Metrics Command
+	metricsCmd := flag.NewFlagSet("metrics", flag.ExitOnError)
+	metricsEntity := metricsCmd.String("entity", "", "Entity name (VM/host/cluster)")
+	metricsType := metricsCmd.String("type", "vm", "Entity type: vm, host, cluster")
+	metricsRealtime := metricsCmd.Bool("realtime", false, "Show realtime metrics")
+	metricsStart := metricsCmd.String("start", "", "Start time (for historical)")
+	metricsEnd := metricsCmd.String("end", "", "End time")
+	metricsInterval := metricsCmd.String("interval", "5min", "Interval: 5min, 30min, 2hour")
+	metricsWatch := metricsCmd.Bool("watch", false, "Watch metrics continuously")
+	metricsJSON := metricsCmd.Bool("json", false, "JSON output")
+
+	// Resource Pool Commands
+	poolCmd := flag.NewFlagSet("pool", flag.ExitOnError)
+	poolOperation := poolCmd.String("op", "list", "Operation: list, create, update, delete")
+	poolName := poolCmd.String("name", "", "Pool name")
+	poolParent := poolCmd.String("parent", "", "Parent pool/cluster")
+	poolCPUReserve := poolCmd.Int64("cpu-reserve", 0, "CPU reservation (MHz)")
+	poolCPULimit := poolCmd.Int64("cpu-limit", -1, "CPU limit (MHz, -1=unlimited)")
+	poolMemReserve := poolCmd.Int64("mem-reserve", 0, "Memory reservation (MB)")
+	poolMemLimit := poolCmd.Int64("mem-limit", -1, "Memory limit (MB, -1=unlimited)")
+	poolJSON := poolCmd.Bool("json", false, "JSON output")
+
+	// Events Command
+	eventsCmd := flag.NewFlagSet("events", flag.ExitOnError)
+	eventsSince := eventsCmd.String("since", "1h", "Show events since (duration: 1h, 24h, 7d)")
+	eventsTypes := eventsCmd.String("types", "", "Filter event types (comma-separated)")
+	eventsFollow := eventsCmd.Bool("follow", false, "Follow events (stream)")
+	eventsJSON := eventsCmd.Bool("json", false, "JSON output")
+
+	// Clone Command
+	cloneCmd := flag.NewFlagSet("clone", flag.ExitOnError)
+	cloneSource := cloneCmd.String("source", "", "Source VM name/path")
+	cloneTarget := cloneCmd.String("target", "", "Target VM name")
+	cloneFolder := cloneCmd.String("folder", "", "Target folder")
+	clonePool := cloneCmd.String("pool", "", "Resource pool")
+	cloneDatastore := cloneCmd.String("datastore", "", "Target datastore")
+	clonePowerOn := cloneCmd.Bool("power-on", false, "Power on after clone")
+	cloneLinked := cloneCmd.Bool("linked", false, "Create linked clone")
+	cloneSnapshot := cloneCmd.String("snapshot", "", "Snapshot name (for linked clone)")
+	cloneTemplate := cloneCmd.Bool("template", false, "Mark as template")
+	cloneBulkFile := cloneCmd.String("bulk", "", "Bulk clone from file (YAML/JSON)")
+
 	// Parse global flags
 	flag.Parse()
 
@@ -283,6 +336,59 @@ func main() {
 			os.Exit(1)
 		}
 		handleManifest(*daemonURL, manifestCmd.Args()[0], manifestCmd.Args()[1:])
+
+	case "host":
+		hostCmd.Parse(os.Args[2:])
+		handleHost(*daemonURL, *hostOperation, *hostPattern, *hostJSON)
+
+	case "cluster":
+		clusterCmd.Parse(os.Args[2:])
+		handleCluster(*daemonURL, *clusterOperation, *clusterPattern, *clusterJSON)
+
+	case "metrics":
+		metricsCmd.Parse(os.Args[2:])
+		if *metricsEntity == "" {
+			pterm.Error.Println("Entity name required (-entity)")
+			os.Exit(1)
+		}
+		handleMetrics(*daemonURL, *metricsEntity, *metricsType, *metricsRealtime,
+			*metricsStart, *metricsEnd, *metricsInterval, *metricsWatch, *metricsJSON)
+
+	case "pool":
+		poolCmd.Parse(os.Args[2:])
+		handlePool(*daemonURL, *poolOperation, *poolName, *poolParent,
+			*poolCPUReserve, *poolCPULimit, *poolMemReserve, *poolMemLimit, *poolJSON)
+
+	case "events":
+		eventsCmd.Parse(os.Args[2:])
+		types := []string{}
+		if *eventsTypes != "" {
+			types = strings.Split(*eventsTypes, ",")
+		}
+		handleEvents(*daemonURL, *eventsSince, types, *eventsFollow, *eventsJSON)
+
+	case "clone":
+		cloneCmd.Parse(os.Args[2:])
+		if *cloneBulkFile != "" {
+			handleClone(*daemonURL, vsphere.CloneSpec{}, *cloneBulkFile)
+		} else {
+			if *cloneSource == "" || *cloneTarget == "" {
+				pterm.Error.Println("Source and target required (-source, -target)")
+				os.Exit(1)
+			}
+			spec := vsphere.CloneSpec{
+				SourceVM:     *cloneSource,
+				TargetName:   *cloneTarget,
+				TargetFolder: *cloneFolder,
+				ResourcePool: *clonePool,
+				Datastore:    *cloneDatastore,
+				PowerOn:      *clonePowerOn,
+				LinkedClone:  *cloneLinked,
+				Snapshot:     *cloneSnapshot,
+				Template:     *cloneTemplate,
+			}
+			handleClone(*daemonURL, spec, "")
+		}
 
 	case "help", "-h", "--help":
 		showUsage()
