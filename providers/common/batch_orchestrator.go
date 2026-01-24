@@ -86,12 +86,19 @@ type VMMigrationResult struct {
 	Metadata           map[string]interface{}
 }
 
+// VMExporter defines interface for exporting VMs from different providers
+type VMExporter interface {
+	// ExportVM exports a VM and returns the manifest path
+	ExportVM(ctx context.Context, vmName, provider, outputDir string) (manifestPath string, exportDuration time.Duration, err error)
+}
+
 // BatchOrchestrator orchestrates batch VM migrations
 type BatchOrchestrator struct {
 	config    *BatchMigrationConfig
 	logger    logger.Logger
 	converter Converter
 	uploader  CloudStorageUploader
+	exporter  VMExporter
 }
 
 // NewBatchOrchestrator creates a new batch orchestrator
@@ -131,6 +138,11 @@ func (bo *BatchOrchestrator) SetConverter(converter Converter) {
 // SetUploader sets the cloud storage uploader
 func (bo *BatchOrchestrator) SetUploader(uploader CloudStorageUploader) {
 	bo.uploader = uploader
+}
+
+// SetExporter sets the VM exporter
+func (bo *BatchOrchestrator) SetExporter(exporter VMExporter) {
+	bo.exporter = exporter
 }
 
 // Execute executes batch VM migration
@@ -256,12 +268,40 @@ func (bo *BatchOrchestrator) executeMigration(ctx context.Context, task *VMMigra
 		return fmt.Errorf("create output directory: %w", err)
 	}
 
-	// TODO: Export VM (provider-specific)
-	// This would be implemented by calling the appropriate provider's export function
-	// For now, we assume a manifest already exists or will be generated
+	// Export VM (provider-specific)
+	var manifestPath string
+	var exportDuration time.Duration
 
-	// Assume manifest path
-	manifestPath := filepath.Join(outputDir, "artifact-manifest.json")
+	if bo.exporter != nil {
+		// Use configured exporter to export the VM
+		bo.logger.Info("exporting VM",
+			"vm_id", task.ID,
+			"provider", task.Provider,
+			"output_dir", outputDir)
+
+		var err error
+		manifestPath, exportDuration, err = bo.exporter.ExportVM(ctx, task.Name, task.Provider, outputDir)
+		if err != nil {
+			return fmt.Errorf("export VM: %w", err)
+		}
+
+		result.ExportDuration = exportDuration
+		bo.logger.Info("VM export completed",
+			"vm_id", task.ID,
+			"duration", exportDuration,
+			"manifest", manifestPath)
+	} else {
+		// No exporter configured - assume manifest already exists
+		manifestPath = filepath.Join(outputDir, "artifact-manifest.json")
+		bo.logger.Warn("no VM exporter configured, assuming manifest exists",
+			"vm_id", task.ID,
+			"manifest", manifestPath)
+
+		// Verify manifest exists
+		if _, err := os.Stat(manifestPath); os.IsNotExist(err) {
+			return fmt.Errorf("no exporter configured and manifest not found at %s", manifestPath)
+		}
+	}
 
 	// Convert VM
 	if bo.converter != nil {
