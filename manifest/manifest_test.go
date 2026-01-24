@@ -692,3 +692,261 @@ func TestWithOptions_FalseValues(t *testing.T) {
 		t.Errorf("Expected Verbose to be 0, got %d", builder.manifest.Options.Verbose)
 	}
 }
+
+func TestValidateVMMetadata_ValidFirmware(t *testing.T) {
+	validFirmwareValues := []string{"bios", "uefi", "unknown"}
+
+	for _, firmware := range validFirmwareValues {
+		vm := &VMMetadata{
+			Firmware: firmware,
+			CPU:      4,
+			MemGB:    16,
+		}
+
+		err := validateVMMetadata(vm)
+		if err != nil {
+			t.Errorf("validateVMMetadata failed for firmware %q: %v", firmware, err)
+		}
+	}
+}
+
+func TestValidateVMMetadata_InvalidFirmware(t *testing.T) {
+	vm := &VMMetadata{
+		Firmware: "invalid-firmware",
+		CPU:      4,
+		MemGB:    16,
+	}
+
+	err := validateVMMetadata(vm)
+	if err == nil {
+		t.Error("Expected error for invalid firmware value")
+	}
+
+	expectedError := `vm.firmware "invalid-firmware" must be one of: bios, uefi, unknown`
+	if err.Error() != expectedError {
+		t.Errorf("Expected error %q, got %q", expectedError, err.Error())
+	}
+}
+
+func TestValidateVMMetadata_NegativeCPU(t *testing.T) {
+	vm := &VMMetadata{
+		Firmware: "bios",
+		CPU:      -1,
+		MemGB:    16,
+	}
+
+	err := validateVMMetadata(vm)
+	if err == nil {
+		t.Error("Expected error for negative CPU count")
+	}
+
+	if err.Error() != "vm.cpu must be non-negative (got: -1)" {
+		t.Errorf("Unexpected error message: %v", err)
+	}
+}
+
+func TestValidateVMMetadata_NegativeMemory(t *testing.T) {
+	vm := &VMMetadata{
+		Firmware: "uefi",
+		CPU:      4,
+		MemGB:    -8,
+	}
+
+	err := validateVMMetadata(vm)
+	if err == nil {
+		t.Error("Expected error for negative memory")
+	}
+
+	if err.Error() != "vm.mem_gb must be non-negative (got: -8)" {
+		t.Errorf("Unexpected error message: %v", err)
+	}
+}
+
+func TestValidateVMMetadata_EmptyFirmware(t *testing.T) {
+	vm := &VMMetadata{
+		Firmware: "",
+		CPU:      4,
+		MemGB:    16,
+	}
+
+	err := validateVMMetadata(vm)
+	if err != nil {
+		t.Errorf("Empty firmware should be valid (optional field): %v", err)
+	}
+}
+
+func TestValidateNIC_ValidMAC(t *testing.T) {
+	validMACs := []string{
+		"00:11:22:33:44:55",
+		"AA:BB:CC:DD:EE:FF",
+		"00-11-22-33-44-55",
+		"aa:bb:cc:dd:ee:ff",
+	}
+
+	for i, mac := range validMACs {
+		nic := NICInfo{
+			MAC:     mac,
+			Network: "test-network",
+		}
+
+		err := validateNIC(nic, i)
+		if err != nil {
+			t.Errorf("validateNIC failed for valid MAC %q: %v", mac, err)
+		}
+	}
+}
+
+func TestValidateNIC_InvalidMAC(t *testing.T) {
+	nic := NICInfo{
+		MAC:     "invalid",
+		Network: "test-network",
+	}
+
+	err := validateNIC(nic, 0)
+	if err == nil {
+		t.Error("Expected error for invalid MAC address")
+	}
+
+	expectedError := `nics[0].mac "invalid" appears to be invalid (too short)`
+	if err.Error() != expectedError {
+		t.Errorf("Expected error %q, got %q", expectedError, err.Error())
+	}
+}
+
+func TestValidateNIC_EmptyMAC(t *testing.T) {
+	nic := NICInfo{
+		MAC:     "",
+		Network: "test-network",
+	}
+
+	err := validateNIC(nic, 0)
+	if err != nil {
+		t.Errorf("Empty MAC should be valid (optional field): %v", err)
+	}
+}
+
+func TestVerifyChecksums_MatchingChecksum(t *testing.T) {
+	// Create a temporary file with known content
+	tmpDir := t.TempDir()
+	diskPath := filepath.Join(tmpDir, "test-disk.vmdk")
+
+	content := []byte("test disk content for checksum")
+	if err := os.WriteFile(diskPath, content, 0644); err != nil {
+		t.Fatalf("Failed to create test disk file: %v", err)
+	}
+
+	// Compute the actual checksum
+	actualChecksum, err := ComputeSHA256(diskPath)
+	if err != nil {
+		t.Fatalf("Failed to compute checksum: %v", err)
+	}
+
+	// Create manifest with matching checksum
+	manifest := &ArtifactManifest{
+		ManifestVersion: CurrentVersion,
+		Disks: []DiskArtifact{
+			{
+				ID:           "disk1",
+				SourceFormat: "vmdk",
+				Bytes:        int64(len(content)),
+				LocalPath:    diskPath,
+				Checksum:     "sha256:" + actualChecksum,
+			},
+		},
+	}
+
+	results, err := VerifyChecksums(manifest)
+	if err != nil {
+		t.Fatalf("VerifyChecksums failed: %v", err)
+	}
+
+	if !results["disk1"] {
+		t.Error("Expected checksum to match for disk1")
+	}
+}
+
+func TestVerifyChecksums_MismatchingChecksum(t *testing.T) {
+	tmpDir := t.TempDir()
+	diskPath := filepath.Join(tmpDir, "test-disk.vmdk")
+
+	content := []byte("test disk content")
+	if err := os.WriteFile(diskPath, content, 0644); err != nil {
+		t.Fatalf("Failed to create test disk file: %v", err)
+	}
+
+	// Create manifest with wrong checksum
+	manifest := &ArtifactManifest{
+		ManifestVersion: CurrentVersion,
+		Disks: []DiskArtifact{
+			{
+				ID:           "disk1",
+				SourceFormat: "vmdk",
+				Bytes:        int64(len(content)),
+				LocalPath:    diskPath,
+				Checksum:     "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+			},
+		},
+	}
+
+	results, err := VerifyChecksums(manifest)
+	if err == nil {
+		t.Error("Expected error for mismatching checksum")
+	}
+
+	if results["disk1"] {
+		t.Error("Expected checksum not to match for disk1")
+	}
+}
+
+func TestVerifyChecksums_NoChecksum(t *testing.T) {
+	tmpDir := t.TempDir()
+	diskPath := filepath.Join(tmpDir, "test-disk.vmdk")
+
+	content := []byte("test disk content")
+	if err := os.WriteFile(diskPath, content, 0644); err != nil {
+		t.Fatalf("Failed to create test disk file: %v", err)
+	}
+
+	// Create manifest without checksum
+	manifest := &ArtifactManifest{
+		ManifestVersion: CurrentVersion,
+		Disks: []DiskArtifact{
+			{
+				ID:           "disk1",
+				SourceFormat: "vmdk",
+				Bytes:        int64(len(content)),
+				LocalPath:    diskPath,
+				Checksum:     "", // No checksum
+			},
+		},
+	}
+
+	results, err := VerifyChecksums(manifest)
+	if err != nil {
+		t.Fatalf("VerifyChecksums should not fail for disks without checksums: %v", err)
+	}
+
+	if len(results) != 0 {
+		t.Errorf("Expected no results for disk without checksum, got %d results", len(results))
+	}
+}
+
+func TestVerifyChecksums_InvalidDiskPath(t *testing.T) {
+	manifest := &ArtifactManifest{
+		ManifestVersion: CurrentVersion,
+		Disks: []DiskArtifact{
+			{
+				ID:           "disk1",
+				SourceFormat: "vmdk",
+				Bytes:        1024,
+				LocalPath:    "/nonexistent/path/disk.vmdk",
+				Checksum:     "sha256:1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+			},
+		},
+	}
+
+	_, err := VerifyChecksums(manifest)
+	if err == nil {
+		t.Error("Expected error for nonexistent disk file")
+	}
+}
