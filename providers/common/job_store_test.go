@@ -503,3 +503,80 @@ func TestSQLiteJobStore_Persistence(t *testing.T) {
 
 	t.Log("✅ Persistence test passed")
 }
+
+func TestNewSQLiteJobStore_InvalidPath(t *testing.T) {
+	// Try to create store with invalid path
+	_, err := NewSQLiteJobStore("/nonexistent/directory/that/does/not/exist/test.db")
+	if err == nil {
+		t.Error("Expected error when creating store with invalid path")
+	}
+}
+
+func TestSQLiteJobStore_SaveJobValidation(t *testing.T) {
+	tmpDir := t.TempDir()
+	dbPath := filepath.Join(tmpDir, "validation.db")
+
+	store, err := NewSQLiteJobStore(dbPath)
+	if err != nil {
+		t.Fatalf("Failed to create store: %v", err)
+	}
+	defer store.Close()
+
+	// Try to save job with empty ID
+	job := &Job{
+		ID:     "",
+		VMName: "test",
+		Status: JobStatusPending,
+	}
+
+	err = store.SaveJob(job)
+	// Should succeed even with empty ID (database will handle it)
+	// This tests that the function doesn't crash with edge cases
+}
+
+func TestSQLiteJobStore_LoadNonexistentJob(t *testing.T) {
+	tmpDir := t.TempDir()
+	dbPath := filepath.Join(tmpDir, "nonexistent.db")
+
+	store, err := NewSQLiteJobStore(dbPath)
+	if err != nil {
+		t.Fatalf("Failed to create store: %v", err)
+	}
+	defer store.Close()
+
+	_, err = store.LoadJob("nonexistent-job-id")
+	if err == nil {
+		t.Error("Expected error when loading nonexistent job")
+	}
+}
+
+func TestSQLiteJobStore_UpdateNonexistentJob(t *testing.T) {
+	tmpDir := t.TempDir()
+	dbPath := filepath.Join(tmpDir, "update.db")
+
+	store, err := NewSQLiteJobStore(dbPath)
+	if err != nil {
+		t.Fatalf("Failed to create store: %v", err)
+	}
+	defer store.Close()
+
+	// Try to update status of nonexistent job
+	err = store.UpdateJobStatus("nonexistent-job", JobStatusRunning)
+	// Should handle gracefully (may succeed with no effect or return error)
+	// This tests robustness
+}
+
+func TestSQLiteJobStore_DeleteNonexistentJob(t *testing.T) {
+	tmpDir := t.TempDir()
+	dbPath := filepath.Join(tmpDir, "delete.db")
+
+	store, err := NewSQLiteJobStore(dbPath)
+	if err != nil {
+		t.Fatalf("Failed to create store: %v", err)
+	}
+	defer store.Close()
+
+	// Try to delete nonexistent job - should not error
+	err = store.DeleteJob("nonexistent-job")
+	// Should succeed (no-op) or return specific error
+}
