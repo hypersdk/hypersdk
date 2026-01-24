@@ -293,3 +293,59 @@ func TestPermissionString(t *testing.T) {
 		t.Errorf("expected %s, got %s", expected, perm.String())
 	}
 }
+
+func TestGetUserResourcePermissions_AllActions(t *testing.T) {
+	manager := NewRBACManager()
+
+	// Admin should have all permissions on VMs
+	manager.AddUser("admin", RoleAdmin)
+
+	rpVM, err := manager.GetUserResourcePermissions("admin", ResourceVM)
+	if err != nil {
+		t.Fatalf("failed to get VM resource permissions: %v", err)
+	}
+
+	// Check VM action types
+	if !rpVM.Create {
+		t.Error("expected admin to have Create permission on VMs")
+	}
+
+	if !rpVM.Read {
+		t.Error("expected admin to have Read permission on VMs")
+	}
+
+	if !rpVM.Update {
+		t.Error("expected admin to have Update permission on VMs")
+	}
+
+	if !rpVM.Delete {
+		t.Error("expected admin to have Delete permission on VMs")
+	}
+
+	if !rpVM.Export {
+		t.Error("expected admin to have Export permission on VMs")
+	}
+
+	// Check Jobs resource for Cancel action
+	rpJob, err := manager.GetUserResourcePermissions("admin", ResourceJob)
+	if err != nil {
+		t.Fatalf("failed to get Job resource permissions: %v", err)
+	}
+
+	if !rpJob.Cancel {
+		t.Error("expected admin to have Cancel permission on Jobs")
+	}
+
+	if !rpJob.Create {
+		t.Error("expected admin to have Create permission on Jobs")
+	}
+}
+
+func TestGetUserResourcePermissions_NonexistentUser(t *testing.T) {
+	manager := NewRBACManager()
+
+	_, err := manager.GetUserResourcePermissions("nonexistent", ResourceVM)
+	if err == nil {
+		t.Error("expected error for nonexistent user")
+	}
+}
