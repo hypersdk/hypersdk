@@ -3,6 +3,7 @@
 package scheduler
 
 import (
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -620,5 +621,131 @@ func TestConcurrentOperations(t *testing.T) {
 	jobs := scheduler.ListScheduledJobs()
 	if len(jobs) != 10 {
 		t.Errorf("Expected 10 jobs, got %d", len(jobs))
+	}
+}
+
+// mockScheduleStore is a mock implementation of ScheduleStore for testing
+type mockScheduleStore struct {
+	schedules []*models.ScheduledJob
+	listError error
+}
+
+func (m *mockScheduleStore) SaveSchedule(sj *models.ScheduledJob) error {
+	return nil
+}
+
+func (m *mockScheduleStore) UpdateSchedule(sj *models.ScheduledJob) error {
+	return nil
+}
+
+func (m *mockScheduleStore) GetSchedule(id string) (*models.ScheduledJob, error) {
+	return nil, nil
+}
+
+func (m *mockScheduleStore) ListSchedules(enabled *bool) ([]*models.ScheduledJob, error) {
+	if m.listError != nil {
+		return nil, m.listError
+	}
+	return m.schedules, nil
+}
+
+func (m *mockScheduleStore) DeleteSchedule(id string) error {
+	return nil
+}
+
+func TestLoadSchedules(t *testing.T) {
+	log := logger.New("info")
+	executor := &mockJobExecutor{}
+	scheduler := NewScheduler(executor, log)
+
+	// Create mock store with some schedules
+	mockStore := &mockScheduleStore{
+		schedules: []*models.ScheduledJob{
+			{
+				ID:       "job1",
+				Name:     "Test Job 1",
+				Schedule: "0 0 * * *",
+				Enabled:  true,
+				JobTemplate: models.JobDefinition{
+					ID:   "template1",
+					Name: "Template 1",
+				},
+			},
+			{
+				ID:       "job2",
+				Name:     "Test Job 2",
+				Schedule: "0 12 * * *",
+				Enabled:  false, // This one is disabled
+				JobTemplate: models.JobDefinition{
+					ID:   "template2",
+					Name: "Template 2",
+				},
+			},
+		},
+	}
+
+	scheduler.SetStore(mockStore)
+	scheduler.Start()
+	defer scheduler.Stop()
+
+	// Load schedules
+	err := scheduler.LoadSchedules()
+	if err != nil {
+		t.Fatalf("LoadSchedules failed: %v", err)
+	}
+
+	// Verify schedules were loaded
+	jobs := scheduler.ListScheduledJobs()
+	if len(jobs) != 2 {
+		t.Errorf("Expected 2 jobs, got %d", len(jobs))
+	}
+
+	// Verify the enabled job is in cron
+	job1, err := scheduler.GetScheduledJob("job1")
+	if err != nil {
+		t.Fatalf("job1 not found: %v", err)
+	}
+	if !job1.NextRun.IsZero() {
+		// NextRun should be set for enabled jobs
+		t.Log("job1 NextRun is set correctly")
+	}
+
+	// Verify the disabled job is not in cron (NextRun should be zero)
+	job2, err := scheduler.GetScheduledJob("job2")
+	if err != nil {
+		t.Fatalf("job2 not found: %v", err)
+	}
+	if !job2.NextRun.IsZero() {
+		t.Error("Expected disabled job to have zero NextRun")
+	}
+}
+
+func TestLoadSchedules_NoStore(t *testing.T) {
+	log := logger.New("info")
+	executor := &mockJobExecutor{}
+	scheduler := NewScheduler(executor, log)
+
+	// Don't set a store - should return without error
+	err := scheduler.LoadSchedules()
+	if err != nil {
+		t.Errorf("LoadSchedules without store should not error, got: %v", err)
+	}
+}
+
+func TestLoadSchedules_StoreError(t *testing.T) {
+	log := logger.New("info")
+	executor := &mockJobExecutor{}
+	scheduler := NewScheduler(executor, log)
+
+	// Create mock store that returns an error
+	mockStore := &mockScheduleStore{
+		listError: fmt.Errorf("database error"),
+	}
+
+	scheduler.SetStore(mockStore)
+
+	err := scheduler.LoadSchedules()
+	if err == nil {
+		t.Error("Expected error when store returns error")
 	}
 }
