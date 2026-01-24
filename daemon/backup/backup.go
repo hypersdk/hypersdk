@@ -92,25 +92,45 @@ type Config struct {
 	ChecksumType string // "sha256", "md5"
 
 	// Scheduling
-	EnableAutoBackup bool
-	BackupInterval   time.Duration
+	EnableAutoBackup     bool
+	BackupInterval       time.Duration
+	AutoBackupSourcePath string // Path to backup automatically
+	AutoBackupType       BackupType
 }
 
 // DefaultConfig returns default backup configuration
 func DefaultConfig() *Config {
 	return &Config{
-		BackupDir:         "./backups",
-		EnableCompression: true,
-		EnableEncryption:  false,
-		MaxBackups:        10,
-		RetentionDays:     30,
-		BufferSize:        32 * 1024,
-		MaxWorkers:        4,
-		ChecksumType:      "sha256",
-		EnableAutoBackup:  false,
-		BackupInterval:    24 * time.Hour,
+		BackupDir:            "./backups",
+		EnableCompression:    true,
+		EnableEncryption:     false,
+		MaxBackups:           10,
+		RetentionDays:        30,
+		BufferSize:           32 * 1024,
+		MaxWorkers:           4,
+		ChecksumType:         "sha256",
+		EnableAutoBackup:     false,
+		BackupInterval:       24 * time.Hour,
+		AutoBackupSourcePath: "",
+		AutoBackupType:       BackupTypeFull,
 	}
 }
+
+// Logger interface for backup manager
+type Logger interface {
+	Debug(msg string, keysAndValues ...interface{})
+	Info(msg string, keysAndValues ...interface{})
+	Warn(msg string, keysAndValues ...interface{})
+	Error(msg string, keysAndValues ...interface{})
+}
+
+// noopLogger is a logger that does nothing
+type noopLogger struct{}
+
+func (n *noopLogger) Debug(msg string, keysAndValues ...interface{}) {}
+func (n *noopLogger) Info(msg string, keysAndValues ...interface{})  {}
+func (n *noopLogger) Warn(msg string, keysAndValues ...interface{})  {}
+func (n *noopLogger) Error(msg string, keysAndValues ...interface{}) {}
 
 // Manager manages backup and restore operations
 type Manager struct {
@@ -119,12 +139,18 @@ type Manager struct {
 	mu        sync.RWMutex
 	restoring bool
 	restoreMu sync.Mutex
+	logger    Logger
+	stopCh    chan struct{}
 }
 
 // NewManager creates a new backup manager
-func NewManager(config *Config) (*Manager, error) {
+func NewManager(config *Config, logger Logger) (*Manager, error) {
 	if config == nil {
 		config = DefaultConfig()
+	}
+
+	if logger == nil {
+		logger = &noopLogger{}
 	}
 
 	// Create backup directory
@@ -135,6 +161,8 @@ func NewManager(config *Config) (*Manager, error) {
 	manager := &Manager{
 		config:  config,
 		backups: make(map[string]*BackupMetadata),
+		logger:  logger,
+		stopCh:  make(chan struct{}),
 	}
 
 	// Load existing backups
@@ -144,7 +172,11 @@ func NewManager(config *Config) (*Manager, error) {
 
 	// Start auto-backup if enabled
 	if config.EnableAutoBackup {
-		go manager.autoBackupLoop()
+		if config.AutoBackupSourcePath == "" {
+			logger.Warn("auto backup enabled but no source path configured")
+		} else {
+			go manager.autoBackupLoop()
+		}
 	}
 
 	return manager, nil
@@ -576,10 +608,43 @@ func (m *Manager) autoBackupLoop() {
 	ticker := time.NewTicker(m.config.BackupInterval)
 	defer ticker.Stop()
 
-	for range ticker.C {
-		// Perform backup (source path should be configured)
-		// This is a placeholder - actual implementation would need source path
-		// m.CreateBackup(context.Background(), sourcePath, BackupTypeFull)
+	m.logger.Info("starting auto backup loop",
+		"interval", m.config.BackupInterval,
+		"source_path", m.config.AutoBackupSourcePath,
+		"backup_type", m.config.AutoBackupType)
+
+	for {
+		select {
+		case <-ticker.C:
+			m.logger.Debug("triggering automatic backup")
+
+			// Create backup with timeout
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+			metadata, err := m.CreateBackup(ctx, m.config.AutoBackupSourcePath, m.config.AutoBackupType)
+			cancel()
+
+			if err != nil {
+				m.logger.Error("automatic backup failed",
+					"error", err,
+					"source_path", m.config.AutoBackupSourcePath)
+			} else {
+				m.logger.Info("automatic backup completed",
+					"backup_id", metadata.ID,
+					"size", metadata.Size,
+					"duration", metadata.EndTime.Sub(metadata.StartTime))
+			}
+
+		case <-m.stopCh:
+			m.logger.Info("stopping auto backup loop")
+			return
+		}
+	}
+}
+
+// Stop gracefully stops the backup manager and terminates any running auto-backup loops
+func (m *Manager) Stop() {
+	if m.stopCh != nil {
+		close(m.stopCh)
 	}
 }
 

@@ -37,7 +37,7 @@ func TestNewManager(t *testing.T) {
 	config := DefaultConfig()
 	config.BackupDir = tmpDir
 
-	manager, err := NewManager(config)
+	manager, err := NewManager(config, nil)
 	if err != nil {
 		t.Fatalf("failed to create manager: %v", err)
 	}
@@ -57,7 +57,7 @@ func TestNewManagerNilConfig(t *testing.T) {
 	defaultBackupDir := "./backups"
 	defer os.RemoveAll(defaultBackupDir)
 
-	manager, err := NewManager(nil)
+	manager, err := NewManager(nil, nil)
 	if err != nil {
 		t.Fatalf("failed to create manager with nil config: %v", err)
 	}
@@ -84,7 +84,7 @@ func TestCreateBackup(t *testing.T) {
 	config := DefaultConfig()
 	config.BackupDir = backupDir
 
-	manager, err := NewManager(config)
+	manager, err := NewManager(config, nil)
 	if err != nil {
 		t.Fatalf("failed to create manager: %v", err)
 	}
@@ -136,7 +136,7 @@ func TestRestoreBackup(t *testing.T) {
 	config := DefaultConfig()
 	config.BackupDir = backupDir
 
-	manager, err := NewManager(config)
+	manager, err := NewManager(config, nil)
 	if err != nil {
 		t.Fatalf("failed to create manager: %v", err)
 	}
@@ -178,7 +178,7 @@ func TestListBackups(t *testing.T) {
 	config := DefaultConfig()
 	config.BackupDir = backupDir
 
-	manager, err := NewManager(config)
+	manager, err := NewManager(config, nil)
 	if err != nil {
 		t.Fatalf("failed to create manager: %v", err)
 	}
@@ -221,7 +221,7 @@ func TestGetBackup(t *testing.T) {
 	config := DefaultConfig()
 	config.BackupDir = backupDir
 
-	manager, err := NewManager(config)
+	manager, err := NewManager(config, nil)
 	if err != nil {
 		t.Fatalf("failed to create manager: %v", err)
 	}
@@ -250,7 +250,7 @@ func TestGetBackupNotFound(t *testing.T) {
 	config := DefaultConfig()
 	config.BackupDir = tmpDir
 
-	manager, err := NewManager(config)
+	manager, err := NewManager(config, nil)
 	if err != nil {
 		t.Fatalf("failed to create manager: %v", err)
 	}
@@ -272,7 +272,7 @@ func TestDeleteBackup(t *testing.T) {
 	config := DefaultConfig()
 	config.BackupDir = backupDir
 
-	manager, err := NewManager(config)
+	manager, err := NewManager(config, nil)
 	if err != nil {
 		t.Fatalf("failed to create manager: %v", err)
 	}
@@ -313,7 +313,7 @@ func TestVerifyBackup(t *testing.T) {
 	config := DefaultConfig()
 	config.BackupDir = backupDir
 
-	manager, err := NewManager(config)
+	manager, err := NewManager(config, nil)
 	if err != nil {
 		t.Fatalf("failed to create manager: %v", err)
 	}
@@ -343,7 +343,7 @@ func TestVerifyCorruptedBackup(t *testing.T) {
 	config := DefaultConfig()
 	config.BackupDir = backupDir
 
-	manager, err := NewManager(config)
+	manager, err := NewManager(config, nil)
 	if err != nil {
 		t.Fatalf("failed to create manager: %v", err)
 	}
@@ -373,7 +373,7 @@ func TestRestoreNotFound(t *testing.T) {
 	config := DefaultConfig()
 	config.BackupDir = tmpDir
 
-	manager, err := NewManager(config)
+	manager, err := NewManager(config, nil)
 	if err != nil {
 		t.Fatalf("failed to create manager: %v", err)
 	}
@@ -403,7 +403,7 @@ func TestConcurrentRestore(t *testing.T) {
 	config := DefaultConfig()
 	config.BackupDir = backupDir
 
-	manager, err := NewManager(config)
+	manager, err := NewManager(config, nil)
 	if err != nil {
 		t.Fatalf("failed to create manager: %v", err)
 	}
@@ -463,7 +463,7 @@ func TestRetentionPolicy(t *testing.T) {
 	config.BackupDir = backupDir
 	config.MaxBackups = 3
 
-	manager, err := NewManager(config)
+	manager, err := NewManager(config, nil)
 	if err != nil {
 		t.Fatalf("failed to create manager: %v", err)
 	}
@@ -501,7 +501,7 @@ func TestLoadBackups(t *testing.T) {
 	config.BackupDir = backupDir
 
 	// Create first manager and backup
-	manager1, err := NewManager(config)
+	manager1, err := NewManager(config, nil)
 	if err != nil {
 		t.Fatalf("failed to create manager: %v", err)
 	}
@@ -514,7 +514,7 @@ func TestLoadBackups(t *testing.T) {
 	}
 
 	// Create new manager (should load existing backups)
-	manager2, err := NewManager(config)
+	manager2, err := NewManager(config, nil)
 	if err != nil {
 		t.Fatalf("failed to create second manager: %v", err)
 	}
@@ -545,7 +545,7 @@ func TestBackupWithSubdirectories(t *testing.T) {
 	config := DefaultConfig()
 	config.BackupDir = backupDir
 
-	manager, err := NewManager(config)
+	manager, err := NewManager(config, nil)
 	if err != nil {
 		t.Fatalf("failed to create manager: %v", err)
 	}
