@@ -3,10 +3,12 @@
 package gcp
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync/atomic"
@@ -21,19 +23,96 @@ import (
 )
 
 // ExportImageToGCS exports a GCP disk image to Google Cloud Storage as VMDK
-// Note: The GCP Compute SDK does not provide direct image export to VMDK in recent versions.
-// This functionality requires using the VM Import/Export service or gcloud CLI.
+// Uses gcloud CLI for export as the GCP SDK doesn't provide direct VMDK export
 func (c *Client) ExportImageToGCS(ctx context.Context, imageName, bucket, outputDir string, reporter progress.ProgressReporter) (*ExportResult, error) {
 	c.logger.Info("GCP image export requested", "image", imageName, "bucket", bucket)
 
-	// TODO: Implement using one of these approaches:
-	// 1. Use VM Import/Export Daisy workflows (https://github.com/GoogleCloudPlatform/compute-image-tools)
-	// 2. Use gcloud compute images export command via exec
-	// 3. Create disk from image, attach to temp instance, create raw disk export
-	//
-	// The computepb.ExportImageRequest API has been removed from newer SDK versions.
+	// Check if gcloud CLI is available
+	if err := c.checkGcloudCLI(); err != nil {
+		return nil, fmt.Errorf("gcloud CLI required for image export: %w", err)
+	}
 
-	return nil, fmt.Errorf("direct image export not supported in current GCP SDK - use VM Import/Export tools or gcloud CLI")
+	if reporter != nil {
+		reporter.Describe("Exporting image to GCS as VMDK")
+	}
+
+	// Generate GCS destination path
+	objectName := fmt.Sprintf("%s-%d.vmdk", imageName, time.Now().Unix())
+	gcsURI := fmt.Sprintf("gs://%s/%s", bucket, objectName)
+
+	// Build gcloud command
+	// gcloud compute images export --image=IMAGE_NAME --destination-uri=GCS_URI --export-format=vmdk
+	cmd := exec.CommandContext(ctx, "gcloud", "compute", "images", "export",
+		"--image="+imageName,
+		"--destination-uri="+gcsURI,
+		"--export-format=vmdk",
+		"--project="+c.config.ProjectID,
+	)
+
+	// Capture output
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	c.logger.Info("executing gcloud image export",
+		"image", imageName,
+		"destination", gcsURI)
+
+	// Execute command
+	err := cmd.Run()
+	if err != nil {
+		c.logger.Error("gcloud export failed",
+			"error", err,
+			"stdout", stdout.String(),
+			"stderr", stderr.String())
+		return nil, fmt.Errorf("gcloud export failed: %w\nStderr: %s", err, stderr.String())
+	}
+
+	c.logger.Info("gcloud export completed", "gcs_uri", gcsURI)
+
+	// Download from GCS to local path if outputDir provided
+	var localPath string
+	var size int64
+	if outputDir != "" {
+		if reporter != nil {
+			reporter.Describe("Downloading VMDK from GCS")
+		}
+
+		localPath = filepath.Join(outputDir, objectName)
+		size, err = c.downloadFromGCS(ctx, bucket, objectName, localPath, reporter)
+		if err != nil {
+			return nil, fmt.Errorf("download from GCS: %w", err)
+		}
+
+		c.logger.Info("VMDK downloaded successfully", "path", localPath, "size_bytes", size)
+	}
+
+	if reporter != nil {
+		reporter.Describe("Image export complete")
+		reporter.Update(100)
+	}
+
+	return &ExportResult{
+		ImageName: imageName,
+		Format:    "vmdk",
+		LocalPath: localPath,
+		Size:      size,
+		GCSBucket: bucket,
+		GCSObject: objectName,
+		GCSURI:    gcsURI,
+	}, nil
+}
+
+// checkGcloudCLI checks if gcloud CLI is installed and configured
+func (c *Client) checkGcloudCLI() error {
+	cmd := exec.Command("gcloud", "version")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("gcloud CLI not found - please install Google Cloud SDK: %w", err)
+	}
+
+	c.logger.Debug("gcloud CLI version", "output", string(output))
+	return nil
 }
 
 // ExportDiskToGCS exports a persistent disk to GCS as VMDK
