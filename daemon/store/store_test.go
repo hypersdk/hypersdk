@@ -666,3 +666,78 @@ func TestSQLiteStore_RecordAndGetExecutionHistory(t *testing.T) {
 		t.Errorf("Expected 2 executions with limit, got %d", len(limited))
 	}
 }
+
+func TestSQLiteStore_GetJobHistory(t *testing.T) {
+	tmpFile, err := os.CreateTemp("", "test-history-*.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(tmpFile.Name())
+	tmpFile.Close()
+
+	store, err := NewSQLiteStore(tmpFile.Name())
+	if err != nil {
+		t.Fatalf("Failed to create store: %v", err)
+	}
+	defer store.Close()
+
+	now := time.Now()
+	job := &models.Job{
+		Definition: models.JobDefinition{
+			ID:        "job-history-test",
+			Name:      "History Test Job",
+			VMPath:    "/vm/test",
+			CreatedAt: now,
+		},
+		Status: models.JobStatusPending,
+	}
+
+	// Save job
+	if err := store.SaveJob(job); err != nil {
+		t.Fatalf("Failed to save job: %v", err)
+	}
+
+	// Update job status multiple times to create history
+	statuses := []models.JobStatus{
+		models.JobStatusRunning,
+		models.JobStatusCompleted,
+	}
+
+	for _, status := range statuses {
+		job.Status = status
+		if err := store.UpdateJob(job); err != nil {
+			t.Fatalf("Failed to update job: %v", err)
+		}
+	}
+
+	// Get job history
+	history, err := store.GetJobHistory("job-history-test")
+	if err != nil {
+		t.Fatalf("Failed to get job history: %v", err)
+	}
+
+	// Verify we have history entries
+	if len(history) == 0 {
+		t.Error("Expected history entries, got none")
+	}
+
+	// Verify history is ordered by timestamp
+	for i := 1; i < len(history); i++ {
+		if history[i].Timestamp.Before(history[i-1].Timestamp) {
+			t.Error("History entries not ordered by timestamp")
+		}
+	}
+
+	// Verify status transitions are recorded
+	statusFound := false
+	for _, entry := range history {
+		if entry.Status == models.JobStatusRunning ||
+			entry.Status == models.JobStatusCompleted {
+			statusFound = true
+			break
+		}
+	}
+	if !statusFound {
+		t.Error("Expected status transitions in history")
+	}
+}
