@@ -725,3 +725,140 @@ func TestCachedSecretManager_Rotate(t *testing.T) {
 		t.Error("expected new value after rotation")
 	}
 }
+
+func TestCachedSecretManager_List(t *testing.T) {
+	ctx := context.Background()
+	backend := NewMemoryManager()
+	cached := NewCachedSecretManager(backend, 1*time.Hour)
+
+	// Create multiple secrets
+	secrets := []*Secret{
+		{
+			Name:  "secret-1",
+			Type:  SecretTypeVCenter,
+			Value: map[string]string{"key": "value1"},
+		},
+		{
+			Name:  "secret-2",
+			Type:  SecretTypeVCenter,
+			Value: map[string]string{"key": "value2"},
+		},
+		{
+			Name:  "secret-3",
+			Type:  SecretTypeAWS,
+			Value: map[string]string{"key": "value3"},
+		},
+	}
+
+	for _, secret := range secrets {
+		err := cached.Set(ctx, secret)
+		if err != nil {
+			t.Fatalf("Set failed: %v", err)
+		}
+	}
+
+	// List all secrets
+	all, err := cached.List(ctx, "")
+	if err != nil {
+		t.Fatalf("List failed: %v", err)
+	}
+
+	if len(all) != 3 {
+		t.Errorf("expected 3 secrets, got %d", len(all))
+	}
+
+	// List by type
+	vcenterSecrets, err := cached.List(ctx, SecretTypeVCenter)
+	if err != nil {
+		t.Fatalf("List by type failed: %v", err)
+	}
+
+	if len(vcenterSecrets) != 2 {
+		t.Errorf("expected 2 vcenter secrets, got %d", len(vcenterSecrets))
+	}
+}
+
+func TestCachedSecretManager_Health(t *testing.T) {
+	ctx := context.Background()
+	backend := NewMemoryManager()
+	cached := NewCachedSecretManager(backend, 1*time.Hour)
+
+	err := cached.Health(ctx)
+	if err != nil {
+		t.Errorf("Health check failed: %v", err)
+	}
+}
+
+func TestCachedSecretManager_Close(t *testing.T) {
+	ctx := context.Background()
+	backend := NewMemoryManager()
+	cached := NewCachedSecretManager(backend, 1*time.Hour)
+
+	// Add some secrets to cache
+	secret := &Secret{
+		Name:  "test",
+		Type:  SecretTypeVCenter,
+		Value: map[string]string{"key": "value"},
+	}
+
+	cached.Set(ctx, secret)
+	cached.Get(ctx, "test")
+
+	// Close should clear cache and close backend
+	err := cached.Close()
+	if err != nil {
+		t.Errorf("Close failed: %v", err)
+	}
+}
+
+func TestCachedSecretManager_InvalidateCacheAll(t *testing.T) {
+	ctx := context.Background()
+	backend := NewMemoryManager()
+	cached := NewCachedSecretManager(backend, 1*time.Hour)
+
+	// Create and cache multiple secrets
+	secret1 := &Secret{
+		Name:  "secret-1",
+		Type:  SecretTypeVCenter,
+		Value: map[string]string{"key": "value1"},
+	}
+
+	secret2 := &Secret{
+		Name:  "secret-2",
+		Type:  SecretTypeAWS,
+		Value: map[string]string{"key": "value2"},
+	}
+
+	cached.Set(ctx, secret1)
+	cached.Set(ctx, secret2)
+	cached.Get(ctx, "secret-1")
+	cached.Get(ctx, "secret-2")
+
+	// Update backend directly
+	secret1.Value["key"] = "new-value1"
+	secret2.Value["key"] = "new-value2"
+	backend.Set(ctx, secret1)
+	backend.Set(ctx, secret2)
+
+	// Invalidate entire cache
+	cached.InvalidateCache()
+
+	// Get should fetch new values from backend
+	retrieved1, err := cached.Get(ctx, "secret-1")
+	if err != nil {
+		t.Fatalf("Get secret-1 failed: %v", err)
+	}
+
+	if retrieved1.Value["key"] != "new-value1" {
+		t.Errorf("expected new-value1, got %s", retrieved1.Value["key"])
+	}
+
+	retrieved2, err := cached.Get(ctx, "secret-2")
+	if err != nil {
+		t.Fatalf("Get secret-2 failed: %v", err)
+	}
+
+	if retrieved2.Value["key"] != "new-value2" {
+		t.Errorf("expected new-value2, got %s", retrieved2.Value["key"])
+	}
+}
