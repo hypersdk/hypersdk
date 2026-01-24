@@ -326,13 +326,94 @@ func (c *Client) downloadVHD(ctx context.Context, sasURL, localPath string, repo
 func (c *Client) ExportSnapshotToVHD(ctx context.Context, snapshotName, containerURL, outputDir string, reporter progress.ProgressReporter) (*ExportResult, error) {
 	c.logger.Info("starting Azure snapshot export to VHD", "snapshot", snapshotName)
 
-	// The process is similar to disk export - snapshots can also be granted SAS access
-	// For simplicity, we can reuse the disk export logic since the API is the same
+	if reporter != nil {
+		reporter.Describe("Granting SAS access to snapshot")
+	}
 
-	// Note: In a real implementation, you would use the Snapshots client
-	// For now, we'll return an error indicating this needs snapshot-specific implementation
+	// Grant read access to the snapshot (1 hour validity)
+	grantAccess := &armcompute.GrantAccessData{
+		Access:            to.Ptr(armcompute.AccessLevelRead),
+		DurationInSeconds: to.Ptr(int32(3600)), // 1 hour
+	}
 
-	return nil, fmt.Errorf("snapshot export not yet implemented - use disk export instead")
+	pollerAccess, err := c.snapshotClient.BeginGrantAccess(ctx, c.config.ResourceGroup, snapshotName, *grantAccess, nil)
+	if err != nil {
+		return nil, fmt.Errorf("grant snapshot access: %w", err)
+	}
+
+	accessResp, err := pollerAccess.PollUntilDone(ctx, nil)
+	if err != nil {
+		return nil, fmt.Errorf("wait for snapshot access: %w", err)
+	}
+
+	// AccessURI is a struct type in newer Azure SDK versions
+	if accessResp.AccessURI.AccessSAS == nil {
+		return nil, fmt.Errorf("failed to get snapshot SAS URL - AccessSAS is nil")
+	}
+	sasURL := *accessResp.AccessURI.AccessSAS
+	c.logger.Info("snapshot SAS URL obtained", "snapshot", snapshotName)
+
+	// Get snapshot information
+	snapshotResp, err := c.snapshotClient.Get(ctx, c.config.ResourceGroup, snapshotName, nil)
+	if err != nil {
+		return nil, fmt.Errorf("get snapshot info: %w", err)
+	}
+
+	snapshotSizeGB := int64(0)
+	if snapshotResp.Properties != nil && snapshotResp.Properties.DiskSizeGB != nil {
+		snapshotSizeGB = int64(*snapshotResp.Properties.DiskSizeGB)
+	}
+
+	// Copy VHD to blob storage if container URL provided
+	var blobURL string
+	if containerURL != "" {
+		if reporter != nil {
+			reporter.Describe("Copying VHD to blob storage")
+		}
+
+		blobName := fmt.Sprintf("%s-%d.vhd", snapshotName, time.Now().Unix())
+		blobURL, err = c.copyVHDToBlob(ctx, sasURL, containerURL, blobName, reporter)
+		if err != nil {
+			return nil, fmt.Errorf("copy VHD to blob: %w", err)
+		}
+
+		c.logger.Info("VHD copied to blob storage", "blob", blobURL)
+	}
+
+	// Download VHD to local path
+	if reporter != nil {
+		reporter.Describe("Downloading VHD from Azure")
+	}
+
+	localPath := filepath.Join(outputDir, fmt.Sprintf("%s.vhd", snapshotName))
+	size, err := c.downloadVHD(ctx, sasURL, localPath, reporter)
+	if err != nil {
+		return nil, fmt.Errorf("download VHD: %w", err)
+	}
+
+	// Revoke access to snapshot
+	pollerRevoke, err := c.snapshotClient.BeginRevokeAccess(ctx, c.config.ResourceGroup, snapshotName, nil)
+	if err != nil {
+		c.logger.Warn("failed to revoke snapshot access", "error", err)
+	} else {
+		pollerRevoke.PollUntilDone(ctx, nil)
+		c.logger.Info("snapshot access revoked", "snapshot", snapshotName)
+	}
+
+	if reporter != nil {
+		reporter.Describe("Snapshot export complete")
+		reporter.Update(100)
+	}
+
+	return &ExportResult{
+		DiskName:   snapshotName,
+		DiskType:   "snapshot",
+		Format:     "vhd",
+		LocalPath:  localPath,
+		Size:       size,
+		BlobURL:    blobURL,
+		DiskSizeGB: snapshotSizeGB,
+	}, nil
 }
 
 // progressReader wraps an io.Reader to report download progress

@@ -36,12 +36,13 @@ type Config struct {
 
 // Client represents an Azure Compute client for VM operations
 type Client struct {
-	vmClient    *armcompute.VirtualMachinesClient
-	imageClient *armcompute.ImagesClient
-	diskClient  *armcompute.DisksClient
-	nicClient   *armnetwork.InterfacesClient
-	config      *Config
-	logger      logger.Logger
+	vmClient       *armcompute.VirtualMachinesClient
+	imageClient    *armcompute.ImagesClient
+	diskClient     *armcompute.DisksClient
+	snapshotClient *armcompute.SnapshotsClient
+	nicClient      *armnetwork.InterfacesClient
+	config         *Config
+	logger         logger.Logger
 }
 
 // VMInfo represents Azure VM information
@@ -96,6 +97,12 @@ func NewClient(cfg *Config, log logger.Logger) (*Client, error) {
 		return nil, fmt.Errorf("failed to create disk client: %w", err)
 	}
 
+	// Create snapshot client
+	snapshotClient, err := armcompute.NewSnapshotsClient(cfg.SubscriptionID, cred, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create snapshot client: %w", err)
+	}
+
 	// Create network interface client
 	nicClient, err := armnetwork.NewInterfacesClient(cfg.SubscriptionID, cred, nil)
 	if err != nil {
@@ -103,12 +110,13 @@ func NewClient(cfg *Config, log logger.Logger) (*Client, error) {
 	}
 
 	return &Client{
-		vmClient:    vmClient,
-		imageClient: imageClient,
-		diskClient:  diskClient,
-		nicClient:   nicClient,
-		config:      cfg,
-		logger:      log,
+		vmClient:       vmClient,
+		imageClient:    imageClient,
+		diskClient:     diskClient,
+		snapshotClient: snapshotClient,
+		nicClient:      nicClient,
+		config:         cfg,
+		logger:         log,
 	}, nil
 }
 
