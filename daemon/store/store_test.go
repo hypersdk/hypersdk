@@ -741,3 +741,46 @@ func TestSQLiteStore_GetJobHistory(t *testing.T) {
 		t.Error("Expected status transitions in history")
 	}
 }
+
+func TestNewSQLiteStore_InvalidPath(t *testing.T) {
+	// Try to create a store at an invalid path (directory that doesn't exist)
+	invalidPath := "/nonexistent/directory/that/does/not/exist/test.db"
+	_, err := NewSQLiteStore(invalidPath)
+	
+	if err == nil {
+		t.Error("Expected error when creating store with invalid path, got nil")
+	}
+}
+
+func TestSQLiteStore_CloseNilDB(t *testing.T) {
+	// Create a store with nil db (simulate closed or invalid state)
+	store := &SQLiteStore{db: nil}
+	
+	// Should not panic or error when db is nil
+	err := store.Close()
+	if err != nil {
+		t.Errorf("Expected no error when closing with nil db, got: %v", err)
+	}
+}
+
+func TestSQLiteStore_DoubleClose(t *testing.T) {
+	tmpFile, _ := os.CreateTemp("", "test-db-*.sqlite")
+	tmpFile.Close()
+	defer os.Remove(tmpFile.Name())
+
+	store, err := NewSQLiteStore(tmpFile.Name())
+	if err != nil {
+		t.Fatalf("Failed to create store: %v", err)
+	}
+
+	// Close once
+	err = store.Close()
+	if err != nil {
+		t.Errorf("First close failed: %v", err)
+	}
+
+	// Close again - should handle gracefully
+	err = store.Close()
+	// SQLite might return an error on double close, which is acceptable
+	// We just verify it doesn't panic
+}
