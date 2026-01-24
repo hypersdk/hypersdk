@@ -12,6 +12,7 @@ import (
 
 	"github.com/pkg/sftp"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/knownhosts"
 
 	"hypersdk/logger"
 	"hypersdk/retry"
@@ -55,11 +56,17 @@ func NewSFTPStorage(cfg *CloudStorageConfig, log logger.Logger) (*SFTPStorage, e
 		return nil, fmt.Errorf("no authentication method provided (password or private key required)")
 	}
 
+	// Get host key callback with proper verification
+	hostKeyCallback, err := getHostKeyCallback(cfg.HostKeyPath)
+	if err != nil {
+		return nil, fmt.Errorf("setup host key verification: %w", err)
+	}
+
 	// SSH client configuration
 	config := &ssh.ClientConfig{
 		User:            cfg.Username,
 		Auth:            authMethods,
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(), // TODO: Add proper host key verification
+		HostKeyCallback: hostKeyCallback,
 		Timeout:         30 * time.Second,
 	}
 
@@ -374,4 +381,32 @@ func (s *SFTPStorage) buildPath(remotePath string) string {
 		return remotePath
 	}
 	return filepath.Join(s.prefix, remotePath)
+}
+
+// getHostKeyCallback returns a secure host key callback for SSH
+func getHostKeyCallback(hostKeyPath string) (ssh.HostKeyCallback, error) {
+	// Determine known_hosts path
+	knownHostsPath := hostKeyPath
+	if knownHostsPath == "" {
+		// Default to ~/.ssh/known_hosts
+		homeDir, err := os.UserHomeDir()
+		if err != nil {
+			return nil, fmt.Errorf("get home directory: %w", err)
+		}
+		knownHostsPath = filepath.Join(homeDir, ".ssh", "known_hosts")
+	}
+
+	// Check if known_hosts file exists
+	if _, err := os.Stat(knownHostsPath); os.IsNotExist(err) {
+		return nil, fmt.Errorf("known_hosts file not found: %s\n"+
+			"Create it first by connecting via ssh or specify a different path with HostKeyPath", knownHostsPath)
+	}
+
+	// Load known hosts
+	hostKeyCallback, err := knownhosts.New(knownHostsPath)
+	if err != nil {
+		return nil, fmt.Errorf("load known_hosts from %s: %w", knownHostsPath, err)
+	}
+
+	return hostKeyCallback, nil
 }
