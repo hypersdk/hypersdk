@@ -314,3 +314,355 @@ func TestSQLiteStore_GetStatistics(t *testing.T) {
 		t.Errorf("Expected 1 pending job, got %d", stats.Pending)
 	}
 }
+func TestSQLiteStore_SaveAndGetSchedule(t *testing.T) {
+	// Create temporary database
+	tmpFile, err := os.CreateTemp("", "test-schedule-*.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(tmpFile.Name())
+	tmpFile.Close()
+
+	store, err := NewSQLiteStore(tmpFile.Name())
+	if err != nil {
+		t.Fatalf("Failed to create store: %v", err)
+	}
+	defer store.Close()
+
+	// Create test scheduled job
+	now := time.Now()
+	nextRun := now.Add(1 * time.Hour)
+	schedule := &models.ScheduledJob{
+		ID:          "sched-1",
+		Name:        "Daily Backup",
+		Description: "Daily backup of VMs",
+		Schedule:    "0 2 * * *",
+		JobTemplate: models.JobDefinition{
+			Name:   "backup-job",
+			VMPath: "/vm/production",
+		},
+		Enabled:   true,
+		CreatedAt: now,
+		UpdatedAt: now,
+		NextRun:   nextRun,
+		RunCount:  0,
+		Tags:      []string{"backup", "daily"},
+	}
+
+	// Save schedule
+	if err := store.SaveSchedule(schedule); err != nil {
+		t.Fatalf("Failed to save schedule: %v", err)
+	}
+
+	// Retrieve schedule
+	retrieved, err := store.GetSchedule("sched-1")
+	if err != nil {
+		t.Fatalf("Failed to get schedule: %v", err)
+	}
+
+	// Verify
+	if retrieved.ID != schedule.ID {
+		t.Errorf("Expected ID %s, got %s", schedule.ID, retrieved.ID)
+	}
+	if retrieved.Name != schedule.Name {
+		t.Errorf("Expected name %s, got %s", schedule.Name, retrieved.Name)
+	}
+	if retrieved.Schedule != schedule.Schedule {
+		t.Errorf("Expected schedule %s, got %s", schedule.Schedule, retrieved.Schedule)
+	}
+	if !retrieved.Enabled {
+		t.Error("Expected enabled to be true")
+	}
+	if len(retrieved.Tags) != 2 {
+		t.Errorf("Expected 2 tags, got %d", len(retrieved.Tags))
+	}
+}
+
+func TestSQLiteStore_UpdateSchedule(t *testing.T) {
+	tmpFile, err := os.CreateTemp("", "test-schedule-*.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(tmpFile.Name())
+	tmpFile.Close()
+
+	store, err := NewSQLiteStore(tmpFile.Name())
+	if err != nil {
+		t.Fatalf("Failed to create store: %v", err)
+	}
+	defer store.Close()
+
+	now := time.Now()
+	schedule := &models.ScheduledJob{
+		ID:       "sched-update",
+		Name:     "Original Name",
+		Schedule: "0 1 * * *",
+		JobTemplate: models.JobDefinition{
+			Name:   "test-job",
+			VMPath: "/vm/test",
+		},
+		Enabled:   true,
+		CreatedAt: now,
+		UpdatedAt: now,
+		RunCount:  0,
+	}
+
+	// Save initial schedule
+	if err := store.SaveSchedule(schedule); err != nil {
+		t.Fatalf("Failed to save schedule: %v", err)
+	}
+
+	// Update schedule
+	schedule.Name = "Updated Name"
+	schedule.Schedule = "0 2 * * *"
+	schedule.Enabled = false
+	schedule.RunCount = 5
+	schedule.UpdatedAt = time.Now()
+
+	if err := store.UpdateSchedule(schedule); err != nil {
+		t.Fatalf("Failed to update schedule: %v", err)
+	}
+
+	// Retrieve and verify
+	retrieved, err := store.GetSchedule("sched-update")
+	if err != nil {
+		t.Fatalf("Failed to get schedule: %v", err)
+	}
+
+	if retrieved.Name != "Updated Name" {
+		t.Errorf("Expected updated name, got %s", retrieved.Name)
+	}
+	if retrieved.Schedule != "0 2 * * *" {
+		t.Errorf("Expected updated schedule, got %s", retrieved.Schedule)
+	}
+	if retrieved.Enabled {
+		t.Error("Expected enabled to be false")
+	}
+	if retrieved.RunCount != 5 {
+		t.Errorf("Expected run count 5, got %d", retrieved.RunCount)
+	}
+}
+
+func TestSQLiteStore_ListSchedules(t *testing.T) {
+	tmpFile, err := os.CreateTemp("", "test-schedule-*.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(tmpFile.Name())
+	tmpFile.Close()
+
+	store, err := NewSQLiteStore(tmpFile.Name())
+	if err != nil {
+		t.Fatalf("Failed to create store: %v", err)
+	}
+	defer store.Close()
+
+	now := time.Now()
+
+	// Create multiple schedules
+	schedules := []*models.ScheduledJob{
+		{
+			ID:       "sched-1",
+			Name:     "Schedule 1",
+			Schedule: "0 1 * * *",
+			JobTemplate: models.JobDefinition{
+				Name:   "job-1",
+				VMPath: "/vm/1",
+			},
+			Enabled:   true,
+			CreatedAt: now,
+			UpdatedAt: now,
+		},
+		{
+			ID:       "sched-2",
+			Name:     "Schedule 2",
+			Schedule: "0 2 * * *",
+			JobTemplate: models.JobDefinition{
+				Name:   "job-2",
+				VMPath: "/vm/2",
+			},
+			Enabled:   false,
+			CreatedAt: now,
+			UpdatedAt: now,
+		},
+		{
+			ID:       "sched-3",
+			Name:     "Schedule 3",
+			Schedule: "0 3 * * *",
+			JobTemplate: models.JobDefinition{
+				Name:   "job-3",
+				VMPath: "/vm/3",
+			},
+			Enabled:   true,
+			CreatedAt: now,
+			UpdatedAt: now,
+		},
+	}
+
+	for _, sched := range schedules {
+		if err := store.SaveSchedule(sched); err != nil {
+			t.Fatalf("Failed to save schedule: %v", err)
+		}
+	}
+
+	// List all schedules
+	all, err := store.ListSchedules(nil)
+	if err != nil {
+		t.Fatalf("Failed to list schedules: %v", err)
+	}
+	if len(all) != 3 {
+		t.Errorf("Expected 3 schedules, got %d", len(all))
+	}
+
+	// List enabled schedules
+	enabled := true
+	enabledList, err := store.ListSchedules(&enabled)
+	if err != nil {
+		t.Fatalf("Failed to list enabled schedules: %v", err)
+	}
+	if len(enabledList) != 2 {
+		t.Errorf("Expected 2 enabled schedules, got %d", len(enabledList))
+	}
+
+	// List disabled schedules
+	disabled := false
+	disabledList, err := store.ListSchedules(&disabled)
+	if err != nil {
+		t.Fatalf("Failed to list disabled schedules: %v", err)
+	}
+	if len(disabledList) != 1 {
+		t.Errorf("Expected 1 disabled schedule, got %d", len(disabledList))
+	}
+}
+
+func TestSQLiteStore_DeleteSchedule(t *testing.T) {
+	tmpFile, err := os.CreateTemp("", "test-schedule-*.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(tmpFile.Name())
+	tmpFile.Close()
+
+	store, err := NewSQLiteStore(tmpFile.Name())
+	if err != nil {
+		t.Fatalf("Failed to create store: %v", err)
+	}
+	defer store.Close()
+
+	now := time.Now()
+	schedule := &models.ScheduledJob{
+		ID:       "sched-delete",
+		Name:     "To Delete",
+		Schedule: "0 1 * * *",
+		JobTemplate: models.JobDefinition{
+			Name:   "job",
+			VMPath: "/vm",
+		},
+		Enabled:   true,
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+
+	// Save schedule
+	if err := store.SaveSchedule(schedule); err != nil {
+		t.Fatalf("Failed to save schedule: %v", err)
+	}
+
+	// Delete schedule
+	if err := store.DeleteSchedule("sched-delete"); err != nil {
+		t.Fatalf("Failed to delete schedule: %v", err)
+	}
+
+	// Verify deletion
+	_, err = store.GetSchedule("sched-delete")
+	if err == nil {
+		t.Error("Expected error when getting deleted schedule")
+	}
+}
+
+func TestSQLiteStore_RecordAndGetExecutionHistory(t *testing.T) {
+	tmpFile, err := os.CreateTemp("", "test-schedule-*.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(tmpFile.Name())
+	tmpFile.Close()
+
+	store, err := NewSQLiteStore(tmpFile.Name())
+	if err != nil {
+		t.Fatalf("Failed to create store: %v", err)
+	}
+	defer store.Close()
+
+	scheduleID := "sched-exec"
+
+	// Record executions
+	executions := []*ScheduleExecution{
+		{
+			ScheduleID:      scheduleID,
+			JobID:           "job-1",
+			ExecutedAt:      time.Now(),
+			Status:          "completed",
+			DurationSeconds: 120.5,
+		},
+		{
+			ScheduleID:      scheduleID,
+			JobID:           "job-2",
+			ExecutedAt:      time.Now().Add(-1 * time.Hour),
+			Status:          "failed",
+			DurationSeconds: 30.2,
+			Error:           "disk space error",
+		},
+		{
+			ScheduleID:      scheduleID,
+			JobID:           "job-3",
+			ExecutedAt:      time.Now().Add(-2 * time.Hour),
+			Status:          "completed",
+			DurationSeconds: 90.0,
+		},
+	}
+
+	for _, exec := range executions {
+		if err := store.RecordExecution(exec); err != nil {
+			t.Fatalf("Failed to record execution: %v", err)
+		}
+	}
+
+	// Get execution history
+	history, err := store.GetExecutionHistory(scheduleID, 10)
+	if err != nil {
+		t.Fatalf("Failed to get execution history: %v", err)
+	}
+
+	if len(history) != 3 {
+		t.Errorf("Expected 3 executions, got %d", len(history))
+	}
+
+	// Verify first execution (should be most recent)
+	if history[0].Status != "completed" {
+		t.Errorf("Expected status completed, got %s", history[0].Status)
+	}
+
+	// Verify failed execution
+	found := false
+	for _, h := range history {
+		if h.Status == "failed" {
+			found = true
+			if h.Error != "disk space error" {
+				t.Errorf("Expected error message, got %s", h.Error)
+			}
+		}
+	}
+	if !found {
+		t.Error("Failed execution not found in history")
+	}
+
+	// Test limit
+	limited, err := store.GetExecutionHistory(scheduleID, 2)
+	if err != nil {
+		t.Fatalf("Failed to get limited history: %v", err)
+	}
+	if len(limited) != 2 {
+		t.Errorf("Expected 2 executions with limit, got %d", len(limited))
+	}
+}
