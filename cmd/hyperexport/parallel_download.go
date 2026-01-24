@@ -134,15 +134,36 @@ func (p *DownloadWorkerPool) downloadFile(workerID int, task DownloadTask) Downl
 	}
 	defer destFile.Close()
 
-	// TODO: Implement actual HTTP/HTTPS download with progress tracking
-	// For now, this is a placeholder that would be replaced with actual download logic
-	// In production, this would use http.Get() or the vSphere SDK download methods
+	// Create HTTP request with context
+	req, err := http.NewRequestWithContext(p.ctx, "GET", task.URL, nil)
+	if err != nil {
+		result.Error = fmt.Errorf("create request: %w", err)
+		result.Duration = time.Since(startTime)
+		return result
+	}
 
-	// Simulate download with progress tracking
+	// Perform HTTP request
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		result.Error = fmt.Errorf("http request: %w", err)
+		result.Duration = time.Since(startTime)
+		return result
+	}
+	defer resp.Body.Close()
+
+	// Check response status
+	if resp.StatusCode != http.StatusOK {
+		result.Error = fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+		result.Duration = time.Since(startTime)
+		return result
+	}
+
+	// Download with progress tracking
 	var bytesWritten int64
-	chunkSize := int64(4 * 1024 * 1024) // 4MB chunks
+	buf := make([]byte, 32*1024) // 32KB buffer
+	lastProgress := time.Now()
 
-	for bytesWritten < task.Size {
+	for {
 		select {
 		case <-p.ctx.Done():
 			result.Error = fmt.Errorf("download cancelled")
@@ -151,23 +172,42 @@ func (p *DownloadWorkerPool) downloadFile(workerID int, task DownloadTask) Downl
 		default:
 		}
 
-		toWrite := chunkSize
-		if bytesWritten+toWrite > task.Size {
-			toWrite = task.Size - bytesWritten
+		nr, er := resp.Body.Read(buf)
+		if nr > 0 {
+			nw, ew := destFile.Write(buf[0:nr])
+			if nw > 0 {
+				bytesWritten += int64(nw)
+				atomic.AddInt64(&p.downloadedBytes, int64(nw))
+
+				// Log progress every second to avoid spam
+				if time.Since(lastProgress) > time.Second {
+					p.log.Debug("download progress",
+						"worker", workerID,
+						"file", task.Name,
+						"progress", fmt.Sprintf("%.1f%%", float64(bytesWritten)/float64(task.Size)*100),
+						"bytes", formatBytes(bytesWritten))
+					lastProgress = time.Now()
+				}
+			}
+			if ew != nil {
+				result.Error = fmt.Errorf("write to file: %w", ew)
+				result.Duration = time.Since(startTime)
+				return result
+			}
+			if nr != nw {
+				result.Error = fmt.Errorf("short write: wrote %d bytes, read %d bytes", nw, nr)
+				result.Duration = time.Since(startTime)
+				return result
+			}
 		}
-
-		// Simulate chunk write
-		// In production: written, err := io.CopyN(destFile, reader, toWrite)
-		time.Sleep(10 * time.Millisecond) // Simulate network delay
-		written := toWrite                // Simulated
-
-		bytesWritten += written
-		atomic.AddInt64(&p.downloadedBytes, written)
-
-		p.log.Debug("download progress",
-			"worker", workerID,
-			"file", task.Name,
-			"progress", fmt.Sprintf("%.1f%%", float64(bytesWritten)/float64(task.Size)*100))
+		if er != nil {
+			if er == io.EOF {
+				break
+			}
+			result.Error = fmt.Errorf("read from response: %w", er)
+			result.Duration = time.Since(startTime)
+			return result
+		}
 	}
 
 	result.Success = true

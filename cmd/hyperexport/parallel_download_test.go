@@ -162,8 +162,16 @@ func TestDownloadWorkerPool_DownloadFile(t *testing.T) {
 	pool := NewDownloadWorkerPool(ctx, 2, logger.NewTestLogger(t))
 	defer pool.Close()
 
+	// Create mock HTTP server
+	testData := strings.Repeat("x", 1024)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(testData))
+	}))
+	defer server.Close()
+
 	task := DownloadTask{
-		URL:         "http://example.com/test.bin",
+		URL:         server.URL + "/test.bin",
 		Destination: filepath.Join(tmpDir, "test.bin"),
 		Size:        1024,
 		Name:        "test.bin",
@@ -181,9 +189,13 @@ func TestDownloadWorkerPool_DownloadFile(t *testing.T) {
 		t.Error("Duration should be set")
 	}
 
-	// Verify file was created
-	if _, err := os.Stat(task.Destination); os.IsNotExist(err) {
-		t.Error("Downloaded file should exist")
+	// Verify file was created and has correct content
+	data, err := os.ReadFile(task.Destination)
+	if err != nil {
+		t.Fatalf("Failed to read downloaded file: %v", err)
+	}
+	if string(data) != testData {
+		t.Errorf("Downloaded data doesn't match. Expected %d bytes, got %d bytes", len(testData), len(data))
 	}
 }
 
@@ -218,23 +230,39 @@ func TestDownloadWorkerPool_DownloadBatch(t *testing.T) {
 	pool := NewDownloadWorkerPool(ctx, 2, logger.NewTestLogger(t))
 	defer pool.Close()
 
+	// Create mock HTTP server
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Generate different sized responses based on URL
+		var size int
+		if strings.Contains(r.URL.Path, "file1") {
+			size = 1024
+		} else if strings.Contains(r.URL.Path, "file2") {
+			size = 2048
+		} else {
+			size = 512
+		}
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(strings.Repeat("x", size)))
+	}))
+	defer server.Close()
+
 	pool.Start()
 
 	tasks := []DownloadTask{
 		{
-			URL:         "http://example.com/file1.bin",
+			URL:         server.URL + "/file1.bin",
 			Destination: filepath.Join(tmpDir, "file1.bin"),
 			Size:        1024,
 			Name:        "file1.bin",
 		},
 		{
-			URL:         "http://example.com/file2.bin",
+			URL:         server.URL + "/file2.bin",
 			Destination: filepath.Join(tmpDir, "file2.bin"),
 			Size:        2048,
 			Name:        "file2.bin",
 		},
 		{
-			URL:         "http://example.com/file3.bin",
+			URL:         server.URL + "/file3.bin",
 			Destination: filepath.Join(tmpDir, "file3.bin"),
 			Size:        512,
 			Name:        "file3.bin",
@@ -276,6 +304,14 @@ func TestDownloadWorkerPool_ConcurrentDownloads(t *testing.T) {
 	ctx := context.Background()
 	pool := NewDownloadWorkerPool(ctx, 3, logger.NewTestLogger(t))
 
+	// Create mock HTTP server
+	testData := strings.Repeat("x", 1024)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(testData))
+	}))
+	defer server.Close()
+
 	pool.Start()
 
 	numTasks := 5 // Reduced from 10 for more reliable testing
@@ -283,7 +319,7 @@ func TestDownloadWorkerPool_ConcurrentDownloads(t *testing.T) {
 	// Submit multiple tasks
 	for i := 0; i < numTasks; i++ {
 		task := DownloadTask{
-			URL:         "http://example.com/file.bin",
+			URL:         server.URL + "/file.bin",
 			Destination: filepath.Join(tmpDir, "file"+string(rune('0'+i))+".bin"),
 			Size:        1024,
 			Name:        "file" + string(rune('0'+i)) + ".bin",
