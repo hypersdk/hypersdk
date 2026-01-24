@@ -3,6 +3,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -13,14 +14,14 @@ import (
 
 // DaemonInstance represents a hyper2kvm daemon instance
 type DaemonInstance struct {
-	Name      string
-	Service   string
-	Active    bool
-	Status    string
-	MainPID   string
-	Uptime    string
-	WatchDir  string
-	OutputDir string
+	Name      string `json:"name"`
+	Service   string `json:"service"`
+	Active    bool   `json:"active"`
+	Status    string `json:"status"`
+	MainPID   string `json:"main_pid,omitempty"`
+	Uptime    string `json:"uptime,omitempty"`
+	WatchDir  string `json:"watch_dir"`
+	OutputDir string `json:"output_dir"`
 }
 
 // handleDaemonStatus shows the status of hyper2kvm daemon instances
@@ -86,8 +87,16 @@ func handleDaemonStatus(daemonURL, instance string, jsonOutput bool) {
 
 	// Display results
 	if jsonOutput {
-		// TODO: JSON output
-		fmt.Printf("{\"instances\": %d, \"total\": %d}\n", len(instances), len(instances))
+		output := map[string]interface{}{
+			"instances": instances,
+			"total":     len(instances),
+		}
+		jsonData, err := json.MarshalIndent(output, "", "  ")
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error marshaling JSON: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Println(string(jsonData))
 	} else {
 		displayDaemonInstances(instances)
 	}
@@ -147,8 +156,16 @@ func handleDaemonList(jsonOutput bool) {
 
 	// Display results
 	if jsonOutput {
-		// TODO: JSON output
-		fmt.Printf("{\"instances\": %d, \"total\": %d}\n", len(instances), len(instances))
+		output := map[string]interface{}{
+			"instances": instances,
+			"total":     len(instances),
+		}
+		jsonData, err := json.MarshalIndent(output, "", "  ")
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error marshaling JSON: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Println(string(jsonData))
 	} else {
 		displayDaemonInstances(instances)
 	}
