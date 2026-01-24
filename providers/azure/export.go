@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -15,6 +16,8 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6"
+	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
+	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blob"
 
 	"hypersdk/progress"
 	"hypersdk/providers/common"
@@ -162,24 +165,105 @@ func (c *Client) ExportVMToVHD(ctx context.Context, vmName, containerURL, output
 	return results, nil
 }
 
-// copyVHDToBlob copies VHD from SAS URL to blob storage
-// Note: This is a simplified implementation. The Azure Blob Storage SDK has changed
-// significantly in recent versions. This function needs to be updated to use the
-// latest SDK patterns with BlockBlobClient.
+// copyVHDToBlob copies VHD from SAS URL to blob storage using Azure SDK v2
 func (c *Client) copyVHDToBlob(ctx context.Context, sasURL, containerURL, blobName string, reporter progress.ProgressReporter) (string, error) {
-	// TODO: Update to use current Azure Blob Storage SDK
-	// The SDK API has changed - StartCopyFromURL and GetProperties are on BlockBlobClient
-	// not on the base Client type.
+	c.logger.Info("copying VHD to blob storage", "blob", blobName)
 
-	c.logger.Warn("blob copy not fully implemented - needs Azure SDK update")
+	// Parse container URL
+	containerURLParsed, err := url.Parse(containerURL)
+	if err != nil {
+		return "", fmt.Errorf("parse container URL: %w", err)
+	}
 
-	// For now, just return the constructed blob URL
-	// In a real implementation, this would use:
-	// - BlockBlobClient to start the copy
-	// - Poll the copy status using GetProperties
+	// Construct full blob URL
 	blobURL := fmt.Sprintf("%s/%s", strings.TrimSuffix(containerURL, "/"), blobName)
 
-	return blobURL, fmt.Errorf("blob copy requires Azure SDK update - download VHD directly from SAS URL instead")
+	// Create blob client
+	// Note: In production, you would use proper credential management
+	// For now, we assume the containerURL contains the necessary credentials
+	blobClient, err := azblob.NewClientWithNoCredential(containerURLParsed.String(), nil)
+	if err != nil {
+		return "", fmt.Errorf("create blob client: %w", err)
+	}
+
+	// Get the block blob client for this specific blob
+	blockBlobClient := blobClient.ServiceClient().NewContainerClient(containerURLParsed.Path).NewBlockBlobClient(blobName)
+
+	// Start copy operation from source SAS URL
+	if reporter != nil {
+		reporter.Describe("Starting blob copy operation")
+	}
+
+	copyResp, err := blockBlobClient.StartCopyFromURL(ctx, sasURL, &blob.StartCopyFromURLOptions{
+		Tier: to.Ptr(blob.AccessTierCool), // Use cool tier for cost savings
+	})
+	if err != nil {
+		return "", fmt.Errorf("start copy from URL: %w", err)
+	}
+
+	c.logger.Info("blob copy started", "copy_id", *copyResp.CopyID)
+
+	// Poll copy status until complete
+	ticker := time.NewTicker(5 * time.Second)
+	defer ticker.Stop()
+
+	timeout := time.After(24 * time.Hour) // VHD copies can take hours
+
+	for {
+		select {
+		case <-ctx.Done():
+			return "", ctx.Err()
+		case <-timeout:
+			return "", fmt.Errorf("blob copy timed out after 24 hours")
+		case <-ticker.C:
+			// Get blob properties to check copy status
+			props, err := blockBlobClient.GetProperties(ctx, nil)
+			if err != nil {
+				return "", fmt.Errorf("get blob properties: %w", err)
+			}
+
+			// Check copy status
+			if props.CopyStatus == nil {
+				return "", fmt.Errorf("copy status is nil")
+			}
+
+			status := *props.CopyStatus
+			c.logger.Debug("blob copy status", "status", status)
+
+			// Update progress if available
+			if reporter != nil && props.CopyProgress != nil {
+				// Parse copy progress (format: "bytes copied/total bytes")
+				reporter.Describe(fmt.Sprintf("Copy progress: %s", *props.CopyProgress))
+			}
+
+			switch status {
+			case blob.CopyStatusTypeSuccess:
+				c.logger.Info("blob copy completed successfully")
+				if reporter != nil {
+					reporter.Describe("Blob copy complete")
+				}
+				return blobURL, nil
+
+			case blob.CopyStatusTypeFailed:
+				statusDescription := "unknown"
+				if props.CopyStatusDescription != nil {
+					statusDescription = *props.CopyStatusDescription
+				}
+				return "", fmt.Errorf("blob copy failed: %s", statusDescription)
+
+			case blob.CopyStatusTypeAborted:
+				return "", fmt.Errorf("blob copy was aborted")
+
+			case blob.CopyStatusTypePending:
+				// Still in progress, continue polling
+				continue
+
+			default:
+				c.logger.Warn("unknown copy status", "status", status)
+				continue
+			}
+		}
+	}
 }
 
 // downloadVHD downloads VHD from SAS URL to local file
