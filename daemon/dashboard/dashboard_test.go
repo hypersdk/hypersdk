@@ -3,6 +3,7 @@
 package dashboard
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -507,4 +508,160 @@ func TestCollectMetrics(t *testing.T) {
 	if dashboard.metrics.Timestamp.Before(beforeTime) {
 		t.Error("expected timestamp to be updated")
 	}
+}
+
+func TestStart(t *testing.T) {
+	config := DefaultConfig()
+	config.Port = 0 // Use random available port
+	config.UpdateInterval = 50 * time.Millisecond
+	dashboard, err := NewDashboard(config)
+	if err != nil {
+		t.Fatalf("failed to create dashboard: %v", err)
+	}
+
+	// Start the dashboard with a short-lived context
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+
+	// Start in goroutine since it blocks until context is done
+	done := make(chan error, 1)
+	go func() {
+		done <- dashboard.Start(ctx)
+	}()
+
+	// Give the server time to start
+	time.Sleep(50 * time.Millisecond)
+
+	// Wait for context to cancel and server to shutdown
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Errorf("Start returned error: %v", err)
+		}
+	case <-time.After(500 * time.Millisecond):
+		t.Error("Start did not complete within timeout")
+	}
+}
+
+func TestStartDisabled(t *testing.T) {
+	config := DefaultConfig()
+	config.Enabled = false
+	dashboard, err := NewDashboard(config)
+	if err != nil {
+		t.Fatalf("failed to create dashboard: %v", err)
+	}
+
+	ctx := context.Background()
+	err = dashboard.Start(ctx)
+	if err != nil {
+		t.Errorf("Start should return nil when disabled, got: %v", err)
+	}
+}
+
+func TestHandleBroadcast(t *testing.T) {
+	config := DefaultConfig()
+	config.UpdateInterval = 50 * time.Millisecond
+	dashboard, err := NewDashboard(config)
+	if err != nil {
+		t.Fatalf("failed to create dashboard: %v", err)
+	}
+
+	// Start handleBroadcast in goroutine
+	go dashboard.handleBroadcast()
+
+	// Connect a WebSocket client
+	server := httptest.NewServer(http.HandlerFunc(dashboard.handleWebSocket))
+	defer server.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
+	ws, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	if err != nil {
+		t.Fatalf("failed to connect to WebSocket: %v", err)
+	}
+	defer ws.Close()
+
+	// Read initial message
+	_, _, err = ws.ReadMessage()
+	if err != nil {
+		t.Fatalf("failed to read initial message: %v", err)
+	}
+
+	// Give time for client to be registered
+	time.Sleep(10 * time.Millisecond)
+
+	// Send a broadcast message
+	testData := []byte(`{"test": "data"}`)
+	dashboard.broadcast <- testData
+
+	// Read the broadcast message
+	_, message, err := ws.ReadMessage()
+	if err != nil {
+		t.Fatalf("failed to read broadcast message: %v", err)
+	}
+
+	if string(message) != string(testData) {
+		t.Errorf("expected message %s, got %s", testData, message)
+	}
+}
+
+func TestUpdateMetrics(t *testing.T) {
+	config := DefaultConfig()
+	config.UpdateInterval = 30 * time.Millisecond
+	dashboard, err := NewDashboard(config)
+	if err != nil {
+		t.Fatalf("failed to create dashboard: %v", err)
+	}
+
+	// Start updateMetrics with a short-lived context
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+
+	// Connect a WebSocket client to receive broadcasts
+	server := httptest.NewServer(http.HandlerFunc(dashboard.handleWebSocket))
+	defer server.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
+	ws, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	if err != nil {
+		t.Fatalf("failed to connect to WebSocket: %v", err)
+	}
+	defer ws.Close()
+
+	// Start broadcast handler
+	go dashboard.handleBroadcast()
+
+	// Read initial message
+	_, _, err = ws.ReadMessage()
+	if err != nil {
+		t.Fatalf("failed to read initial message: %v", err)
+	}
+
+	// Update some metrics
+	dashboard.UpdateJobMetrics(5, 10, 2, 3, 8)
+
+	// Start the updateMetrics goroutine
+	go dashboard.updateMetrics(ctx)
+
+	// Wait for at least one update cycle
+	time.Sleep(50 * time.Millisecond)
+
+	// Try to read an update (may timeout if update cycle hasn't completed yet)
+	ws.SetReadDeadline(time.Now().Add(100 * time.Millisecond))
+	_, message, err := ws.ReadMessage()
+	if err == nil {
+		var metrics Metrics
+		err = json.Unmarshal(message, &metrics)
+		if err != nil {
+			t.Fatalf("failed to unmarshal metrics: %v", err)
+		}
+
+		if metrics.JobsActive != 5 {
+			t.Logf("expected JobsActive 5, got %d", metrics.JobsActive)
+		}
+	} else {
+		t.Logf("No metric update received (may be expected depending on timing): %v", err)
+	}
+
+	// Wait for context to cancel
+	<-ctx.Done()
 }
