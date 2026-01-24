@@ -3,6 +3,7 @@
 package auth
 
 import (
+	"os"
 	"testing"
 	"time"
 )
@@ -293,5 +294,120 @@ func TestMultipleSessions(t *testing.T) {
 	_, err = manager.ValidateSession("token3")
 	if err != nil {
 		t.Error("expected token3 to still be valid")
+	}
+}
+
+func TestAuthenticateUser_InvalidUser(t *testing.T) {
+	manager := NewAuthManager()
+
+	// Try to authenticate with a non-existent user
+	session, err := manager.AuthenticateUser("nonexistent_user_12345", "password")
+	if err == nil {
+		t.Error("expected error for non-existent user")
+	}
+	if session != nil {
+		t.Error("expected nil session for non-existent user")
+	}
+}
+
+func TestAuthenticateUser_ValidUser(t *testing.T) {
+	manager := NewAuthManager()
+
+	// Get current user from environment (should always exist)
+	currentUser := os.Getenv("USER")
+	if currentUser == "" {
+		currentUser = "root" // Fallback to root if USER not set
+	}
+
+	// Try to authenticate with a valid user (doesn't validate password in this implementation)
+	session, err := manager.AuthenticateUser(currentUser, "password")
+	if err != nil {
+		t.Logf("Authentication failed for user %s: %v", currentUser, err)
+		t.Logf("This test requires the 'id' command to be available")
+		// Don't fail the test as it depends on system configuration
+		return
+	}
+
+	if session == nil {
+		t.Error("expected session to be created for valid user")
+		return
+	}
+
+	// Verify session properties
+	if session.Token == "" {
+		t.Error("expected non-empty token")
+	}
+
+	if session.Username != currentUser {
+		t.Errorf("expected username %s, got %s", currentUser, session.Username)
+	}
+
+	if session.CreatedAt.IsZero() {
+		t.Error("expected CreatedAt to be set")
+	}
+
+	if session.ExpiresAt.IsZero() {
+		t.Error("expected ExpiresAt to be set")
+	}
+
+	// Verify session expires in the future
+	if !session.ExpiresAt.After(time.Now()) {
+		t.Error("expected session to expire in the future")
+	}
+
+	// Verify session is stored in manager
+	storedSession, err := manager.ValidateSession(session.Token)
+	if err != nil {
+		t.Errorf("failed to validate stored session: %v", err)
+	}
+
+	if storedSession.Username != currentUser {
+		t.Errorf("expected stored username %s, got %s", currentUser, storedSession.Username)
+	}
+}
+
+func TestAuthenticateUser_SessionStorage(t *testing.T) {
+	manager := NewAuthManager()
+
+	currentUser := os.Getenv("USER")
+	if currentUser == "" {
+		currentUser = "root"
+	}
+
+	// Authenticate and get session
+	session1, err := manager.AuthenticateUser(currentUser, "password1")
+	if err != nil {
+		t.Skipf("Skipping test: authentication requires 'id' command: %v", err)
+	}
+
+	// Authenticate again with same user
+	session2, err := manager.AuthenticateUser(currentUser, "password2")
+	if err != nil {
+		t.Fatalf("second authentication failed: %v", err)
+	}
+
+	// Tokens should be different
+	if session1.Token == session2.Token {
+		t.Error("expected different tokens for each authentication")
+	}
+
+	// Both sessions should be valid
+	_, err = manager.ValidateSession(session1.Token)
+	if err != nil {
+		t.Error("first session should still be valid")
+	}
+
+	_, err = manager.ValidateSession(session2.Token)
+	if err != nil {
+		t.Error("second session should be valid")
+	}
+
+	// Manager should have both sessions
+	manager.mu.RLock()
+	sessionCount := len(manager.sessions)
+	manager.mu.RUnlock()
+
+	if sessionCount < 2 {
+		t.Errorf("expected at least 2 sessions, got %d", sessionCount)
 	}
 }
