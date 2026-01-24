@@ -533,7 +533,7 @@ export PARALLEL_DOWNLOADS="8"
 
 ## See Also
 
-- [Getting Started Guide](GETTING-STARTED.md)
+- [Getting Started Guide](getting-started.md)
 - [Configuration Reference](configuration-reference.md)
 - [API Reference](API_ENDPOINTS.md)
 - [Migration Workflows](migration-workflows.md)

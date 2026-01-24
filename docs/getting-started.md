@@ -435,7 +435,7 @@ GET  /health                      # Health check
 
 ### Core Documentation
 - [Main README](../README.md) - Complete project overview
-- [Project Summary](PROJECT-SUMMARY.md) - Architecture and features
+- [Project Summary](project-summary.md) - Architecture and features
 - [Test Results](TEST-RESULTS.md) - Test coverage
 
 ### Dashboard Documentation

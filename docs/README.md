@@ -5,7 +5,7 @@ Complete documentation for HyperSDK - A multi-cloud VM migration framework with 
 ## 📚 Documentation Navigation
 
 ### New Users Start Here
-- **[Getting Started Guide](GETTING-STARTED.md)** - Install and run your first migration (includes dashboard!)
+- **[Getting Started Guide](getting-started.md)** - Install and run your first migration (includes dashboard!)
 - **[Interactive Mode Guide](user-guides/01-interactive-mode.md)** - Learn the interactive TUI
 - **[Dashboard README](../daemon/dashboard/README.md)** - Web dashboard usage and features
 
@@ -30,10 +30,10 @@ Complete documentation for HyperSDK - A multi-cloud VM migration framework with 
 - **[General API Documentation](api.md)** - API usage patterns
 - **[Daemon API Reference](api/01-daemon-api.md)** - Legacy daemon API docs
 - **[Examples](../examples/README.md)** - Configuration file examples
-- **[Project Summary](PROJECT-SUMMARY.md)** - Architecture overview
+- **[Project Summary](project-summary.md)** - Architecture overview
 
 ### Testing & Development
-- **[Test Results](TEST-RESULTS.md)** - Coverage and test reports
+- **[Test Results](test-results.md)** - Coverage and test reports
 - **[Test API Script](../scripts/test-api.sh)** - Automated API testing (79 endpoints)
 - **[Dashboard Endpoint Testing](../test-dashboard-endpoints.sh)** - Dashboard endpoint tests
 - **[Demo Scripts](../demos/README.md)** - Live demonstrations
@@ -63,7 +63,7 @@ docs/
 ## 🚀 Quick Links
 
 ### Most Common Tasks
-- **[Access Web Dashboard](GETTING-STARTED.md#using-the-web-dashboard)** - Browser-based UI
+- **[Access Web Dashboard](getting-started.md#using-the-web-dashboard)** - Browser-based UI
 - **[View VM Consoles](../daemon/dashboard/README.md#console-viewer-usage)** - VNC and Serial access
 - [List VMs from vCenter](user-guides/01-interactive-mode.md#getting-started)
 - [Migrate VMs interactively](user-guides/01-interactive-mode.md#migration-workflow)
@@ -89,14 +89,14 @@ http://localhost:8080/web/dashboard/vm-console.html  # Console viewer
 ## 📖 Reading Guide
 
 ### For First-Time Users
-1. Read [Getting Started](../GETTING-STARTED.md)
+1. Read [Getting Started](../getting-started.md)
 2. Try [Interactive Mode](user-guides/01-interactive-mode.md)
 3. Review [Examples](../examples/README.md)
 
 ### For Developers
-1. Read [Project Summary](../PROJECT-SUMMARY.md)
+1. Read [Project Summary](../project-summary.md)
 2. Review [API Reference](api/01-daemon-api.md)
-3. Check [Test Results](../TEST-RESULTS.md)
+3. Check [Test Results](../test-results.md)
 
 ### For DevOps Engineers
 1. Read [Integration Guide](user-guides/03-integration.md)

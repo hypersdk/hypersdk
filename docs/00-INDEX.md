@@ -4,7 +4,7 @@ Welcome to the HyperSDK documentation. This guide helps you navigate all availab
 
 ## Quick Start
 
-- **[Getting Started](GETTING-STARTED.md)** - Quick start guide for new users
+- **[Getting Started](getting-started.md)** - Quick start guide for new users
 - **[Quickstart Guide](quickstart-guide.md)** - Fast-track setup and usage
 - **[README](../README.md)** - Project overview and introduction
 
@@ -30,7 +30,7 @@ Welcome to the HyperSDK documentation. This guide helps you navigate all availab
 
 ### Architecture & API
 - **[Daemon API](api/01-daemon-api.md)** - Daemon REST API reference
-- **[Project Summary](PROJECT-SUMMARY.md)** - High-level architecture overview
+- **[Project Summary](project-summary.md)** - High-level architecture overview
 
 ### Examples
 - **[Examples Index](../examples/README.md)** - Configuration file examples
@@ -39,7 +39,7 @@ Welcome to the HyperSDK documentation. This guide helps you navigate all availab
 ## Testing & Development
 
 ### Testing Documentation
-- **[Test Results](TEST-RESULTS.md)** - Test coverage and results
+- **[Test Results](test-results.md)** - Test coverage and results
 - **[Testing Guide](testing/testing-guide.md)** - Comprehensive testing guide
 - **[Bug Fixes and Tests](testing/bug-fixes-and-tests.md)** - Bug fixes and test cases
 - **[Dashboard Testing](testing/dashboard-testing.md)** - Web dashboard testing guide
@@ -63,9 +63,9 @@ Welcome to the HyperSDK documentation. This guide helps you navigate all availab
 
 ## Project Organization
 
-- **[Directory Organization](ORGANIZATION.md)** - Repository structure and organization guidelines
-- **[Roadmap](ROADMAP.md)** - Future features and development plans
-- **[New Features](NEW-FEATURES.md)** - Recent feature additions and changes
+- **[Directory Organization](organization.md)** - Repository structure and organization guidelines
+- **[Roadmap](roadmap.md)** - Future features and development plans
+- **[New Features](new-features.md)** - Recent feature additions and changes
 
 ## Documentation Structure
 
@@ -76,12 +76,12 @@ hypersdk/
 ├── SECURITY.md                # Security policy
 ├── docs/
 │   ├── 00-INDEX.md            # This file
-│   ├── GETTING-STARTED.md     # Quick start guide
+│   ├── getting-started.md     # Quick start guide
 │   ├── quickstart-guide.md    # Fast-track setup
 │   ├── deployment-guide.md    # Deployment guide
 │   ├── multi-cloud-guide.md   # Multi-cloud workflows
-│   ├── PROJECT-SUMMARY.md     # Architecture overview
-│   ├── TEST-RESULTS.md        # Test coverage and results
+│   ├── project-summary.md     # Architecture overview
+│   ├── test-results.md        # Test coverage and results
 │   ├── user-guides/           # Step-by-step guides
 │   │   ├── 01-interactive-mode.md
 │   │   ├── 02-vm-export-guide.md

@@ -351,7 +351,7 @@ else:
 |------|---------|
 | [README.md](../README.md) | Main project documentation |
 | [GETTING-STARTED.md](GETTING-STARTED.md) | Quick start guide with dashboard |
-| [PROJECT-SUMMARY.md](PROJECT-SUMMARY.md) | This document - architecture overview |
+| [project-summary.md](project-summary.md) | This document - architecture overview |
 
 ### API Documentation
 | File | Purpose |

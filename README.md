@@ -954,8 +954,8 @@ hypersdk/
 ├── docs/                   # Complete documentation
 │   ├── API_ENDPOINTS.md    # Full API reference
 │   ├── API_REFERENCE_NEW_FEATURES.md # Phase 2 features
-│   ├── GETTING-STARTED.md  # Quick start guide
-│   └── PROJECT-SUMMARY.md  # Architecture overview
+│   ├── getting-started.md  # Quick start guide
+│   └── project-summary.md  # Architecture overview
 │
 ├── scripts/                # Utility scripts
 │   └── test-api.sh         # API testing script
@@ -1083,9 +1083,9 @@ go mod tidy
 ## 📚 Documentation
 
 ### Getting Started
-- [Getting Started Guide](docs/GETTING-STARTED.md) - Quick start tutorial with dashboard access
+- [Getting Started Guide](docs/getting-started.md) - Quick start tutorial with dashboard access
 - [Documentation Index](docs/00-INDEX.md) - Complete documentation catalog
-- [Project Summary](docs/PROJECT-SUMMARY.md) - Architecture and design overview
+- [Project Summary](docs/project-summary.md) - Architecture and design overview
 
 ### API Reference
 - [API Endpoints](docs/API_ENDPOINTS.md) - Complete API reference (51+ endpoints)
@@ -1095,7 +1095,7 @@ go mod tidy
 ### Testing & Implementation
 - [Dashboard Testing Report](DASHBOARD_TESTING_REPORT.md) - Comprehensive endpoint testing results
 - [Dashboard Implementation](DASHBOARD_IMPLEMENTATION_COMPLETE.md) - Implementation details and features
-- [Test Results](docs/TEST-RESULTS.md) - Test coverage and results
+- [Test Results](docs/test-results.md) - Test coverage and results
 - [Test API Script](scripts/test-api.sh) - Automated API testing
 
 ### Features & Guides

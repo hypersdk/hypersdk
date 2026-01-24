@@ -433,7 +433,7 @@ sudo rm -rf /var/lib/hypersdk
 
 After successful installation:
 
-1. Read the [Getting Started Guide](GETTING-STARTED.md)
+1. Read the [Getting Started Guide](getting-started.md)
 2. Review [Configuration Reference](configuration-reference.md)
 3. Explore [API Documentation](API_ENDPOINTS.md)
 4. Try [Interactive Mode Guide](user-guides/01-interactive-mode.md)

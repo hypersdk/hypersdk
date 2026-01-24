@@ -193,7 +193,7 @@ hypersdk/
 │
 ├── docs/                     # Documentation
 │   ├── API_ENDPOINTS.md
-│   ├── GETTING-STARTED.md
+│   ├── getting-started.md
 │   └── ...
 │
 ├── scripts/                  # Utility scripts

@@ -470,7 +470,7 @@ hyperctl submit -file export.yaml
 - [hyperctl Features Overview](H2KVMCTL-FEATURES.md)
 - [API Reference](API.md)
 - [Daemon Configuration](../DAEMON-README.md)
-- [Getting Started Guide](../GETTING-STARTED.md)
+- [Getting Started Guide](../getting-started.md)
 
 ## 💡 Tips & Tricks
 

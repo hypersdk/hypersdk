@@ -342,7 +342,7 @@ export GOVC_DATACENTER='datacenter1'
 
 ## 📚 Documentation
 
-- [Getting Started](../GETTING-STARTED.md)
+- [Getting Started](../getting-started.md)
 - [Daemon Configuration](../DAEMON-README.md)
 - [API Reference](../docs/API.md)
 - [Job Configuration](../docs/JOBS.md)

@@ -24,9 +24,9 @@ hypersdk/
 │   └── *.sh                   # Demo scripts
 ├── docs/                       # Documentation
 │   ├── 00-INDEX.md            # Documentation index
-│   ├── GETTING-STARTED.md     # Quick start guide
-│   ├── PROJECT-SUMMARY.md     # Architecture overview
-│   ├── TEST-RESULTS.md        # Test coverage
+│   ├── getting-started.md     # Quick start guide
+│   ├── project-summary.md     # Architecture overview
+│   ├── test-results.md        # Test coverage
 │   ├── README.md              # Docs overview
 │   ├── ROADMAP.md             # Future plans
 │   ├── NEW-FEATURES.md        # Feature changelog
@@ -77,9 +77,9 @@ hypersdk/
 ### 2. Consolidated Documentation
 
 **Moved to `docs/`:**
-- `GETTING-STARTED.md` → `docs/GETTING-STARTED.md`
-- `PROJECT-SUMMARY.md` → `docs/PROJECT-SUMMARY.md`
-- `TEST-RESULTS.md` → `docs/TEST-RESULTS.md`
+- `getting-started.md` → `docs/getting-started.md`
+- `project-summary.md` → `docs/project-summary.md`
+- `test-results.md` → `docs/test-results.md`
 
 **Updated References:**
 - `docs/00-INDEX.md` - Updated all documentation links
@@ -114,9 +114,9 @@ hypersdk/
 
 **Organization:**
 1. **Index** - `00-INDEX.md` - Central documentation catalog
-2. **Quick Start** - `GETTING-STARTED.md` - New user guide
-3. **Architecture** - `PROJECT-SUMMARY.md` - System design
-4. **Testing** - `TEST-RESULTS.md` - Test coverage
+2. **Quick Start** - `getting-started.md` - New user guide
+3. **Architecture** - `project-summary.md` - System design
+4. **Testing** - `test-results.md` - Test coverage
 5. **Guides** - `user-guides/` - Step-by-step tutorials
 6. **Features** - `features/` - Feature documentation
 7. **API** - `api/` - API references
@@ -228,9 +228,9 @@ When moving documentation:
 | Document | Purpose | Location |
 |----------|---------|----------|
 | 00-INDEX.md | Doc catalog | docs/ |
-| GETTING-STARTED.md | Quick start | docs/ |
-| PROJECT-SUMMARY.md | Architecture | docs/ |
-| TEST-RESULTS.md | Test coverage | docs/ |
+| getting-started.md | Quick start | docs/ |
+| project-summary.md | Architecture | docs/ |
+| test-results.md | Test coverage | docs/ |
 | README.md | Docs overview | docs/ |
 
 ### Build Commands
@@ -265,8 +265,8 @@ When contributing to HyperSDK:
 ## Related Documentation
 
 - [Documentation Index](00-INDEX.md) - Complete documentation catalog
-- [Getting Started](GETTING-STARTED.md) - New user guide
-- [Project Summary](PROJECT-SUMMARY.md) - Architecture overview
+- [Getting Started](getting-started.md) - New user guide
+- [Project Summary](project-summary.md) - Architecture overview
 - [Contributing Guide](../README.md#contributing) - Contribution guidelines
 
 ## License
