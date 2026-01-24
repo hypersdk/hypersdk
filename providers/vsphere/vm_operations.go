@@ -28,6 +28,44 @@ func (c *VSphereClient) FindAllVMs(ctx context.Context) ([]string, error) {
 	return paths, nil
 }
 
+// FilterVMsByTag filters VMs by tag key-value pair from ExtraConfig
+func (c *VSphereClient) FilterVMsByTag(ctx context.Context, vmPaths []string, tagKey, tagValue string) ([]string, error) {
+	c.logger.Debug("filtering VMs by tag", "key", tagKey, "value", tagValue)
+
+	filtered := make([]string, 0)
+
+	for _, vmPath := range vmPaths {
+		vm, err := c.finder.VirtualMachine(ctx, vmPath)
+		if err != nil {
+			c.logger.Warn("failed to find VM, skipping", "vm", vmPath, "error", err)
+			continue
+		}
+
+		var moVM mo.VirtualMachine
+		if err := vm.Properties(ctx, vm.Reference(), []string{"config"}, &moVM); err != nil {
+			c.logger.Warn("failed to get VM properties, skipping", "vm", vmPath, "error", err)
+			continue
+		}
+
+		// Check ExtraConfig for matching tag
+		if moVM.Config != nil && moVM.Config.ExtraConfig != nil {
+			for _, extra := range moVM.Config.ExtraConfig {
+				if optValue, ok := extra.(*types.OptionValue); ok {
+					if optValue.Key == tagKey {
+						if strVal, ok := optValue.Value.(string); ok && strVal == tagValue {
+							filtered = append(filtered, vmPath)
+							break
+						}
+					}
+				}
+			}
+		}
+	}
+
+	c.logger.Info("tag filter applied", "matched", len(filtered), "total", len(vmPaths))
+	return filtered, nil
+}
+
 // GetVMInfo retrieves detailed information about a VM
 func (c *VSphereClient) GetVMInfo(ctx context.Context, vmPath string) (*VMInfo, error) {
 	vm, err := c.finder.VirtualMachine(ctx, vmPath)

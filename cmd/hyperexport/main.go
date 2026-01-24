@@ -707,8 +707,13 @@ func run(ctx context.Context, cfg *config.Config, log logger.Logger) error {
 			vms = filterByFolder(vms, *folder)
 		}
 		if *filter != "" {
-			// Tag filtering would require API support - skip for now
-			log.Info("tag filtering not yet implemented", "filter", *filter)
+			vms, err = filterByTag(ctx, client, vms, *filter, log)
+			if err != nil {
+				if spinner != nil {
+					spinner.Fail(colorRed.Sprintf("✗ Failed to filter VMs by tag"))
+				}
+				return fmt.Errorf("filter by tag: %w", err)
+			}
 		}
 
 		if spinner != nil {
@@ -1662,6 +1667,20 @@ func filterByFolder(vms []string, folder string) []string {
 		}
 	}
 	return filtered
+}
+
+// filterByTag filters VMs by tag (format: key=value)
+func filterByTag(ctx context.Context, client *vsphere.VSphereClient, vms []string, tagFilter string, log logger.Logger) ([]string, error) {
+	// Parse filter (key=value)
+	parts := strings.SplitN(tagFilter, "=", 2)
+	if len(parts) != 2 {
+		return nil, fmt.Errorf("invalid tag filter format, expected key=value")
+	}
+	tagKey := strings.TrimSpace(parts[0])
+	tagValue := strings.TrimSpace(parts[1])
+
+	// Use client method to filter VMs by tag
+	return client.FilterVMsByTag(ctx, vms, tagKey, tagValue)
 }
 
 func runBatchExport(ctx context.Context, cfg *config.Config, log logger.Logger) error {
