@@ -9,10 +9,26 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/vmware/govmomi"
+	"github.com/vmware/govmomi/find"
+	"github.com/vmware/govmomi/session"
 	"github.com/vmware/govmomi/simulator"
 	"github.com/vmware/govmomi/vim25"
-	"github.com/vmware/govmomi/vim25/types"
+	"github.com/vmware/govmomi/vim25/soap"
+
+	"hypersdk/config"
+	"hypersdk/logger"
+	"hypersdk/retry"
 )
+
+// mockLogger for testing
+type mockLogger struct{}
+
+func (m *mockLogger) Debug(msg string, keysAndValues ...interface{}) {}
+func (m *mockLogger) Info(msg string, keysAndValues ...interface{})  {}
+func (m *mockLogger) Warn(msg string, keysAndValues ...interface{})  {}
+func (m *mockLogger) Error(msg string, keysAndValues ...interface{}) {}
+func (m *mockLogger) With(keysAndValues ...interface{}) logger.Logger { return m }
 
 // setupTestClient creates a test vSphere client using vcsim simulator
 func setupTestClient(t *testing.T) (*VSphereClient, func()) {
@@ -25,17 +41,60 @@ func setupTestClient(t *testing.T) (*VSphereClient, func()) {
 	s := model.Service.NewServer()
 
 	ctx := context.Background()
-	c, err := vim25.NewClient(ctx, s.URL, true)
+
+	// Create SOAP client
+	soapClient := soap.NewClient(s.URL, true)
+
+	// Create vim25 client
+	vimClient, err := vim25.NewClient(ctx, soapClient)
 	require.NoError(t, err)
 
+	// Create govmomi client
+	govmomiClient := &govmomi.Client{
+		Client:         vimClient,
+		SessionManager: session.NewManager(vimClient),
+	}
+
+	// Create finder
+	finder := find.NewFinder(vimClient, true)
+
+	// Get default datacenter
+	dc, err := finder.DefaultDatacenter(ctx)
+	require.NoError(t, err)
+
+	finder.SetDatacenter(dc)
+
+	// Create test config
+	cfg := &config.Config{
+		VCenterURL:    s.URL.String(),
+		Insecure:      true,
+		Timeout:       30 * time.Second,
+		RetryAttempts: 3,
+		RetryDelay:    1 * time.Second,
+	}
+
+	// Create mock logger
+	log := &mockLogger{}
+
+	// Create retry config
+	retryConfig := &retry.RetryConfig{
+		MaxAttempts:  3,
+		InitialDelay: 1 * time.Second,
+		MaxDelay:     8 * time.Second,
+		Multiplier:   2.0,
+		Jitter:       true,
+	}
+
 	client := &VSphereClient{
-		client:     c,
-		ctx:        ctx,
-		datacenter: "DC0",
+		client:  govmomiClient,
+		finder:  finder,
+		config:  cfg,
+		logger:  log,
+		retryer: retry.NewRetryer(retryConfig, log),
 	}
 
 	cleanup := func() {
-		c.Logout(ctx)
+		govmomiClient.Logout(ctx)
 		s.Close()
 		model.Remove()
 	}
@@ -217,7 +276,6 @@ func TestGetVCenterInfo(t *testing.T) {
 	assert.NotEmpty(t, info.Version)
 	assert.NotEmpty(t, info.Build)
 	assert.NotEmpty(t, info.OSType)
-	assert.NotEmpty(t, info.ProductLineID)
 }
 
 func TestListDatacenters(t *testing.T) {

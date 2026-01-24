@@ -18,7 +18,7 @@ func TestGetRealtimeMetrics(t *testing.T) {
 	ctx := context.Background()
 
 	// Get a VM to test metrics against
-	vms, err := client.ListVMs(ctx, "*")
+	vms, err := client.ListVMs(ctx)
 	require.NoError(t, err)
 	require.NotEmpty(t, vms)
 
@@ -87,7 +87,7 @@ func TestGetHistoricalMetrics(t *testing.T) {
 	ctx := context.Background()
 
 	// Get a VM to test metrics against
-	vms, err := client.ListVMs(ctx, "*")
+	vms, err := client.ListVMs(ctx)
 	require.NoError(t, err)
 	require.NotEmpty(t, vms)
 
@@ -102,7 +102,7 @@ func TestGetHistoricalMetrics(t *testing.T) {
 		entityType string
 		startTime  time.Time
 		endTime    time.Time
-		interval   int32
+		interval   string
 		wantErr    bool
 	}{
 		{
@@ -111,7 +111,7 @@ func TestGetHistoricalMetrics(t *testing.T) {
 			entityType: "vm",
 			startTime:  oneHourAgo,
 			endTime:    now,
-			interval:   300, // 5 minutes
+			interval:   "5min",
 			wantErr:    false,
 		},
 		{
@@ -120,7 +120,7 @@ func TestGetHistoricalMetrics(t *testing.T) {
 			entityType: "vm",
 			startTime:  oneHourAgo,
 			endTime:    now,
-			interval:   -1,
+			interval:   "invalid",
 			wantErr:    true,
 		},
 	}
@@ -130,7 +130,7 @@ func TestGetHistoricalMetrics(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()
 
-			metricsList, err := client.GetHistoricalMetrics(
+			metricsHistory, err := client.GetMetricsHistory(
 				ctx,
 				tt.entityName,
 				tt.entityType,
@@ -145,10 +145,11 @@ func TestGetHistoricalMetrics(t *testing.T) {
 			}
 
 			require.NoError(t, err)
-			assert.NotNil(t, metricsList)
+			assert.NotNil(t, metricsHistory)
+			assert.Equal(t, tt.entityName, metricsHistory.EntityName)
 
 			// Historical metrics may be empty if no data exists
-			for _, metrics := range metricsList {
+			for _, metrics := range metricsHistory.Samples {
 				assert.Equal(t, tt.entityName, metrics.EntityName)
 				assert.Equal(t, tt.entityType, metrics.EntityType)
 				assert.NotZero(t, metrics.Timestamp)
@@ -166,7 +167,7 @@ func TestStreamMetrics(t *testing.T) {
 	ctx := context.Background()
 
 	// Get a VM to test metrics against
-	vms, err := client.ListVMs(ctx, "*")
+	vms, err := client.ListVMs(ctx)
 	require.NoError(t, err)
 	require.NotEmpty(t, vms)
 
@@ -260,7 +261,7 @@ func TestMetricsContextCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	// Get a VM
-	vms, err := client.ListVMs(ctx, "*")
+	vms, err := client.ListVMs(ctx)
 	require.NoError(t, err)
 	require.NotEmpty(t, vms)
 

@@ -132,7 +132,7 @@ func TestUpdateResourcePool(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	err = client.UpdateResourcePool(ctx, updateConfig)
+	err = client.UpdateResourcePool(ctx, updateConfig.Name, updateConfig)
 	require.NoError(t, err)
 
 	// Verify update
@@ -279,7 +279,6 @@ func TestResourcePoolInfoValidation(t *testing.T) {
 		MemoryReservationMB: 4096,
 		MemoryLimitMB:       16384,
 		NumVMs:              5,
-		OverallStatus:       "green",
 	}
 
 	assert.NotEmpty(t, poolInfo.Name)
@@ -289,7 +288,6 @@ func TestResourcePoolInfoValidation(t *testing.T) {
 	assert.Greater(t, poolInfo.MemoryReservationMB, int64(0))
 	assert.Greater(t, poolInfo.MemoryLimitMB, poolInfo.MemoryReservationMB)
 	assert.GreaterOrEqual(t, poolInfo.NumVMs, 0)
-	assert.NotEmpty(t, poolInfo.OverallStatus)
 }
 
 func TestResourcePoolLimitsCalculation(t *testing.T) {
@@ -309,19 +307,6 @@ func TestResourcePoolLimitsCalculation(t *testing.T) {
 	// Available Memory
 	availableMemory := config.MemoryLimitMB - config.MemoryReservationMB
 	assert.Equal(t, int64(6144), availableMemory)
-}
-
-func TestResourcePoolStatusTypes(t *testing.T) {
-	validStatuses := []string{"green", "yellow", "red", "gray"}
-
-	for _, status := range validStatuses {
-		poolInfo := ResourcePoolInfo{
-			Name:          "test-pool",
-			OverallStatus: status,
-		}
-
-		assert.Contains(t, validStatuses, poolInfo.OverallStatus)
-	}
 }
 
 func TestResourcePoolContextCancellation(t *testing.T) {

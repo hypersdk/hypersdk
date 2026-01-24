@@ -108,6 +108,26 @@ func (c *VSphereClient) ListHosts(ctx context.Context, pattern string) ([]HostIn
 	return result, nil
 }
 
+// GetHostInfo returns information about a specific ESXi host by name
+func (c *VSphereClient) GetHostInfo(ctx context.Context, hostName string) (*HostInfo, error) {
+	if hostName == "" {
+		return nil, fmt.Errorf("host name cannot be empty")
+	}
+
+	// Use ListHosts to get host information
+	hosts, err := c.ListHosts(ctx, hostName)
+	if err != nil {
+		return nil, fmt.Errorf("list hosts: %w", err)
+	}
+
+	if len(hosts) == 0 {
+		return nil, fmt.Errorf("host not found: %s", hostName)
+	}
+
+	// Return the first matching host
+	return &hosts[0], nil
+}
+
 // ListClusters returns cluster information
 func (c *VSphereClient) ListClusters(ctx context.Context, pattern string) ([]ClusterInfo, error) {
 	if pattern == "" {

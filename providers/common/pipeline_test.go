@@ -4,6 +4,7 @@ package common
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -138,20 +139,18 @@ func TestFindHyper2KVM(t *testing.T) {
 
 func TestPipelineResultValidation(t *testing.T) {
 	result := PipelineResult{
-		Success:        true,
-		OutputPath:     "/var/lib/libvirt/images/vm.qcow2",
-		Duration:       15 * time.Minute,
-		StagesRun:      []string{"INSPECT", "FIX", "CONVERT", "VALIDATE"},
-		LibvirtDomain:  "test-vm",
-		Error:          "",
+		Success:       true,
+		OutputPath:    "/var/lib/libvirt/images/vm.qcow2",
+		Duration:      15 * time.Minute,
+		LibvirtDomain: "test-vm",
+		Error:         nil,
 	}
 
 	assert.True(t, result.Success)
 	assert.NotEmpty(t, result.OutputPath)
 	assert.Greater(t, result.Duration, time.Duration(0))
-	assert.Len(t, result.StagesRun, 4)
 	assert.NotEmpty(t, result.LibvirtDomain)
-	assert.Empty(t, result.Error)
+	assert.Nil(t, result.Error)
 }
 
 func TestPipelineResultWithError(t *testing.T) {
@@ -159,24 +158,19 @@ func TestPipelineResultWithError(t *testing.T) {
 		Success:    false,
 		OutputPath: "",
 		Duration:   2 * time.Minute,
-		StagesRun:  []string{"INSPECT", "FIX"},
-		Error:      "disk conversion failed: insufficient disk space",
+		Error:      fmt.Errorf("disk conversion failed: insufficient disk space"),
 	}
 
 	assert.False(t, result.Success)
 	assert.Empty(t, result.OutputPath)
-	assert.NotEmpty(t, result.Error)
-	assert.Len(t, result.StagesRun, 2) // Only 2 stages completed
+	assert.NotNil(t, result.Error)
 }
 
 func TestPipelineStagesValidation(t *testing.T) {
 	validStages := []string{"INSPECT", "FIX", "CONVERT", "VALIDATE"}
 
-	result := PipelineResult{
-		StagesRun: []string{"INSPECT", "FIX", "CONVERT", "VALIDATE"},
-	}
-
-	for _, stage := range result.StagesRun {
+	// Test that all valid stages are recognized
+	for _, stage := range validStages {
 		assert.Contains(t, validStages, stage)
 	}
 }
