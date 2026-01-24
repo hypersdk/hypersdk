@@ -152,9 +152,10 @@ func TestFishCompletion(t *testing.T) {
 
 func TestInstallInstructions(t *testing.T) {
 	tests := []struct {
-		name  string
-		shell Shell
-		want  []string
+		name       string
+		shell      Shell
+		want       []string
+		expectEmpty bool
 	}{
 		{
 			name:  "bash",
@@ -181,11 +182,23 @@ func TestInstallInstructions(t *testing.T) {
 				"~/.config/fish/completions/hyperctl.fish",
 			},
 		},
+		{
+			name:        "unsupported shell",
+			shell:       Shell("powershell"),
+			expectEmpty: true,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			instructions := InstallInstructions(tt.shell)
+
+			if tt.expectEmpty {
+				if instructions != "" {
+					t.Error("expected empty instructions for unsupported shell")
+				}
+				return
+			}
 
 			if instructions == "" {
 				t.Error("expected non-empty instructions")
