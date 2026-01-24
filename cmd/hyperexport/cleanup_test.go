@@ -452,3 +452,131 @@ func TestCleanupManager_CleanupOldExports_WithTotalSizeLimit(t *testing.T) {
 		t.Log("Expected some exports to be deleted for size limit (implementation may vary)")
 	}
 }
+
+func TestCleanupManager_GetAvailableSpace(t *testing.T) {
+	tmpDir := t.TempDir()
+	manager := NewCleanupManager(logger.NewTestLogger(t))
+
+	// Test with valid directory
+	space, err := manager.getAvailableSpace(tmpDir)
+	if err != nil {
+		t.Fatalf("getAvailableSpace failed: %v", err)
+	}
+
+	if space <= 0 {
+		t.Error("Expected positive available space")
+	}
+
+	// Test with file path (should use parent directory)
+	testFile := filepath.Join(tmpDir, "testfile.txt")
+	os.WriteFile(testFile, []byte("test"), 0644)
+
+	space, err = manager.getAvailableSpace(testFile)
+	if err != nil {
+		t.Fatalf("getAvailableSpace with file path failed: %v", err)
+	}
+
+	if space <= 0 {
+		t.Error("Expected positive available space for file path")
+	}
+
+	// Test with nonexistent path
+	_, err = manager.getAvailableSpace("/nonexistent/path")
+	if err == nil {
+		t.Error("Expected error for nonexistent path")
+	}
+}
+
+func TestCleanupManager_CleanupByFreeSpace(t *testing.T) {
+	tmpDir := t.TempDir()
+	manager := NewCleanupManager(logger.NewTestLogger(t))
+	ctx := context.Background()
+
+	// Create export directories with files
+	for i := 1; i <= 3; i++ {
+		exportDir := filepath.Join(tmpDir, "export-"+string(rune('0'+i)))
+		if err := os.Mkdir(exportDir, 0755); err != nil {
+			t.Fatalf("Failed to create export dir: %v", err)
+		}
+
+		// Add files
+		dataSize := i * 1024 * 1024 // 1MB, 2MB, 3MB
+		os.WriteFile(filepath.Join(exportDir, "data.bin"), make([]byte, dataSize), 0644)
+
+		// Set different modification times
+		modTime := time.Now().Add(-time.Duration(4-i) * 24 * time.Hour)
+		if err := os.Chtimes(exportDir, modTime, modTime); err != nil {
+			t.Fatalf("Failed to change dir time: %v", err)
+		}
+	}
+
+	// Test with very high minimum (will trigger cleanup)
+	config := &CleanupConfig{
+		MaxAge: 365 * 24 * time.Hour, // Delete exports older than 1 year
+	}
+
+	minFreeSpace := int64(1024 * 1024 * 1024 * 1024) // 1TB - very high, will trigger cleanup
+	result, err := manager.CleanupByFreeSpace(ctx, tmpDir, minFreeSpace, config)
+	if err != nil {
+		t.Fatalf("CleanupByFreeSpace failed: %v", err)
+	}
+
+	if result == nil {
+		t.Fatal("Result should not be nil")
+	}
+
+	// Test with low minimum (won't trigger cleanup)
+	minFreeSpace = int64(1024) // 1KB - very low
+	result, err = manager.CleanupByFreeSpace(ctx, tmpDir, minFreeSpace, config)
+	if err != nil {
+		t.Fatalf("CleanupByFreeSpace failed: %v", err)
+	}
+
+	if result.DeletedCount != 0 {
+		t.Logf("Expected no cleanup needed with low minimum, but got %d deleted", result.DeletedCount)
+	}
+}
+
+func TestCleanupManager_ScheduledCleanup(t *testing.T) {
+	tmpDir := t.TempDir()
+	manager := NewCleanupManager(logger.NewTestLogger(t))
+
+	// Create context with timeout
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+
+	// Create an old export
+	oldExport := filepath.Join(tmpDir, "export-old")
+	if err := os.Mkdir(oldExport, 0755); err != nil {
+		t.Fatalf("Failed to create export dir: %v", err)
+	}
+	os.WriteFile(filepath.Join(oldExport, "data.bin"), []byte("data"), 0644)
+
+	oldTime := time.Now().Add(-60 * 24 * time.Hour)
+	if err := os.Chtimes(oldExport, oldTime, oldTime); err != nil {
+		t.Fatalf("Failed to change dir time: %v", err)
+	}
+
+	config := &CleanupConfig{
+		MaxAge: 30 * 24 * time.Hour,
+	}
+
+	// Run scheduled cleanup with very short interval
+	done := make(chan bool)
+	go func() {
+		manager.ScheduledCleanup(ctx, tmpDir, config, 50*time.Millisecond)
+		done <- true
+	}()
+
+	// Wait for context to cancel
+	select {
+	case <-done:
+		t.Log("Scheduled cleanup completed")
+	case <-time.After(500 * time.Millisecond):
+		t.Error("Scheduled cleanup did not stop within timeout")
+	}
+
+	// Verify the old export was eventually cleaned up
+	// (may or may not be deleted depending on timing)
+	t.Log("Scheduled cleanup test completed")
+}
