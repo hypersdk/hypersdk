@@ -19,7 +19,7 @@ type MigrationOrchestrator struct {
 
 	// Phase 4: Advanced features
 	parallelConverter *ParallelConverter
-	cloudStorage      CloudStorageProvider
+	cloudStorage      *CloudStorageManager
 	batchOrchestrator *BatchOrchestrator
 
 	// Phase 5: Monitoring & Reporting
@@ -257,12 +257,72 @@ func (mo *MigrationOrchestrator) Migrate(ctx context.Context, config *MigrationC
 	}
 
 	// Phase 4: Cloud upload (if enabled)
-	// TODO: Implement cloud upload when cloud storage provider is available
-	if config.UploadToCloud && config.CloudDestination != "" {
-		mo.logger.Info("cloud upload requested but not yet implemented",
+	if config.UploadToCloud && config.CloudDestination != "" && mo.cloudStorage != nil {
+		mo.logger.Info("starting cloud upload phase",
 			"task_id", taskID,
 			"destination", config.CloudDestination)
-		// Placeholder for future cloud upload implementation
+
+		if mo.progressTracker != nil {
+			mo.progressTracker.SetStatus(taskID, StatusUploading)
+		}
+
+		if mo.auditLogger != nil {
+			mo.auditLogger.LogUploadStart(taskID, config.VMName, config.CloudDestination)
+		}
+
+		uploadStart := time.Now()
+
+		// Determine which files to upload:
+		// If conversion was performed, upload converted files
+		// Otherwise, upload exported files
+		var filesToUpload []string
+		if len(result.ConvertedFiles) > 0 {
+			filesToUpload = result.ConvertedFiles
+		} else if len(result.ExportedFiles) > 0 {
+			filesToUpload = result.ExportedFiles
+		}
+
+		if len(filesToUpload) == 0 {
+			mo.logger.Warn("no files to upload", "task_id", taskID)
+		} else {
+			// Create conversion result for upload
+			convResult := &ConversionResult{
+				ConvertedFiles: filesToUpload,
+			}
+
+			// Upload files
+			uploadResults, err := mo.cloudStorage.UploadConvertedImages(ctx, convResult, config.CloudDestination)
+			if err != nil {
+				return mo.handleFailure(taskID, config, result, fmt.Errorf("cloud upload: %w", err))
+			}
+
+			// Track upload results
+			uploadDuration := time.Since(uploadStart)
+			result.UploadDuration = uploadDuration
+			result.CloudDestination = config.CloudDestination
+
+			// Extract uploaded file paths
+			uploadedFiles := make([]string, len(uploadResults))
+			for i, ur := range uploadResults {
+				uploadedFiles[i] = ur.RemotePath
+			}
+			result.UploadedFiles = uploadedFiles
+
+			// Calculate total bytes uploaded
+			var bytesUploaded int64
+			for _, ur := range uploadResults {
+				bytesUploaded += ur.Size
+			}
+
+			if mo.auditLogger != nil {
+				mo.auditLogger.LogUploadComplete(taskID, config.VMName, config.CloudDestination, uploadDuration, bytesUploaded)
+			}
+
+			mo.logger.Info("cloud upload completed",
+				"task_id", taskID,
+				"duration", uploadDuration,
+				"files", len(uploadedFiles))
+		}
 	}
 
 	// Complete migration
