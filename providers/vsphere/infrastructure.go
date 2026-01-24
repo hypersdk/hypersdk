@@ -5,6 +5,7 @@ package vsphere
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/vmware/govmomi/find"
 	"github.com/vmware/govmomi/property"
@@ -21,6 +22,10 @@ func (c *VSphereClient) ListHosts(ctx context.Context, pattern string) ([]HostIn
 	// Use finder to get hosts
 	hostList, err := c.finder.HostSystemList(ctx, pattern)
 	if err != nil {
+		// Check if it's a "not found" error - return empty list instead of error
+		if isNotFoundError(err) {
+			return []HostInfo{}, nil
+		}
 		return nil, fmt.Errorf("find hosts: %w", err)
 	}
 
@@ -311,4 +316,12 @@ func splitPath(path string) []string {
 	}
 
 	return parts
+}
+
+// isNotFoundError checks if an error is a "not found" error from govmomi finder
+func isNotFoundError(err error) bool {
+	if err == nil {
+		return false
+	}
+	return strings.Contains(err.Error(), "not found")
 }
