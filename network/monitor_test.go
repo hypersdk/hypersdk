@@ -312,3 +312,23 @@ func BenchmarkNetworkMonitor_IsUp(b *testing.B) {
 		_ = monitor.IsUp()
 	}
 }
+
+func TestStateString(t *testing.T) {
+	tests := []struct {
+		state    State
+		expected string
+	}{
+		{StateUnknown, "unknown"},
+		{StateUp, "up"},
+		{StateDown, "down"},
+		{StateDegraded, "degraded"},
+		{State(99), "unknown"}, // Test invalid state
+	}
+
+	for _, tt := range tests {
+		result := tt.state.String()
+		if result != tt.expected {
+			t.Errorf("State(%d).String() = %q, want %q", tt.state, result, tt.expected)
+		}
+	}
+}
