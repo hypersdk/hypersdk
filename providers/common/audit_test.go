@@ -462,3 +462,135 @@ func TestQueryAuditLogs(t *testing.T) {
 		t.Errorf("Expected 2 events with limit, got %d", len(events))
 	}
 }
+
+func TestAuditLogger_Rotate(t *testing.T) {
+	tmpDir := t.TempDir()
+	logPath := filepath.Join(tmpDir, "audit.log")
+
+	// Create logger with small max file size to trigger rotation
+	logger, err := NewAuditLogger(logPath)
+	if err != nil {
+		t.Fatalf("Failed to create audit logger: %v", err)
+	}
+	defer logger.Close()
+
+	// Set small max file size and files to test rotation
+	logger.rotateSize = 100 // 100 bytes
+	logger.maxFiles = 3
+
+	// Write initial data
+	event1 := &AuditEvent{
+		EventType:   EventMigrationStart,
+		TaskID:      "task-1",
+		Action:      "test",
+		Description: "Test event for rotation",
+		Timestamp:   time.Now(),
+	}
+
+	err = logger.Log(event1)
+	if err != nil {
+		t.Fatalf("Failed to log event: %v", err)
+	}
+
+	// Write more data to exceed max file size
+	for i := 0; i < 10; i++ {
+		event := &AuditEvent{
+			EventType:   EventMigrationStart,
+			TaskID:      fmt.Sprintf("task-%d", i),
+			Action:      "test",
+			Description: "This is a longer description to increase file size and trigger rotation mechanism",
+			Timestamp:   time.Now(),
+		}
+		logger.Log(event)
+	}
+
+	// Manually trigger rotation to test the function
+	err = logger.rotate()
+	if err != nil {
+		t.Fatalf("Failed to rotate log: %v", err)
+	}
+
+	// Verify rotated file exists
+	rotatedFile := logPath + ".1"
+	if _, err := os.Stat(rotatedFile); os.IsNotExist(err) {
+		t.Error("Expected rotated file to exist")
+	}
+
+	// Verify new log file exists
+	if _, err := os.Stat(logPath); os.IsNotExist(err) {
+		t.Error("Expected new log file to exist after rotation")
+	}
+
+	// Verify current size was reset
+	if logger.currentSize != 0 {
+		t.Errorf("Expected currentSize to be reset to 0, got %d", logger.currentSize)
+	}
+
+	// Write to new file to verify it works
+	event2 := &AuditEvent{
+		EventType:   EventMigrationComplete,
+		TaskID:      "task-after-rotation",
+		Action:      "test",
+		Description: "Test after rotation",
+		Timestamp:   time.Now(),
+	}
+
+	err = logger.Log(event2)
+	if err != nil {
+		t.Fatalf("Failed to log event after rotation: %v", err)
+	}
+}
+
+func TestAuditLogger_MultipleRotations(t *testing.T) {
+	tmpDir := t.TempDir()
+	logPath := filepath.Join(tmpDir, "audit.log")
+
+	logger, err := NewAuditLogger(logPath)
+	if err != nil {
+		t.Fatalf("Failed to create audit logger: %v", err)
+	}
+	defer logger.Close()
+
+	// Set small max file size and max 2 rotated files
+	logger.rotateSize = 50
+	logger.maxFiles = 2
+
+	// Rotate multiple times
+	for i := 0; i < 3; i++ {
+		// Write some data
+		for j := 0; j < 5; j++ {
+			event := &AuditEvent{
+				EventType:   EventMigrationStart,
+				TaskID:      fmt.Sprintf("task-%d-%d", i, j),
+				Action:      "test",
+				Description: "Test data for rotation",
+				Timestamp:   time.Now(),
+			}
+			logger.Log(event)
+		}
+
+		// Rotate
+		err = logger.rotate()
+		if err != nil {
+			t.Fatalf("Failed to rotate log (iteration %d): %v", i, err)
+		}
+	}
+
+	// Verify .1 and .2 exist
+	file1 := logPath + ".1"
+	file2 := logPath + ".2"
+
+	if _, err := os.Stat(file1); os.IsNotExist(err) {
+		t.Error("Expected .1 rotated file to exist")
+	}
+
+	if _, err := os.Stat(file2); os.IsNotExist(err) {
+		t.Error("Expected .2 rotated file to exist")
+	}
+
+	// .3 should not exist (maxFiles is 2)
+	file3 := logPath + ".3"
+	if _, err := os.Stat(file3); err == nil {
+		t.Error("Expected .3 file to not exist (should be removed)")
+	}
+}
