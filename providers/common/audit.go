@@ -184,7 +184,9 @@ func (al *AuditLogger) Close() error {
 	defer al.mu.Unlock()
 
 	if al.logFile != nil {
-		return al.logFile.Close()
+		err := al.logFile.Close()
+		al.logFile = nil
+		return err
 	}
 	return nil
 }
