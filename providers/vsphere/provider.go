@@ -8,6 +8,9 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/vmware/govmomi/vim25/mo"
+	"github.com/vmware/govmomi/vim25/types"
+
 	"hypersdk/config"
 	"hypersdk/logger"
 	"hypersdk/providers"
@@ -83,10 +86,130 @@ func (p *VSphereProvider) ListVMs(ctx context.Context, filter providers.VMFilter
 		return nil, fmt.Errorf("not connected")
 	}
 
-	// Use vSphere client to list VMs
-	// Note: You'd need to implement ListVMs in VSphereClient
-	// For now, return a basic implementation
-	return nil, fmt.Errorf("ListVMs not yet implemented for vSphere")
+	// Use finder to list all VMs
+	vms, err := p.client.finder.VirtualMachineList(ctx, "*")
+	if err != nil {
+		return nil, fmt.Errorf("list VMs: %w", err)
+	}
+
+	result := make([]*providers.VMInfo, 0, len(vms))
+
+	// Get properties for each VM and convert to VMInfo
+	for _, vm := range vms {
+		var moVM mo.VirtualMachine
+		if err := vm.Properties(ctx, vm.Reference(), []string{"config", "runtime", "guest", "storage", "summary"}, &moVM); err != nil {
+			p.logger.Warn("failed to get VM properties, skipping", "vm", vm.Name(), "error", err)
+			continue
+		}
+
+		// Calculate total storage
+		var totalStorage int64
+		if moVM.Config != nil && moVM.Config.Hardware.Device != nil {
+			for _, device := range moVM.Config.Hardware.Device {
+				if disk, ok := device.(*types.VirtualDisk); ok {
+					totalStorage += disk.CapacityInBytes
+				}
+			}
+		}
+
+		// Get IP addresses from guest info
+		var ipAddresses []string
+		if moVM.Guest != nil && moVM.Guest.Net != nil {
+			for _, nic := range moVM.Guest.Net {
+				if nic.IpAddress != nil {
+					ipAddresses = append(ipAddresses, nic.IpAddress...)
+				}
+			}
+		}
+
+		// Get tags if available
+		tags := make(map[string]string)
+		if moVM.Config != nil && moVM.Config.ExtraConfig != nil {
+			for _, extra := range moVM.Config.ExtraConfig {
+				if optValue, ok := extra.(*types.OptionValue); ok {
+					if strVal, ok := optValue.Value.(string); ok {
+						tags[optValue.Key] = strVal
+					}
+				}
+			}
+		}
+
+		vmInfo := &providers.VMInfo{
+			Provider:    providers.ProviderVSphere,
+			ID:          vm.Reference().Value,
+			Name:        vm.Name(),
+			Location:    vm.InventoryPath,
+			PowerState:  string(moVM.Runtime.PowerState),
+			State:       string(moVM.Runtime.PowerState),
+			IPAddresses: ipAddresses,
+			Tags:        tags,
+		}
+
+		if moVM.Config != nil {
+			vmInfo.GuestOS = moVM.Config.GuestFullName
+			vmInfo.MemoryMB = int64(moVM.Config.Hardware.MemoryMB)
+			vmInfo.NumCPUs = int(moVM.Config.Hardware.NumCPU)
+		}
+
+		vmInfo.StorageGB = totalStorage / (1024 * 1024 * 1024)
+
+		// Apply filters
+		if !p.matchesFilter(vmInfo, filter) {
+			continue
+		}
+
+		result = append(result, vmInfo)
+	}
+
+	p.logger.Info("listed VMs", "total", len(result))
+	return result, nil
+}
+
+// matchesFilter checks if a VM matches the given filter
+func (p *VSphereProvider) matchesFilter(vm *providers.VMInfo, filter providers.VMFilter) bool {
+	// Name pattern filter
+	if filter.NamePattern != "" {
+		matched, err := filepath.Match(filter.NamePattern, vm.Name)
+		if err != nil || !matched {
+			return false
+		}
+	}
+
+	// State filter
+	if filter.State != "" && vm.State != filter.State {
+		return false
+	}
+
+	// PowerState filter (alternative to State)
+	if filter.PowerState != "" && vm.PowerState != filter.PowerState {
+		return false
+	}
+
+	// Location filter
+	if filter.Location != "" && !strings.Contains(vm.Location, filter.Location) {
+		return false
+	}
+
+	// Memory filter
+	if filter.MinMemoryMB > 0 && vm.MemoryMB < filter.MinMemoryMB {
+		return false
+	}
+
+	// CPU filter
+	if filter.MinCPUs > 0 && vm.NumCPUs < filter.MinCPUs {
+		return false
+	}
+
+	// Tags filter
+	if len(filter.Tags) > 0 {
+		for key, value := range filter.Tags {
+			if vmValue, ok := vm.Tags[key]; !ok || vmValue != value {
+				return false
+			}
+		}
+	}
+
+	return true
 }
 
 // GetVM retrieves information about a specific VM
