@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"sync"
 	"time"
 
 	"hypersdk/logger"
@@ -35,6 +36,7 @@ type ExportHistoryEntry struct {
 type ExportHistory struct {
 	historyFile string
 	log         logger.Logger
+	mu          sync.Mutex
 }
 
 // NewExportHistory creates a new export history manager
@@ -62,6 +64,9 @@ func GetDefaultHistoryFile() (string, error) {
 
 // RecordExport adds an export entry to the history
 func (h *ExportHistory) RecordExport(entry ExportHistoryEntry) error {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
 	// Load existing history
 	entries, err := h.loadHistory()
 	if err != nil {
@@ -220,6 +225,11 @@ func (h *ExportHistory) saveHistory(entries []ExportHistoryEntry) error {
 	encoder.SetIndent("", "  ")
 	if err := encoder.Encode(entries); err != nil {
 		return fmt.Errorf("encode history: %w", err)
+	}
+
+	// Sync to ensure data is written to disk
+	if err := file.Sync(); err != nil {
+		return fmt.Errorf("sync history file: %w", err)
 	}
 
 	return nil
