@@ -3,6 +3,7 @@
 package ratelimit
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -255,5 +256,63 @@ func TestGetIP(t *testing.T) {
 				t.Errorf("expected %s, got %s", tt.expectedPrefix, ip)
 			}
 		})
+	}
+}
+
+func TestPerUserLimiter_Wait(t *testing.T) {
+	limiter := NewPerUserLimiter(10, 1) // 10 requests per second, burst of 1
+
+	// First wait should succeed immediately
+	err := limiter.Wait("user1")
+	if err != nil {
+		t.Errorf("Expected no error on first wait, got: %v", err)
+	}
+
+	// Create a context with timeout for second wait (should block briefly)
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+
+	// This should work but might take a moment
+	done := make(chan error, 1)
+	go func() {
+		done <- limiter.Wait("user1")
+	}()
+
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Errorf("Expected wait to succeed, got error: %v", err)
+		}
+	case <-ctx.Done():
+		// Timeout is acceptable for this test
+	}
+}
+
+func TestGlobalLimiter_Wait(t *testing.T) {
+	limiter := NewGlobalLimiter(10, 1) // 10 requests per second, burst of 1
+
+	// First wait should succeed immediately
+	err := limiter.Wait()
+	if err != nil {
+		t.Errorf("Expected no error on first wait, got: %v", err)
+	}
+
+	// Create a context with timeout for second wait
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+
+	// This should work but might take a moment
+	done := make(chan error, 1)
+	go func() {
+		done <- limiter.Wait()
+	}()
+
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Errorf("Expected wait to succeed, got error: %v", err)
+		}
+	case <-ctx.Done():
+		// Timeout is acceptable for this test
 	}
 }
