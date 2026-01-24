@@ -2,8 +2,11 @@ package main
 
 import (
 	"context"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -418,11 +421,27 @@ func TestResumeableDownloader_DownloadWithResume(t *testing.T) {
 	checkpointFile := filepath.Join(tmpDir, "checkpoint.json")
 	downloader := NewResumeableDownloader(checkpointFile, logger.NewTestLogger(t))
 
+	// Create a mock HTTP server
+	testData := strings.Repeat("test data ", 100) // ~1000 bytes
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Check for Range header
+		rangeHeader := r.Header.Get("Range")
+		if rangeHeader != "" {
+			// Support partial content requests
+			w.Header().Set("Content-Range", "bytes 0-"+string(rune(len(testData)-1))+"/"+string(rune(len(testData))))
+			w.WriteHeader(http.StatusPartialContent)
+		} else {
+			w.WriteHeader(http.StatusOK)
+		}
+		w.Write([]byte(testData))
+	}))
+	defer server.Close()
+
 	ctx := context.Background()
 	task := DownloadTask{
-		URL:         "http://example.com/file.bin",
+		URL:         server.URL + "/file.bin",
 		Destination: filepath.Join(tmpDir, "file.bin"),
-		Size:        1024,
+		Size:        int64(len(testData)),
 		Name:        "file.bin",
 	}
 
@@ -434,6 +453,15 @@ func TestResumeableDownloader_DownloadWithResume(t *testing.T) {
 	if err != nil {
 		t.Errorf("DownloadWithResume failed: %v", err)
 	}
+
+	// Verify the file was downloaded
+	data, err := os.ReadFile(task.Destination)
+	if err != nil {
+		t.Fatalf("Failed to read downloaded file: %v", err)
+	}
+	if string(data) != testData {
+		t.Errorf("Downloaded data doesn't match. Expected %d bytes, got %d bytes", len(testData), len(data))
+	}
 }
 
 func TestResumeableDownloader_DownloadWithResume_ContextCancelled(t *testing.T) {
@@ -441,20 +469,28 @@ func TestResumeableDownloader_DownloadWithResume_ContextCancelled(t *testing.T) 
 	checkpointFile := filepath.Join(tmpDir, "checkpoint.json")
 	downloader := NewResumeableDownloader(checkpointFile, logger.NewTestLogger(t))
 
+	// Create a mock HTTP server that never responds
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Never respond, simulating a slow/hanging download
+		<-r.Context().Done()
+	}))
+	defer server.Close()
+
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel() // Cancel immediately
 
 	task := DownloadTask{
-		URL:         "http://example.com/file.bin",
+		URL:         server.URL + "/file.bin",
 		Destination: filepath.Join(tmpDir, "file.bin"),
 		Size:        100 * 1024 * 1024, // Large file
 		Name:        "file.bin",
 	}
 
-	// Should complete quickly even with large file since it's simulated
 	err := downloader.DownloadWithResume(ctx, task, nil)
-	// May or may not error depending on timing
-	_ = err
+	// Should error due to context cancellation
+	if err == nil {
+		t.Error("Expected error when context is cancelled, got nil")
+	}
 }
 
 func TestCheckpoint_Fields(t *testing.T) {

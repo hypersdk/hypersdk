@@ -4,7 +4,10 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"sync"
@@ -329,18 +332,64 @@ func NewResumeableDownloader(checkpointFile string, log logger.Logger) *Resumeab
 
 // SaveCheckpoint saves current download state
 func (r *ResumeableDownloader) SaveCheckpoint(cp Checkpoint) error {
-	// TODO: Implement checkpoint persistence
-	// Write checkpoint data to file (JSON or binary format)
-	r.log.Debug("checkpoint saved", "file", cp.FilePath, "bytes", cp.BytesDownloaded)
+	// Create checkpoint directory if it doesn't exist
+	checkpointDir := filepath.Dir(r.checkpointFile)
+	if err := os.MkdirAll(checkpointDir, 0755); err != nil {
+		return fmt.Errorf("create checkpoint directory: %w", err)
+	}
+
+	// Encode checkpoint to JSON
+	data, err := json.MarshalIndent(cp, "", "  ")
+	if err != nil {
+		return fmt.Errorf("marshal checkpoint: %w", err)
+	}
+
+	// Write to temporary file first for atomic operation
+	tempFile := r.checkpointFile + ".tmp"
+	if err := os.WriteFile(tempFile, data, 0644); err != nil {
+		return fmt.Errorf("write checkpoint: %w", err)
+	}
+
+	// Atomic rename
+	if err := os.Rename(tempFile, r.checkpointFile); err != nil {
+		os.Remove(tempFile)
+		return fmt.Errorf("rename checkpoint: %w", err)
+	}
+
+	r.log.Debug("checkpoint saved",
+		"file", cp.FilePath,
+		"bytes", formatBytes(cp.BytesDownloaded),
+		"progress", fmt.Sprintf("%.1f%%", float64(cp.BytesDownloaded)/float64(cp.TotalBytes)*100))
+
 	return nil
 }
 
 // LoadCheckpoint loads saved download state
 func (r *ResumeableDownloader) LoadCheckpoint() (*Checkpoint, error) {
-	// TODO: Implement checkpoint loading
-	// Read checkpoint data from file
-	r.log.Debug("checkpoint loaded", "file", r.checkpointFile)
-	return nil, fmt.Errorf("no checkpoint found")
+	// Check if checkpoint file exists
+	if _, err := os.Stat(r.checkpointFile); os.IsNotExist(err) {
+		return nil, fmt.Errorf("no checkpoint found")
+	}
+
+	// Read checkpoint file
+	data, err := os.ReadFile(r.checkpointFile)
+	if err != nil {
+		return nil, fmt.Errorf("read checkpoint: %w", err)
+	}
+
+	// Decode JSON
+	var cp Checkpoint
+	if err := json.Unmarshal(data, &cp); err != nil {
+		return nil, fmt.Errorf("unmarshal checkpoint: %w", err)
+	}
+
+	r.log.Info("checkpoint loaded",
+		"file", filepath.Base(cp.FilePath),
+		"bytes", formatBytes(cp.BytesDownloaded),
+		"progress", fmt.Sprintf("%.1f%%", float64(cp.BytesDownloaded)/float64(cp.TotalBytes)*100),
+		"completed", cp.Completed)
+
+	return &cp, nil
 }
 
 // DownloadWithResume performs a resumeable download
@@ -348,50 +397,166 @@ func (r *ResumeableDownloader) DownloadWithResume(ctx context.Context, task Down
 	// Check for existing checkpoint
 	cp, err := r.LoadCheckpoint()
 	startOffset := int64(0)
+	var destFile *os.File
 
 	if err == nil && cp != nil && cp.FilePath == task.Destination && !cp.Completed {
 		startOffset = cp.BytesDownloaded
 		r.log.Info("resuming download", "file", task.Name, "offset", formatBytes(startOffset))
+
+		// Open file in append mode for resuming
+		destFile, err = os.OpenFile(task.Destination, os.O_WRONLY|os.O_APPEND, 0644)
+		if err != nil {
+			// If we can't open for append, start over
+			r.log.Warn("cannot resume download, starting over", "error", err)
+			startOffset = 0
+			destFile = nil
+		}
 	}
 
-	// TODO: Implement actual resumeable download with Range header
-	// HTTP Range: bytes=start-end
-	// For vSphere, use appropriate SDK methods with offset
+	// If not resuming, create new file
+	if destFile == nil {
+		// Create destination directory
+		destDir := filepath.Dir(task.Destination)
+		if err := os.MkdirAll(destDir, 0755); err != nil {
+			return fmt.Errorf("create directory: %w", err)
+		}
 
+		destFile, err = os.Create(task.Destination)
+		if err != nil {
+			return fmt.Errorf("create file: %w", err)
+		}
+	}
+	defer destFile.Close()
+
+	// Create HTTP request with Range header for resumeable download
+	req, err := http.NewRequestWithContext(ctx, "GET", task.URL, nil)
+	if err != nil {
+		return fmt.Errorf("create request: %w", err)
+	}
+
+	// Set Range header if resuming
+	if startOffset > 0 {
+		req.Header.Set("Range", fmt.Sprintf("bytes=%d-", startOffset))
+		r.log.Info("requesting range", "start", formatBytes(startOffset))
+	}
+
+	// Perform HTTP request
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("http request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// Check response status
+	if startOffset > 0 {
+		// Expect 206 Partial Content if resuming
+		if resp.StatusCode != http.StatusPartialContent && resp.StatusCode != http.StatusOK {
+			return fmt.Errorf("unexpected status code: %d (expected 206 or 200)", resp.StatusCode)
+		}
+		if resp.StatusCode == http.StatusOK {
+			// Server doesn't support Range, start over
+			r.log.Warn("server doesn't support Range header, starting over")
+			destFile.Close()
+			destFile, err = os.Create(task.Destination)
+			if err != nil {
+				return fmt.Errorf("recreate file: %w", err)
+			}
+			defer destFile.Close()
+			startOffset = 0
+		}
+	} else {
+		if resp.StatusCode != http.StatusOK {
+			return fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+		}
+	}
+
+	// Track progress
 	var bytesDownloaded int64 = startOffset
+	var mu sync.Mutex
 
 	// Periodic checkpoint saving
 	checkpointTicker := time.NewTicker(5 * time.Second)
 	defer checkpointTicker.Stop()
 
+	checkpointDone := make(chan struct{})
+	defer close(checkpointDone)
+
 	go func() {
 		for {
 			select {
 			case <-checkpointTicker.C:
+				mu.Lock()
+				currentBytes := bytesDownloaded
+				mu.Unlock()
+
 				r.SaveCheckpoint(Checkpoint{
 					FilePath:        task.Destination,
-					BytesDownloaded: bytesDownloaded,
+					BytesDownloaded: currentBytes,
 					TotalBytes:      task.Size,
 					Timestamp:       time.Now(),
 					Completed:       false,
 				})
+			case <-checkpointDone:
+				return
 			case <-ctx.Done():
 				return
 			}
 		}
 	}()
 
-	// Download logic here...
-	bytesDownloaded = task.Size // Simulated completion
+	// Download with progress tracking
+	buf := make([]byte, 32*1024) // 32KB buffer
+	for {
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("download cancelled")
+		default:
+		}
+
+		nr, err := resp.Body.Read(buf)
+		if nr > 0 {
+			nw, ew := destFile.Write(buf[0:nr])
+			if nw > 0 {
+				mu.Lock()
+				bytesDownloaded += int64(nw)
+				current := bytesDownloaded
+				mu.Unlock()
+
+				if progressCallback != nil {
+					progressCallback(current, task.Size)
+				}
+			}
+			if ew != nil {
+				return fmt.Errorf("write to file: %w", ew)
+			}
+			if nr != nw {
+				return fmt.Errorf("short write: wrote %d bytes, read %d bytes", nw, nr)
+			}
+		}
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			return fmt.Errorf("read from response: %w", err)
+		}
+	}
 
 	// Save final checkpoint
-	r.SaveCheckpoint(Checkpoint{
+	err = r.SaveCheckpoint(Checkpoint{
 		FilePath:        task.Destination,
 		BytesDownloaded: bytesDownloaded,
 		TotalBytes:      task.Size,
 		Timestamp:       time.Now(),
 		Completed:       true,
 	})
+	if err != nil {
+		r.log.Warn("failed to save final checkpoint", "error", err)
+	}
+
+	r.log.Info("download completed",
+		"file", task.Name,
+		"size", formatBytes(bytesDownloaded),
+		"resumed_from", formatBytes(startOffset))
 
 	return nil
 }
