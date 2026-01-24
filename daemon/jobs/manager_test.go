@@ -299,3 +299,86 @@ func TestShutdown(t *testing.T) {
 	// Should not panic
 	mgr.Shutdown()
 }
+
+func TestUpdateProgress(t *testing.T) {
+	log := logger.New("info")
+	detector := newTestDetector(log)
+	mgr := NewManager(log, detector)
+
+	// Create a job
+	jobDef := models.JobDefinition{
+		Name:       "progress-test-job",
+		VMPath:     "/datacenter/vm/test-vm",
+		OutputPath: "/tmp/test",
+	}
+
+	jobID, err := mgr.SubmitJob(jobDef)
+	if err != nil {
+		t.Fatalf("SubmitJob() error = %v", err)
+	}
+
+	// Create progress update
+	progress := &models.JobProgress{
+		Phase:           "exporting",
+		CurrentFile:     "disk1.vmdk",
+		CurrentStep:     "Downloading disk",
+		FilesDownloaded: 1,
+		TotalFiles:      3,
+		BytesDownloaded: 1024,
+		TotalBytes:      4096,
+		PercentComplete: 25.0,
+	}
+
+	// Update progress
+	mgr.updateProgress(jobID, progress)
+
+	// Verify progress was updated
+	job, err := mgr.GetJob(jobID)
+	if err != nil {
+		t.Fatalf("GetJob() error = %v", err)
+	}
+
+	if job.Progress == nil {
+		t.Fatal("Expected progress to be set")
+	}
+
+	if job.Progress.Phase != "exporting" {
+		t.Errorf("Expected phase 'exporting', got '%s'", job.Progress.Phase)
+	}
+
+	if job.Progress.CurrentFile != "disk1.vmdk" {
+		t.Errorf("Expected CurrentFile 'disk1.vmdk', got '%s'", job.Progress.CurrentFile)
+	}
+
+	if job.Progress.PercentComplete != 25.0 {
+		t.Errorf("Expected PercentComplete 25.0, got %f", job.Progress.PercentComplete)
+	}
+
+	if job.Progress.FilesDownloaded != 1 {
+		t.Errorf("Expected FilesDownloaded 1, got %d", job.Progress.FilesDownloaded)
+	}
+
+	if job.Progress.TotalFiles != 3 {
+		t.Errorf("Expected TotalFiles 3, got %d", job.Progress.TotalFiles)
+	}
+}
+
+func TestUpdateProgress_NonExistentJob(t *testing.T) {
+	log := logger.New("info")
+	detector := newTestDetector(log)
+	mgr := NewManager(log, detector)
+
+	progress := &models.JobProgress{
+		Phase:           "exporting",
+		PercentComplete: 50.0,
+	}
+
+	// Should not panic when updating progress for non-existent job
+	mgr.updateProgress("non-existent-id", progress)
+}
+
+func TestGetVSphereClient(t *testing.T) {
+	// Skip this test if vSphere credentials are not configured
+	// This test would hang trying to connect to a non-existent server
+	t.Skip("Skipping GetVSphereClient test - requires vSphere credentials")
+}
