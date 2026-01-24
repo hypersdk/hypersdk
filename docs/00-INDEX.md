@@ -20,16 +20,37 @@ Welcome to the HyperSDK documentation. This guide helps you navigate all availab
 - **[Deployment Guide](deployment-guide.md)** - Production deployment guidelines
 - **[Multi-Cloud Guide](multi-cloud-guide.md)** - Multi-cloud migration workflows
 
+### Cloud Provider Integrations
+- **[Cloud Providers Overview](cloud-providers/README.md)** - All supported cloud platforms
+- **[Alibaba Cloud](cloud-providers/alibabacloud-integration.md)** - Alibaba Cloud integration
+- **[AWS Migration](cloud-providers/aws-migration-guide.md)** - Amazon Web Services migration
+- **[Oracle Cloud (OCI)](cloud-providers/oci-integration.md)** - Oracle Cloud Infrastructure
+- **[OpenStack](cloud-providers/openstack-integration.md)** - OpenStack cloud platform
+- **[Proxmox VE](cloud-providers/proxmox-integration.md)** - Proxmox Virtual Environment
+
 ### Feature Documentation
 1. **[Interactive Migration Features](features/01-interactive-migration.md)** - Detailed interactive migration features
 2. **[Hyperctl Features](features/02-hyperctl-features.md)** - Command-line interface features
 3. **[Feature Reference](features/03-feature-reference.md)** - Comprehensive feature catalog
 4. **[Features Complete](features/features-complete.md)** - Complete feature documentation
+5. **[Hyperexport Features](features/hyperexport/README.md)** - Hyperexport-specific features
+   - Export resumption, bandwidth throttling, TUI guides, and more
 
 ## Reference Documentation
 
+### Technical References
+- **[Reference Documentation](reference/README.md)** - Complete technical reference
+  - **[CLI Reference](reference/cli-reference.md)** - Command-line interface
+  - **[Configuration Reference](reference/configuration-reference.md)** - Config file options
+  - **[Performance Tuning](reference/performance-tuning.md)** - Optimization guide
+  - **[Troubleshooting Guide](reference/troubleshooting-guide.md)** - Problem solving
+
 ### Architecture & API
-- **[Daemon API](api/01-daemon-api.md)** - Daemon REST API reference
+- **[API Documentation](api/README.md)** - Complete API reference
+  - **[API Overview](api/00-overview.md)** - API introduction and architecture
+  - **[Daemon API](api/01-daemon-api.md)** - REST API reference
+  - **[API Endpoints](api/02-endpoints.md)** - Endpoint reference
+  - **[New Features](api/03-new-features.md)** - Recent API additions
 - **[Project Summary](project-summary.md)** - High-level architecture overview
 
 ### Examples
@@ -39,10 +60,13 @@ Welcome to the HyperSDK documentation. This guide helps you navigate all availab
 ## Testing & Development
 
 ### Testing Documentation
+- **[Testing Overview](testing/00-testing-overview.md)** - Test structure and organization
+- **[Testing Guide](testing/testing-guide.md)** - Practical testing guide with examples
 - **[Test Results](test-results.md)** - Test coverage and results
-- **[Testing Guide](testing/testing-guide.md)** - Comprehensive testing guide
 - **[Bug Fixes and Tests](testing/bug-fixes-and-tests.md)** - Bug fixes and test cases
 - **[Dashboard Testing](testing/dashboard-testing.md)** - Web dashboard testing guide
+- **[Hyperexport Testing](testing/hyperexport-testing.md)** - Hyperexport test guide
+- **[Hyperexport Quick Test](testing/hyperexport-quicktest.md)** - Quick test procedures
 - **[Recording Guide](../demos/RECORDING-GUIDE.md)** - Creating demo recordings
 
 ### Integration Guides
@@ -60,6 +84,8 @@ Welcome to the HyperSDK documentation. This guide helps you navigate all availab
 - **[Task 15 Completion](development/TASK_15_COMPLETION_SUMMARY.md)** - Task completion notes
 - **[TUI Crash Fix](development/TUI_CRASH_FIX.md)** - TUI crash fix documentation
 - **[Web UX Integration](development/WEB_UX_INTEGRATION_SUMMARY.md)** - Web UX integration summary
+- **[Hyperexport Development](development/hyperexport/README.md)** - Hyperexport dev notes
+  - Implementation details, roadmaps, and enhancement tracking
 
 ## Project Organization
 
@@ -91,13 +117,39 @@ hypersdk/
 │   │   ├── 01-interactive-migration.md
 │   │   ├── 02-hyperctl-features.md
 │   │   ├── 03-feature-reference.md
-│   │   └── features-complete.md
+│   │   ├── features-complete.md
+│   │   └── hyperexport/       # Hyperexport features
+│   │       ├── README.md
+│   │       ├── user-guide.md
+│   │       ├── keyboard-shortcuts.md
+│   │       └── ...
+│   ├── cloud-providers/       # Cloud provider integrations
+│   │   ├── README.md
+│   │   ├── alibabacloud-integration.md
+│   │   ├── aws-migration-guide.md
+│   │   ├── oci-integration.md
+│   │   ├── openstack-integration.md
+│   │   └── proxmox-integration.md
 │   ├── api/                   # API references
-│   │   └── 01-daemon-api.md
+│   │   ├── README.md
+│   │   ├── 00-overview.md
+│   │   ├── 01-daemon-api.md
+│   │   ├── 02-endpoints.md
+│   │   └── 03-new-features.md
+│   ├── reference/             # Technical references
+│   │   ├── README.md
+│   │   ├── cli-reference.md
+│   │   ├── configuration-reference.md
+│   │   ├── performance-tuning.md
+│   │   └── troubleshooting-guide.md
 │   ├── testing/               # Testing documentation
+│   │   ├── README.md
+│   │   ├── 00-testing-overview.md
 │   │   ├── testing-guide.md
 │   │   ├── bug-fixes-and-tests.md
-│   │   └── dashboard-testing.md
+│   │   ├── dashboard-testing.md
+│   │   ├── hyperexport-testing.md
+│   │   └── hyperexport-quicktest.md
 │   ├── integration/           # Integration guides
 │   │   ├── daemon-integration.md
 │   │   ├── systemd-daemon.md
@@ -105,6 +157,10 @@ hypersdk/
 │   └── development/           # Development notes
 │       ├── CODE_REVIEW.md
 │       ├── IMPLEMENTATION_SUMMARY.md
+│       ├── hyperexport/       # Hyperexport dev notes
+│       │   ├── README.md
+│       │   ├── implementation-summary.md
+│       │   └── ...
 │       └── ...
 ├── examples/                  # Configuration examples
 │   ├── README.md
@@ -124,11 +180,12 @@ When adding new documentation:
 1. Place user guides in `docs/user-guides/` with numeric prefix (e.g., `05-new-guide.md`)
 2. Place feature docs in `docs/features/` with numeric prefix
 3. Place API docs in `docs/api/` with numeric prefix
-4. Place testing docs in `docs/testing/`
-5. Place integration guides in `docs/integration/`
-6. Place development notes in `docs/development/`
-7. Update this index file to include the new document
-8. Follow the existing documentation style and format
+4. Place cloud provider integrations in `docs/cloud-providers/`
+5. Place testing docs in `docs/testing/`
+6. Place integration guides in `docs/integration/`
+7. Place development notes in `docs/development/`
+8. Update this index file to include the new document
+9. Follow the existing documentation style and format
 
 ## License
 

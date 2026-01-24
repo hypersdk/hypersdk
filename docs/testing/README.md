@@ -4,9 +4,15 @@ This directory contains all testing-related documentation for HyperSDK.
 
 ## Contents
 
-- **[testing-guide.md](testing-guide.md)** - Comprehensive testing guide covering unit tests, integration tests, and end-to-end testing
-- **[bug-fixes-and-tests.md](bug-fixes-and-tests.md)** - Documentation of bug fixes and associated test cases
-- **[dashboard-testing.md](dashboard-testing.md)** - Testing guide for the web dashboard component
+### Overview & Guides
+- **[00-testing-overview.md](00-testing-overview.md)** - Comprehensive test overview and structure
+- **[testing-guide.md](testing-guide.md)** - Practical testing guide with examples
+- **[bug-fixes-and-tests.md](bug-fixes-and-tests.md)** - Bug fixes and test cases documentation
+
+### Component-Specific Testing
+- **[dashboard-testing.md](dashboard-testing.md)** - Web dashboard testing
+- **[hyperexport-testing.md](hyperexport-testing.md)** - Hyperexport testing guide
+- **[hyperexport-quicktest.md](hyperexport-quicktest.md)** - Quick test procedures
 
 ## Running Tests
 
