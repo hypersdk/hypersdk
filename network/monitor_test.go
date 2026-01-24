@@ -332,3 +332,92 @@ func TestStateString(t *testing.T) {
 		}
 	}
 }
+
+func TestWaitForNetwork_AlreadyUp(t *testing.T) {
+	log := logger.NewTestLogger(t)
+	monitor := NewMonitor(nil, log)
+
+	ctx := context.Background()
+	monitor.Start(ctx)
+	defer monitor.Stop()
+
+	// Wait for monitor to initialize and check network status
+	time.Sleep(100 * time.Millisecond)
+
+	// If network is up (which it likely is on a test machine), WaitForNetwork should return immediately
+	if monitor.IsUp() {
+		err := monitor.WaitForNetwork(ctx)
+		if err != nil {
+			t.Errorf("WaitForNetwork failed when network was already up: %v", err)
+		}
+	} else {
+		t.Log("Network is not up, skipping immediate return test")
+	}
+}
+
+func TestWaitForNetwork_ContextCancelled(t *testing.T) {
+	log := logger.NewTestLogger(t)
+
+	// Create monitor with config that makes network appear down
+	config := &MonitorConfig{
+		CheckHosts:    []string{"192.0.2.1"}, // TEST-NET-1 - should be unreachable
+		CheckInterval: 10 * time.Second,      // Long interval
+		CheckTimeout:  100 * time.Millisecond,
+	}
+
+	monitor := NewMonitor(config, log)
+
+	ctx := context.Background()
+	monitor.Start(ctx)
+	defer monitor.Stop()
+
+	// Wait for monitor to check network (and likely determine it's down)
+	time.Sleep(200 * time.Millisecond)
+
+	// Create context with short timeout
+	waitCtx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+
+	// WaitForNetwork should return context error when cancelled
+	err := monitor.WaitForNetwork(waitCtx)
+	if err == nil {
+		t.Error("Expected error when context is cancelled, got nil")
+	}
+
+	if err != context.DeadlineExceeded && err != context.Canceled {
+		t.Errorf("Expected context deadline or cancelled error, got: %v", err)
+	}
+}
+
+func TestWaitForNetwork_StateChange(t *testing.T) {
+	log := logger.NewTestLogger(t)
+	monitor := NewMonitor(nil, log)
+
+	// Don't start the monitor - manually control the state
+
+	// Set state to down initially
+	monitor.state = StateDown
+
+	// Start goroutine to wait for network
+	waitDone := make(chan error, 1)
+	go func() {
+		ctx := context.Background()
+		waitDone <- monitor.WaitForNetwork(ctx)
+	}()
+
+	// Give the goroutine time to subscribe and start waiting
+	time.Sleep(50 * time.Millisecond)
+
+	// Change state to up
+	monitor.updateState(StateUp)
+
+	// Wait should complete successfully
+	select {
+	case err := <-waitDone:
+		if err != nil {
+			t.Errorf("WaitForNetwork failed after state changed to up: %v", err)
+		}
+	case <-time.After(500 * time.Millisecond):
+		t.Error("WaitForNetwork did not return after state changed to up")
+	}
+}
