@@ -349,7 +349,7 @@ func TestPipelineErrorHandling(t *testing.T) {
 			fatal:    true,
 		},
 		{
-			name:     "manifest not found",
+			name:     "manifest file not found",
 			errorMsg: "manifest file not found",
 			fatal:    true,
 		},

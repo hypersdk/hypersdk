@@ -170,6 +170,11 @@ func (e *PipelineExecutor) Execute(ctx context.Context) (*PipelineResult, error)
 
 // ExecuteDirect runs hyper2kvm directly (original implementation)
 func (e *PipelineExecutor) ExecuteDirect(ctx context.Context) (*PipelineResult, error) {
+	// Check if context is already cancelled
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
 	startTime := time.Now()
 	result := &PipelineResult{
 		Success: false,
