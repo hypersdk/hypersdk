@@ -432,11 +432,101 @@ func (v *PostExportValidator) validateChecksums(exportDir string) ValidationResu
 		}
 	}
 
-	// TODO: Read and verify checksums
+	// Read checksum file
+	content, err := os.ReadFile(checksumFile)
+	if err != nil {
+		return ValidationResult{
+			Name:    "Checksum Check",
+			Passed:  false,
+			Message: fmt.Sprintf("Failed to read checksum file: %v", err),
+			Warning: false,
+		}
+	}
+
+	// Parse checksums (format: "checksum  filename")
+	lines := strings.Split(string(content), "\n")
+	expectedChecksums := make(map[string]string)
+
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+
+		parts := strings.Fields(line)
+		if len(parts) < 2 {
+			continue
+		}
+
+		checksum := parts[0]
+		filename := parts[1]
+		expectedChecksums[filename] = checksum
+	}
+
+	if len(expectedChecksums) == 0 {
+		return ValidationResult{
+			Name:    "Checksum Check",
+			Passed:  false,
+			Message: "Checksum file is empty or invalid",
+			Warning: false,
+		}
+	}
+
+	// Verify each file's checksum
+	var verified, failed, missing int
+	var failedFiles []string
+
+	for filename, expectedChecksum := range expectedChecksums {
+		filePath := filepath.Join(exportDir, filename)
+
+		// Check if file exists
+		if _, err := os.Stat(filePath); os.IsNotExist(err) {
+			missing++
+			failedFiles = append(failedFiles, fmt.Sprintf("%s (missing)", filename))
+			continue
+		}
+
+		// Calculate actual checksum
+		actualChecksum, err := CalculateFileChecksum(filePath)
+		if err != nil {
+			failed++
+			failedFiles = append(failedFiles, fmt.Sprintf("%s (error: %v)", filename, err))
+			continue
+		}
+
+		// Compare checksums
+		if actualChecksum != expectedChecksum {
+			failed++
+			failedFiles = append(failedFiles, fmt.Sprintf("%s (mismatch)", filename))
+			if v.log != nil {
+				v.log.Warn("checksum mismatch",
+					"file", filename,
+					"expected", expectedChecksum,
+					"actual", actualChecksum)
+			}
+		} else {
+			verified++
+			if v.log != nil {
+				v.log.Debug("checksum verified", "file", filename)
+			}
+		}
+	}
+
+	// Build result message
+	if failed > 0 || missing > 0 {
+		return ValidationResult{
+			Name:    "Checksum Check",
+			Passed:  false,
+			Message: fmt.Sprintf("Checksum verification failed: %d verified, %d failed, %d missing. Failed files: %s",
+				verified, failed, missing, strings.Join(failedFiles, ", ")),
+			Warning: false,
+		}
+	}
+
 	return ValidationResult{
 		Name:    "Checksum Check",
 		Passed:  true,
-		Message: "Checksums verified successfully",
+		Message: fmt.Sprintf("All checksums verified successfully (%d files)", verified),
 		Warning: false,
 	}
 }
