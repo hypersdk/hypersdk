@@ -1128,3 +1128,241 @@ func TestWriteToFile_JSON(t *testing.T) {
 		t.Errorf("Generated JSON file is not valid: %v", err)
 	}
 }
+
+func TestReadFromFile_JSON(t *testing.T) {
+	tmpDir := t.TempDir()
+	diskPath := filepath.Join(tmpDir, "test-disk.vmdk")
+
+	// Create a test disk file
+	if err := os.WriteFile(diskPath, []byte("test disk"), 0644); err != nil {
+		t.Fatalf("Failed to create disk file: %v", err)
+	}
+
+	manifestPath := filepath.Join(tmpDir, "test.json")
+
+	// Create a valid manifest
+	manifest := &ArtifactManifest{
+		ManifestVersion: CurrentVersion,
+		Source: &SourceMetadata{
+			Provider: "vsphere",
+			VMName:   "TestVM",
+		},
+		Disks: []DiskArtifact{
+			{
+				ID:           "disk1",
+				SourceFormat: "vmdk",
+				Bytes:        9,
+				LocalPath:    diskPath,
+			},
+		},
+	}
+
+	// Write to file
+	if err := WriteToFile(manifest, manifestPath); err != nil {
+		t.Fatalf("WriteToFile failed: %v", err)
+	}
+
+	// Read it back
+	loaded, err := ReadFromFile(manifestPath)
+	if err != nil {
+		t.Fatalf("ReadFromFile failed: %v", err)
+	}
+
+	if loaded.Source.VMName != "TestVM" {
+		t.Errorf("Expected VMName 'TestVM', got '%s'", loaded.Source.VMName)
+	}
+
+	if len(loaded.Disks) != 1 {
+		t.Fatalf("Expected 1 disk, got %d", len(loaded.Disks))
+	}
+}
+
+func TestReadFromFile_YAML(t *testing.T) {
+	tmpDir := t.TempDir()
+	diskPath := filepath.Join(tmpDir, "test-disk.vmdk")
+
+	// Create a test disk file
+	if err := os.WriteFile(diskPath, []byte("test disk"), 0644); err != nil {
+		t.Fatalf("Failed to create disk file: %v", err)
+	}
+
+	manifestPath := filepath.Join(tmpDir, "test.yaml")
+
+	// Create a valid manifest
+	manifest := &ArtifactManifest{
+		ManifestVersion: CurrentVersion,
+		Source: &SourceMetadata{
+			Provider: "vsphere",
+			VMName:   "TestVM-YAML",
+		},
+		Disks: []DiskArtifact{
+			{
+				ID:           "disk1",
+				SourceFormat: "vmdk",
+				Bytes:        9,
+				LocalPath:    diskPath,
+			},
+		},
+	}
+
+	// Write to file
+	if err := WriteToFile(manifest, manifestPath); err != nil {
+		t.Fatalf("WriteToFile failed: %v", err)
+	}
+
+	// Read it back
+	loaded, err := ReadFromFile(manifestPath)
+	if err != nil {
+		t.Fatalf("ReadFromFile failed: %v", err)
+	}
+
+	if loaded.Source.VMName != "TestVM-YAML" {
+		t.Errorf("Expected VMName 'TestVM-YAML', got '%s'", loaded.Source.VMName)
+	}
+}
+
+func TestReadFromFile_NonexistentFile(t *testing.T) {
+	_, err := ReadFromFile("/nonexistent/manifest.json")
+	if err == nil {
+		t.Error("Expected error for nonexistent file")
+	}
+}
+
+func TestReadFromFile_ValidationFailure(t *testing.T) {
+	tmpDir := t.TempDir()
+	manifestPath := filepath.Join(tmpDir, "invalid.json")
+
+	// Write an invalid manifest (missing disks, which is required)
+	invalidManifest := &ArtifactManifest{
+		ManifestVersion: CurrentVersion,
+		Source: &SourceMetadata{
+			Provider: "vsphere",
+			VMName:   "TestVM",
+		},
+		Disks: []DiskArtifact{}, // Empty disks - will fail validation
+	}
+
+	if err := WriteToFile(invalidManifest, manifestPath); err != nil {
+		t.Fatalf("WriteToFile failed: %v", err)
+	}
+
+	// Try to read it back - should fail validation
+	_, err := ReadFromFile(manifestPath)
+	if err == nil {
+		t.Error("Expected validation error for manifest without disks")
+	}
+}
+
+func TestAddDiskWithChecksum_ComputeTrue(t *testing.T) {
+	tmpDir := t.TempDir()
+	diskPath := filepath.Join(tmpDir, "test.vmdk")
+
+	// Create a test disk file
+	content := []byte("test disk content")
+	if err := os.WriteFile(diskPath, content, 0644); err != nil {
+		t.Fatalf("Failed to create disk file: %v", err)
+	}
+
+	builder := NewBuilder()
+	builder.WithSource("vsphere", "vcenter.example.com", "", "", "TestVM")
+	builder.AddDiskWithChecksum("disk1", "vmdk", diskPath, int64(len(content)), 0, "boot", true)
+
+	if len(builder.errors) > 0 {
+		t.Fatalf("Builder errors: %v", builder.errors)
+	}
+
+	if len(builder.manifest.Disks) != 1 {
+		t.Fatalf("Expected 1 disk, got %d", len(builder.manifest.Disks))
+	}
+
+	disk := builder.manifest.Disks[0]
+	if disk.Checksum == "" {
+		t.Error("Expected checksum to be computed")
+	}
+
+	if !strings.HasPrefix(disk.Checksum, "sha256:") {
+		t.Errorf("Expected checksum to start with 'sha256:', got '%s'", disk.Checksum)
+	}
+}
+
+func TestAddDiskWithChecksum_ComputeFalse(t *testing.T) {
+	tmpDir := t.TempDir()
+	diskPath := filepath.Join(tmpDir, "test.vmdk")
+
+	// Create a test disk file
+	content := []byte("test disk content")
+	if err := os.WriteFile(diskPath, content, 0644); err != nil {
+		t.Fatalf("Failed to create disk file: %v", err)
+	}
+
+	builder := NewBuilder()
+	builder.WithSource("vsphere", "vcenter.example.com", "", "", "TestVM")
+	builder.AddDiskWithChecksum("disk1", "vmdk", diskPath, int64(len(content)), 0, "boot", false)
+
+	if len(builder.manifest.Disks) != 1 {
+		t.Fatalf("Expected 1 disk, got %d", len(builder.manifest.Disks))
+	}
+
+	disk := builder.manifest.Disks[0]
+	if disk.Checksum != "" {
+		t.Errorf("Expected no checksum when computeChecksum=false, got '%s'", disk.Checksum)
+	}
+}
+
+func TestAddDiskWithChecksum_InvalidPath(t *testing.T) {
+	builder := NewBuilder()
+	builder.WithSource("vsphere", "vcenter.example.com", "", "", "TestVM")
+	builder.AddDiskWithChecksum("disk1", "vmdk", "/nonexistent/disk.vmdk", 1024, 0, "boot", true)
+
+	if len(builder.errors) == 0 {
+		t.Error("Expected error for nonexistent disk file")
+	}
+}
+
+func TestComputeSHA256_NonexistentFile(t *testing.T) {
+	_, err := ComputeSHA256("/nonexistent/file.txt")
+	if err == nil {
+		t.Error("Expected error for nonexistent file")
+	}
+}
+
+func TestWithMetadata(t *testing.T) {
+	builder := NewBuilder()
+	builder.WithSource("vsphere", "vcenter.example.com", "", "", "TestVM")
+
+	tags := map[string]string{
+		"environment": "production",
+		"team":        "platform",
+		"owner":       "admin",
+	}
+
+	builder.WithMetadata("1.0.0", "job-123", tags)
+
+	if builder.manifest.Metadata == nil {
+		t.Fatal("Expected metadata to be set")
+	}
+
+	if builder.manifest.Metadata.HyperSDKVersion != "1.0.0" {
+		t.Errorf("Expected HyperSDKVersion='1.0.0', got '%s'", builder.manifest.Metadata.HyperSDKVersion)
+	}
+
+	if builder.manifest.Metadata.JobID != "job-123" {
+		t.Errorf("Expected JobID='job-123', got '%s'", builder.manifest.Metadata.JobID)
+	}
+
+	if len(builder.manifest.Metadata.Tags) != 3 {
+		t.Errorf("Expected 3 tags, got %d", len(builder.manifest.Metadata.Tags))
+	}
+
+	if builder.manifest.Metadata.Tags["environment"] != "production" {
+		t.Errorf("Expected tag environment='production', got '%s'", builder.manifest.Metadata.Tags["environment"])
+	}
+
+	if builder.manifest.Metadata.Tags["team"] != "platform" {
+		t.Errorf("Expected tag team='platform', got '%s'", builder.manifest.Metadata.Tags["team"])
+	}
+
+	if builder.manifest.Metadata.Tags["owner"] != "admin" {
+		t.Errorf("Expected tag owner='admin', got '%s'", builder.manifest.Metadata.Tags["owner"])
+	}
+}
