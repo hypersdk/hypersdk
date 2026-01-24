@@ -147,7 +147,14 @@ func (c *VSphereClient) CloneVM(ctx context.Context, spec CloneSpec) (*CloneResu
 	if info.Result != nil {
 		if vmRef, ok := info.Result.(types.ManagedObjectReference); ok {
 			newVM := object.NewVirtualMachine(c.client.Client, vmRef)
-			result.TargetPath = newVM.InventoryPath
+
+			// Get VM properties to retrieve inventory path
+			var vmMO mo.VirtualMachine
+			err := newVM.Properties(ctx, vmRef, []string{"name", "parent"}, &vmMO)
+			if err == nil {
+				// Construct inventory path from target folder and VM name
+				result.TargetPath = targetFolder.InventoryPath + "/" + spec.TargetName
+			}
 		}
 	}
 
