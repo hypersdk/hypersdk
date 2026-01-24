@@ -148,7 +148,7 @@ func (c *VSphereClient) GetMetricsHistory(ctx context.Context, entityName, entit
 	case "2hour":
 		intervalID = interval2Hour
 	default:
-		intervalID = interval5Min // Default to 5 minutes
+		return nil, fmt.Errorf("invalid interval: %s (valid values: realtime, 5min, 30min, 2hour)", interval)
 	}
 
 	// Get performance manager

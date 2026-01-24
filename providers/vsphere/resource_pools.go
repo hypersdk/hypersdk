@@ -5,6 +5,7 @@ package vsphere
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/vmware/govmomi/object"
 	"github.com/vmware/govmomi/property"
@@ -21,6 +22,10 @@ func (c *VSphereClient) ListResourcePools(ctx context.Context, pattern string) (
 	// Use finder to get resource pools
 	poolList, err := c.finder.ResourcePoolList(ctx, pattern)
 	if err != nil {
+		// Check if it's a "not found" error - return empty list instead of error
+		if isNotFoundError(err) {
+			return []ResourcePoolInfo{}, nil
+		}
 		return nil, fmt.Errorf("find resource pools: %w", err)
 	}
 
@@ -221,4 +226,12 @@ func (c *VSphereClient) buildAllocationInfo(reservation, limit int64, expandable
 
 	info.Shares = &sharesInfo
 	return info
+}
+
+// isNotFoundError checks if an error is a "not found" error from govmomi finder
+func isNotFoundError(err error) bool {
+	if err == nil {
+		return false
+	}
+	return strings.Contains(err.Error(), "not found")
 }

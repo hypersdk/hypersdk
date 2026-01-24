@@ -55,6 +55,10 @@ func setupTestClient(t *testing.T) (*VSphereClient, func()) {
 		SessionManager: session.NewManager(vimClient),
 	}
 
+	// Login to simulator (required for authentication)
+	err = govmomiClient.Login(ctx, s.URL.User)
+	require.NoError(t, err)
+
 	// Create finder
 	finder := find.NewFinder(vimClient, true)
 
