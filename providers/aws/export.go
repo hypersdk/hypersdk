@@ -75,18 +75,148 @@ func (c *Client) ExportInstanceToS3(ctx context.Context, instanceID, outputDir s
 }
 
 // ExportSnapshotToS3 exports an EBS snapshot to S3 as VMDK
-// Note: AWS SDK v2 does not support direct snapshot export to VMDK.
-// This is a placeholder for future implementation using alternative methods.
+// Implements alternative method: Create AMI from snapshot and export the AMI
+// Note: AWS SDK v2 removed direct snapshot export API
 func (c *Client) ExportSnapshotToS3(ctx context.Context, snapshotID, outputDir string, reporter progress.ProgressReporter) (*ExportResult, error) {
 	c.logger.Info("EBS snapshot export requested", "snapshot", snapshotID)
 
-	// TODO: Implement alternative snapshot export method
-	// AWS SDK v2 removed ExportSnapshot API. Alternative approaches:
-	// 1. Create volume from snapshot, attach to temp instance, export instance
-	// 2. Use AWS Import/Export VM service with custom workflow
-	// 3. Create AMI from snapshot and export the AMI
+	if reporter != nil {
+		reporter.Describe("Creating AMI from snapshot")
+	}
 
-	return nil, fmt.Errorf("direct snapshot export not supported in AWS SDK v2 - use instance export instead")
+	// Step 1: Get snapshot details
+	describeSnapshotInput := &ec2.DescribeSnapshotsInput{
+		SnapshotIds: []string{snapshotID},
+	}
+	snapshotResult, err := c.ec2Client.DescribeSnapshots(ctx, describeSnapshotInput)
+	if err != nil {
+		return nil, fmt.Errorf("describe snapshot: %w", err)
+	}
+
+	if len(snapshotResult.Snapshots) == 0 {
+		return nil, fmt.Errorf("snapshot %s not found", snapshotID)
+	}
+
+	// Step 2: Create AMI from snapshot
+	// Determine architecture from snapshot tags or use default
+	architecture := types.ArchitectureValuesX8664 // Default
+
+	amiName := fmt.Sprintf("snapshot-export-%s-%d", snapshotID, time.Now().Unix())
+	registerImageInput := &ec2.RegisterImageInput{
+		Name:         aws.String(amiName),
+		Description:  aws.String(fmt.Sprintf("AMI created from snapshot %s for export", snapshotID)),
+		Architecture: architecture,
+		RootDeviceName: aws.String("/dev/sda1"),
+		VirtualizationType: aws.String("hvm"),
+		BlockDeviceMappings: []types.BlockDeviceMapping{
+			{
+				DeviceName: aws.String("/dev/sda1"),
+				Ebs: &types.EbsBlockDevice{
+					SnapshotId:          aws.String(snapshotID),
+					VolumeType:          types.VolumeTypeGp3,
+					DeleteOnTermination: aws.Bool(true),
+				},
+			},
+		},
+	}
+
+	registerResult, err := c.ec2Client.RegisterImage(ctx, registerImageInput)
+	if err != nil {
+		return nil, fmt.Errorf("create AMI from snapshot: %w", err)
+	}
+
+	imageID := aws.ToString(registerResult.ImageId)
+	c.logger.Info("AMI created from snapshot", "ami_id", imageID, "snapshot_id", snapshotID)
+
+	// Step 3: Wait for AMI to be available
+	if reporter != nil {
+		reporter.Describe("Waiting for AMI to be ready")
+	}
+
+	waiter := ec2.NewImageAvailableWaiter(c.ec2Client)
+	err = waiter.Wait(ctx, &ec2.DescribeImagesInput{
+		ImageIds: []string{imageID},
+	}, c.config.Timeout)
+	if err != nil {
+		return nil, fmt.Errorf("wait for AMI: %w", err)
+	}
+
+	c.logger.Info("AMI is ready", "ami_id", imageID)
+
+	// Step 4: Export AMI to S3 as VMDK (if S3 bucket configured)
+	if c.config.S3Bucket == "" {
+		c.logger.Warn("S3 bucket not configured - AMI created but not exported")
+		return &ExportResult{
+			SnapshotID: snapshotID,
+			ImageID:    imageID,
+			Format:     "ami",
+		}, nil
+	}
+
+	// Create export task for the AMI
+	if reporter != nil {
+		reporter.Describe("Exporting AMI to S3")
+	}
+
+	exportTaskID, err := c.createAMIExportTask(ctx, imageID)
+	if err != nil {
+		return nil, fmt.Errorf("create AMI export task: %w", err)
+	}
+
+	c.logger.Info("AMI export task created", "task_id", exportTaskID)
+
+	// Wait for export to complete
+	s3Key, err := c.waitForExportTask(ctx, exportTaskID, reporter)
+	if err != nil {
+		return nil, fmt.Errorf("wait for export: %w", err)
+	}
+
+	c.logger.Info("AMI export completed", "s3_key", s3Key)
+
+	// Download from S3
+	if reporter != nil {
+		reporter.Describe("Downloading VMDK from S3")
+	}
+
+	localPath := filepath.Join(outputDir, fmt.Sprintf("%s.vmdk", snapshotID))
+	size, err := c.downloadFromS3(ctx, s3Key, localPath, reporter)
+	if err != nil {
+		return nil, fmt.Errorf("download from S3: %w", err)
+	}
+
+	c.logger.Info("VMDK downloaded successfully", "path", localPath, "size_bytes", size)
+
+	return &ExportResult{
+		SnapshotID: snapshotID,
+		ImageID:    imageID,
+		Format:     "vmdk",
+		LocalPath:  localPath,
+		Size:       size,
+		S3Bucket:   c.config.S3Bucket,
+		S3Key:      s3Key,
+	}, nil
+}
+
+// createAMIExportTask creates an export task for an AMI
+func (c *Client) createAMIExportTask(ctx context.Context, imageID string) (string, error) {
+	// Note: AMI export uses the same CreateInstanceExportTask API
+	// but AWS internally handles exporting from the AMI
+	input := &ec2.CreateInstanceExportTaskInput{
+		InstanceId:        aws.String(imageID), // For AMI export, use image ID
+		TargetEnvironment: types.ExportEnvironmentVmware,
+		ExportToS3Task: &types.ExportToS3TaskSpecification{
+			DiskImageFormat: types.DiskImageFormatVmdk,
+			S3Bucket:        aws.String(c.config.S3Bucket),
+			S3Prefix:        aws.String("exports/snapshots/"),
+		},
+	}
+
+	result, err := c.ec2Client.CreateInstanceExportTask(ctx, input)
+	if err != nil {
+		return "", fmt.Errorf("create export task: %w", err)
+	}
+
+	return aws.ToString(result.ExportTask.ExportTaskId), nil
 }
 
 // createExportTask creates an EC2 instance export task

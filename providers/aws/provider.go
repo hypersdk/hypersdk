@@ -83,9 +83,13 @@ func (p *AWSProvider) ValidateCredentials(ctx context.Context) error {
 		return fmt.Errorf("not connected")
 	}
 
-	// Call a simple AWS API to validate credentials
-	// e.g., DescribeRegions or DescribeInstances with limit 1
-	return nil // TODO: Implement actual validation
+	// Validate credentials by calling DescribeRegions API
+	if err := p.client.ValidateCredentials(ctx); err != nil {
+		return fmt.Errorf("AWS credential validation failed: %w", err)
+	}
+
+	p.logger.Info("AWS credentials validated successfully")
+	return nil
 }
 
 // ListVMs lists EC2 instances matching the filter
@@ -150,8 +154,32 @@ func (p *AWSProvider) SearchVMs(ctx context.Context, query string) ([]*providers
 		return nil, fmt.Errorf("not connected")
 	}
 
-	// TODO: Search instances by name tag or other attributes
-	return nil, fmt.Errorf("SearchVMs not yet implemented for AWS")
+	// Search instances by name tag, instance ID, state, type, IPs, and tags
+	instances, err := p.client.SearchInstances(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("search instances: %w", err)
+	}
+
+	// Convert to VMInfo format
+	result := make([]*providers.VMInfo, 0, len(instances))
+	for _, inst := range instances {
+		vmInfo := &providers.VMInfo{
+			Provider: providers.ProviderAWS,
+			ID:       inst.InstanceID,
+			Name:     inst.Name,
+			State:    inst.State,
+			Location: inst.Region,
+			Tags:     inst.Tags,
+			Metadata: map[string]interface{}{
+				"instance_type": inst.InstanceType,
+				"image_id":      inst.ImageID,
+			},
+		}
+		result = append(result, vmInfo)
+	}
+
+	p.logger.Info("search completed", "query", query, "results", len(result))
+	return result, nil
 }
 
 // ExportVM exports an EC2 instance to VMDK format
