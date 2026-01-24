@@ -250,6 +250,47 @@ func TestGetStatus(t *testing.T) {
 	}
 }
 
+func TestGetStatusWithJobs(t *testing.T) {
+	log := logger.New("info")
+	detector := newTestDetector(log)
+	mgr := NewManager(log, detector)
+
+	// Create jobs with different statuses
+	job1 := &models.Job{Definition: models.JobDefinition{ID: "job1"}, Status: models.JobStatusRunning}
+	job2 := &models.Job{Definition: models.JobDefinition{ID: "job2"}, Status: models.JobStatusCompleted}
+	job3 := &models.Job{Definition: models.JobDefinition{ID: "job3"}, Status: models.JobStatusFailed}
+	job4 := &models.Job{Definition: models.JobDefinition{ID: "job4"}, Status: models.JobStatusCancelled}
+	job5 := &models.Job{Definition: models.JobDefinition{ID: "job5"}, Status: models.JobStatusPending}
+
+	mgr.jobs[job1.Definition.ID] = job1
+	mgr.jobs[job2.Definition.ID] = job2
+	mgr.jobs[job3.Definition.ID] = job3
+	mgr.jobs[job4.Definition.ID] = job4
+	mgr.jobs[job5.Definition.ID] = job5
+
+	status := mgr.GetStatus()
+
+	if status.TotalJobs != 5 {
+		t.Errorf("Expected TotalJobs 5, got %d", status.TotalJobs)
+	}
+
+	if status.RunningJobs != 1 {
+		t.Errorf("Expected RunningJobs 1, got %d", status.RunningJobs)
+	}
+
+	if status.CompletedJobs != 1 {
+		t.Errorf("Expected CompletedJobs 1, got %d", status.CompletedJobs)
+	}
+
+	if status.FailedJobs != 1 {
+		t.Errorf("Expected FailedJobs 1, got %d", status.FailedJobs)
+	}
+
+	if status.CancelledJobs != 1 {
+		t.Errorf("Expected CancelledJobs 1, got %d", status.CancelledJobs)
+	}
+}
+
 func TestShutdown(t *testing.T) {
 	log := logger.New("info")
 	detector := newTestDetector(log)
