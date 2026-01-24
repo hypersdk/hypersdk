@@ -191,11 +191,12 @@ type CancelResponse struct {
 
 // DaemonStatus represents the overall status of the daemon
 type DaemonStatus struct {
-	Version       string    `json:"version"`
-	Uptime        string    `json:"uptime"`
-	TotalJobs     int       `json:"total_jobs"`
-	RunningJobs   int       `json:"running_jobs"`
-	CompletedJobs int       `json:"completed_jobs"`
-	FailedJobs    int       `json:"failed_jobs"`
-	Timestamp     time.Time `json:"timestamp"`
+	Version        string    `json:"version"`
+	Uptime         string    `json:"uptime"`
+	TotalJobs      int       `json:"total_jobs"`
+	RunningJobs    int       `json:"running_jobs"`
+	CompletedJobs  int       `json:"completed_jobs"`
+	FailedJobs     int       `json:"failed_jobs"`
+	CancelledJobs  int       `json:"cancelled_jobs"`
+	Timestamp      time.Time `json:"timestamp"`
 }

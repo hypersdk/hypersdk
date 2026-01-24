@@ -262,7 +262,7 @@ func (m *Manager) GetStatus() *models.DaemonStatus {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	var running, completed, failed int
+	var running, completed, failed, cancelled int
 	for _, job := range m.jobs {
 		switch job.Status {
 		case models.JobStatusRunning:
@@ -271,17 +271,20 @@ func (m *Manager) GetStatus() *models.DaemonStatus {
 			completed++
 		case models.JobStatusFailed:
 			failed++
+		case models.JobStatusCancelled:
+			cancelled++
 		}
 	}
 
 	return &models.DaemonStatus{
-		Version:       "0.0.1",
-		Uptime:        time.Since(m.startTime).String(),
-		TotalJobs:     len(m.jobs),
-		RunningJobs:   running,
-		CompletedJobs: completed,
-		FailedJobs:    failed,
-		Timestamp:     time.Now(),
+		Version:        "0.0.1",
+		Uptime:         time.Since(m.startTime).String(),
+		TotalJobs:      len(m.jobs),
+		RunningJobs:    running,
+		CompletedJobs:  completed,
+		FailedJobs:     failed,
+		CancelledJobs:  cancelled,
+		Timestamp:      time.Now(),
 	}
 }
 

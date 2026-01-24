@@ -533,8 +533,8 @@ func (es *EnhancedServer) broadcastDashboardMetrics() {
 		"jobs_active":        status.RunningJobs,
 		"jobs_completed":     status.CompletedJobs,
 		"jobs_failed":        status.FailedJobs,
-		"jobs_pending":       status.TotalJobs - status.RunningJobs - status.CompletedJobs - status.FailedJobs,
-		"jobs_cancelled":     0, // TODO: Add cancelled count to status
+		"jobs_pending":       status.TotalJobs - status.RunningJobs - status.CompletedJobs - status.FailedJobs - status.CancelledJobs,
+		"jobs_cancelled":     status.CancelledJobs,
 		"queue_length":       status.TotalJobs,
 		"http_requests":      sysMetrics.HTTPRequests,
 		"http_errors":        sysMetrics.HTTPErrors,
