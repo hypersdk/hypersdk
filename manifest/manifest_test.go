@@ -547,3 +547,148 @@ func TestTimestamps(t *testing.T) {
 		}
 	}
 }
+
+func TestToYAML(t *testing.T) {
+	// Create a simple manifest to test YAML serialization
+	manifest := &ArtifactManifest{
+		ManifestVersion: "1.0.0",
+		Source: &SourceMetadata{
+			Provider: "vsphere",
+			VMName:   "TestVM",
+		},
+		VM: &VMMetadata{
+			CPU:   4,
+			MemGB: 16,
+		},
+	}
+
+	// Convert to YAML
+	yamlBytes, err := ToYAML(manifest)
+	if err != nil {
+		t.Fatalf("Failed to convert to YAML: %v", err)
+	}
+
+	if len(yamlBytes) == 0 {
+		t.Error("Expected non-empty YAML output")
+	}
+
+	// Verify YAML contains expected content
+	yamlStr := string(yamlBytes)
+	if !strings.Contains(yamlStr, "TestVM") {
+		t.Error("YAML should contain VM name")
+	}
+	if !strings.Contains(yamlStr, "vsphere") {
+		t.Error("YAML should contain source provider")
+	}
+}
+
+func TestFromYAML(t *testing.T) {
+	// Create a test YAML
+	yamlContent := `manifest_version: "1.0"
+metadata:
+  created_at: 2024-01-01T00:00:00Z
+source:
+  provider: vsphere
+  vm_id: vm-1234
+  vm_name: TestVM
+  datacenter: DC1
+vm:
+  cpu: 4
+  mem_gb: 16
+  firmware: uefi
+output:
+  directory: /output
+  format: qcow2
+  filename: test.qcow2
+`
+
+	manifest, err := FromYAML([]byte(yamlContent))
+	if err != nil {
+		t.Fatalf("Failed to parse YAML: %v", err)
+	}
+
+	if manifest.Source.VMName != "TestVM" {
+		t.Errorf("Expected VM name 'TestVM', got '%s'", manifest.Source.VMName)
+	}
+
+	if manifest.Source.Provider != "vsphere" {
+		t.Errorf("Expected provider 'vsphere', got '%s'", manifest.Source.Provider)
+	}
+
+	if manifest.Output.Format != "qcow2" {
+		t.Errorf("Expected format 'qcow2', got '%s'", manifest.Output.Format)
+	}
+}
+
+func TestFromYAML_InvalidYAML(t *testing.T) {
+	invalidYAML := []byte("invalid: yaml: content: :\n")
+
+	_, err := FromYAML(invalidYAML)
+	if err == nil {
+		t.Error("Expected error for invalid YAML")
+	}
+}
+
+func TestWithOutput(t *testing.T) {
+	builder := NewBuilder()
+	builder.WithOutput("/output", "vmdk", "test.vmdk")
+
+	// Check the output was set in the manifest (don't call Build which requires disks)
+	if builder.manifest.Output == nil {
+		t.Fatal("Expected Output to be set")
+	}
+
+	if builder.manifest.Output.Format != "vmdk" {
+		t.Errorf("Expected output format 'vmdk', got '%s'", builder.manifest.Output.Format)
+	}
+
+	if builder.manifest.Output.Directory != "/output" {
+		t.Errorf("Expected output directory '/output', got '%s'", builder.manifest.Output.Directory)
+	}
+
+	if builder.manifest.Output.Filename != "test.vmdk" {
+		t.Errorf("Expected output filename 'test.vmdk', got '%s'", builder.manifest.Output.Filename)
+	}
+}
+
+func TestWithOptions(t *testing.T) {
+	builder := NewBuilder()
+	builder.WithOptions(true, 2)
+
+	// Check the options were set in the manifest (don't call Build which requires disks)
+	if builder.manifest.Options == nil {
+		t.Fatal("Expected options to be set")
+	}
+
+	// Verify options are set correctly
+	if !builder.manifest.Options.DryRun {
+		t.Error("Expected DryRun option to be true")
+	}
+
+	if builder.manifest.Options.Verbose != 2 {
+		t.Errorf("Expected Verbose to be 2, got %d", builder.manifest.Options.Verbose)
+	}
+
+	// Verify report config is initialized
+	if builder.manifest.Options.Report == nil {
+		t.Error("Expected Report config to be initialized")
+	}
+}
+
+func TestWithOptions_FalseValues(t *testing.T) {
+	builder := NewBuilder()
+	builder.WithOptions(false, 0)
+
+	// Check the options were set
+	if builder.manifest.Options == nil {
+		t.Fatal("Expected options to be set")
+	}
+
+	if builder.manifest.Options.DryRun {
+		t.Error("Expected DryRun to be false")
+	}
+
+	if builder.manifest.Options.Verbose != 0 {
+		t.Errorf("Expected Verbose to be 0, got %d", builder.manifest.Options.Verbose)
+	}
+}
