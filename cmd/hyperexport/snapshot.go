@@ -73,15 +73,12 @@ func (sm *SnapshotManager) CreateExportSnapshot(ctx context.Context, vmPath stri
 		Created:      time.Now(),
 	}
 
-	// TODO: Implement CreateSnapshot in vsphere.VSphereClient
-	// When implemented, uncomment the following:
-	// snapshotCtx, cancel := context.WithTimeout(ctx, config.SnapshotTimeout)
-	// defer cancel()
-	// snapshotRef, err := sm.client.CreateSnapshot(snapshotCtx, vmPath, config.SnapshotName, config.SnapshotMemory, config.SnapshotQuiesce)
+	// Create snapshot with timeout
+	snapshotCtx, cancel := context.WithTimeout(ctx, config.SnapshotTimeout)
+	defer cancel()
 
-	// For now, return a placeholder
-	snapshotRef := fmt.Sprintf("snapshot-%d", time.Now().Unix())
-	err := fmt.Errorf("snapshot creation not yet implemented in vsphere client")
+	description := fmt.Sprintf("Export snapshot created at %s", time.Now().Format(time.RFC3339))
+	snapshotRef, err := sm.client.CreateSnapshot(snapshotCtx, vmPath, config.SnapshotName, description, config.SnapshotMemory, config.SnapshotQuiesce)
 	if err != nil {
 		result.Error = err
 		result.Success = false
@@ -108,8 +105,8 @@ func (sm *SnapshotManager) DeleteSnapshot(ctx context.Context, vmPath, snapshotR
 
 	sm.log.Info("deleting snapshot", "vm", vmPath, "ref", snapshotRef)
 
-	// TODO: Implement DeleteSnapshot in vsphere.VSphereClient
-	err := fmt.Errorf("snapshot deletion not yet implemented in vsphere client")
+	// Delete snapshot (consolidate disks by default)
+	err := sm.client.DeleteSnapshot(ctx, vmPath, snapshotRef, true)
 	if err != nil {
 		sm.log.Error("snapshot deletion failed", "error", err)
 		return fmt.Errorf("delete snapshot: %w", err)
@@ -127,12 +124,17 @@ func (sm *SnapshotManager) ListSnapshots(ctx context.Context, vmPath string) ([]
 
 	sm.log.Info("listing snapshots", "vm", vmPath)
 
-	// TODO: Implement ListSnapshots in vsphere.VSphereClient
-	snapshots := []string{} // Empty list for now
-	err := error(nil)
+	// Get snapshot information from vSphere
+	snapshotInfos, err := sm.client.ListSnapshots(ctx, vmPath)
 	if err != nil {
 		sm.log.Error("failed to list snapshots", "error", err)
 		return nil, fmt.Errorf("list snapshots: %w", err)
+	}
+
+	// Extract snapshot names
+	snapshots := make([]string, len(snapshotInfos))
+	for i, info := range snapshotInfos {
+		snapshots[i] = info.Name
 	}
 
 	sm.log.Info("snapshots listed", "vm", vmPath, "count", len(snapshots))
@@ -179,8 +181,8 @@ func (sm *SnapshotManager) CleanupOldSnapshots(ctx context.Context, vmPath strin
 func (sm *SnapshotManager) RevertToSnapshot(ctx context.Context, vmPath, snapshotRef string) error {
 	sm.log.Info("reverting to snapshot", "vm", vmPath, "ref", snapshotRef)
 
-	// TODO: Implement RevertToSnapshot in vsphere.VSphereClient
-	err := fmt.Errorf("snapshot revert not yet implemented in vsphere client")
+	// Revert to snapshot (suppress power on - let caller decide)
+	err := sm.client.RevertToSnapshot(ctx, vmPath, snapshotRef, true)
 	if err != nil {
 		sm.log.Error("snapshot revert failed", "error", err)
 		return fmt.Errorf("revert to snapshot: %w", err)
