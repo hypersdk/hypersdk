@@ -516,3 +516,51 @@ func TestMemoryCacheEvictionWithExpiredEntries(t *testing.T) {
 		t.Error("expected evictions to be recorded")
 	}
 }
+
+func TestNewCacheRedisWithFallback(t *testing.T) {
+	// Try to create Redis cache with invalid address and fallback enabled
+	config := DefaultConfig()
+	config.Backend = "redis"
+	config.RedisAddr = "localhost:9999" // Invalid port
+	config.EnableFallback = true
+
+	cache, err := NewCache(config)
+	if err != nil {
+		t.Fatalf("expected fallback to memory cache, got error: %v", err)
+	}
+
+	if cache == nil {
+		t.Fatal("expected cache to be created")
+	}
+
+	defer cache.Close()
+
+	// Verify it's working (should be memory cache)
+	ctx := context.Background()
+	err = cache.Set(ctx, "test", "value", 1*time.Hour)
+	if err != nil {
+		t.Errorf("cache Set failed: %v", err)
+	}
+
+	value, err := cache.Get(ctx, "test")
+	if err != nil {
+		t.Errorf("cache Get failed: %v", err)
+	}
+
+	if value != "value" {
+		t.Errorf("expected value 'value', got %v", value)
+	}
+}
+
+func TestNewCacheRedisWithoutFallback(t *testing.T) {
+	// Try to create Redis cache with invalid address and fallback disabled
+	config := DefaultConfig()
+	config.Backend = "redis"
+	config.RedisAddr = "localhost:9999" // Invalid port
+	config.EnableFallback = false
+
+	_, err := NewCache(config)
+	if err == nil {
+		t.Error("expected error when Redis connection fails and fallback is disabled")
+	}
+}
