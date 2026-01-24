@@ -950,3 +950,181 @@ func TestVerifyChecksums_InvalidDiskPath(t *testing.T) {
 		t.Error("Expected error for nonexistent disk file")
 	}
 }
+
+func TestToJSON(t *testing.T) {
+	manifest := &ArtifactManifest{
+		ManifestVersion: "1.0.0",
+		Source: &SourceMetadata{
+			Provider: "vsphere",
+			VMName:   "TestVM",
+		},
+		VM: &VMMetadata{
+			CPU:   4,
+			MemGB: 16,
+		},
+	}
+
+	jsonBytes, err := ToJSON(manifest)
+	if err != nil {
+		t.Fatalf("ToJSON failed: %v", err)
+	}
+
+	if len(jsonBytes) == 0 {
+		t.Error("Expected non-empty JSON output")
+	}
+
+	// Verify it's valid JSON by parsing it back
+	_, err = FromJSON(jsonBytes)
+	if err != nil {
+		t.Errorf("Generated JSON is not valid: %v", err)
+	}
+}
+
+func TestFromJSON(t *testing.T) {
+	jsonData := []byte(`{
+		"manifest_version": "1.0.0",
+		"source": {
+			"provider": "vsphere",
+			"vm_name": "TestVM"
+		},
+		"vm": {
+			"cpu": 4,
+			"mem_gb": 16
+		}
+	}`)
+
+	manifest, err := FromJSON(jsonData)
+	if err != nil {
+		t.Fatalf("FromJSON failed: %v", err)
+	}
+
+	if manifest.ManifestVersion != "1.0.0" {
+		t.Errorf("Expected ManifestVersion '1.0.0', got '%s'", manifest.ManifestVersion)
+	}
+
+	if manifest.Source.VMName != "TestVM" {
+		t.Errorf("Expected VMName 'TestVM', got '%s'", manifest.Source.VMName)
+	}
+}
+
+func TestFromJSON_InvalidJSON(t *testing.T) {
+	invalidJSON := []byte(`{invalid json`)
+
+	_, err := FromJSON(invalidJSON)
+	if err == nil {
+		t.Error("Expected error for invalid JSON")
+	}
+}
+
+func TestWriteToFile_InvalidPath(t *testing.T) {
+	manifest := &ArtifactManifest{
+		ManifestVersion: "1.0.0",
+		Source: &SourceMetadata{
+			Provider: "vsphere",
+			VMName:   "TestVM",
+		},
+	}
+
+	// Try to write to a directory that doesn't exist
+	err := WriteToFile(manifest, "/nonexistent/directory/manifest.json")
+	if err == nil {
+		t.Error("Expected error when writing to invalid path")
+	}
+}
+
+func TestWriteToFile_YAML(t *testing.T) {
+	tmpDir := t.TempDir()
+	yamlPath := filepath.Join(tmpDir, "test.yaml")
+
+	manifest := &ArtifactManifest{
+		ManifestVersion: "1.0.0",
+		Source: &SourceMetadata{
+			Provider: "vsphere",
+			VMName:   "TestVM",
+		},
+		VM: &VMMetadata{
+			CPU:   4,
+			MemGB: 16,
+		},
+	}
+
+	// Write as YAML
+	err := WriteToFile(manifest, yamlPath)
+	if err != nil {
+		t.Fatalf("WriteToFile (YAML) failed: %v", err)
+	}
+
+	// Verify file exists
+	if _, err := os.Stat(yamlPath); os.IsNotExist(err) {
+		t.Error("YAML file was not created")
+	}
+
+	// Read back and verify
+	data, err := os.ReadFile(yamlPath)
+	if err != nil {
+		t.Fatalf("Failed to read YAML file: %v", err)
+	}
+
+	if len(data) == 0 {
+		t.Error("YAML file is empty")
+	}
+}
+
+func TestWriteToFile_YML(t *testing.T) {
+	tmpDir := t.TempDir()
+	ymlPath := filepath.Join(tmpDir, "test.yml")
+
+	manifest := &ArtifactManifest{
+		ManifestVersion: "1.0.0",
+		Source: &SourceMetadata{
+			Provider: "vsphere",
+			VMName:   "TestVM",
+		},
+	}
+
+	// Write as YML (also YAML)
+	err := WriteToFile(manifest, ymlPath)
+	if err != nil {
+		t.Fatalf("WriteToFile (YML) failed: %v", err)
+	}
+
+	// Verify file exists
+	if _, err := os.Stat(ymlPath); os.IsNotExist(err) {
+		t.Error("YML file was not created")
+	}
+}
+
+func TestWriteToFile_JSON(t *testing.T) {
+	tmpDir := t.TempDir()
+	jsonPath := filepath.Join(tmpDir, "test.json")
+
+	manifest := &ArtifactManifest{
+		ManifestVersion: "1.0.0",
+		Source: &SourceMetadata{
+			Provider: "vsphere",
+			VMName:   "TestVM",
+		},
+	}
+
+	// Write as JSON
+	err := WriteToFile(manifest, jsonPath)
+	if err != nil {
+		t.Fatalf("WriteToFile (JSON) failed: %v", err)
+	}
+
+	// Verify file exists
+	if _, err := os.Stat(jsonPath); os.IsNotExist(err) {
+		t.Error("JSON file was not created")
+	}
+
+	// Read back and verify it's valid JSON
+	data, err := os.ReadFile(jsonPath)
+	if err != nil {
+		t.Fatalf("Failed to read JSON file: %v", err)
+	}
+
+	_, err = FromJSON(data)
+	if err != nil {
+		t.Errorf("Generated JSON file is not valid: %v", err)
+	}
+}
