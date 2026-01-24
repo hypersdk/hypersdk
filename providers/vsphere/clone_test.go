@@ -9,6 +9,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/vmware/govmomi/vim25/mo"
 )
 
 func TestCloneVM(t *testing.T) {
@@ -198,7 +199,45 @@ func TestLinkedClone(t *testing.T) {
 }
 
 func TestConvertVMToTemplate(t *testing.T) {
-	t.Skip("Skipping template conversion test - method not implemented")
+	client, cleanup := setupTestClient(t)
+	defer cleanup()
+
+	ctx := context.Background()
+
+	// First, get a VM to convert
+	vms, err := client.ListVMs(ctx)
+	require.NoError(t, err)
+	require.NotEmpty(t, vms, "need at least one VM for template conversion test")
+
+	vmName := vms[0].Name
+
+	// Power off the VM first (required for template conversion)
+	vm, err := client.finder.VirtualMachine(ctx, vmName)
+	require.NoError(t, err)
+
+	powerState, err := vm.PowerState(ctx)
+	if err == nil && powerState == "poweredOn" {
+		task, err := vm.PowerOff(ctx)
+		if err == nil {
+			_ = task.Wait(ctx) // Ignore errors, VM might already be off
+		}
+	}
+
+	// Convert VM to template
+	err = client.CreateTemplate(ctx, vmName)
+	require.NoError(t, err)
+
+	// Verify it's a template
+	vm, err = client.finder.VirtualMachine(ctx, vmName)
+	require.NoError(t, err)
+
+	var vmConfig mo.VirtualMachine
+	err = vm.Properties(ctx, vm.Reference(), []string{"config.template"}, &vmConfig)
+	require.NoError(t, err)
+
+	if vmConfig.Config != nil {
+		assert.True(t, vmConfig.Config.Template, "VM should be marked as template")
+	}
 }
 
 func TestDeployFromTemplate(t *testing.T) {
