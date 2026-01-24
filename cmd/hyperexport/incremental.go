@@ -12,6 +12,8 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/vmware/govmomi/vim25/types"
+
 	"hypersdk/logger"
 	"hypersdk/providers/vsphere"
 )
@@ -138,26 +140,124 @@ func (iem *IncrementalExportManager) AnalyzeChanges(ctx context.Context, client 
 		return result, nil
 	}
 
-	// Get current VM info
-	_, err = client.GetVMInfo(ctx, vmPath)
+	// Get current disk information
+	currentDisks, err := client.ListVMDisks(ctx, vmPath)
 	if err != nil {
-		return nil, fmt.Errorf("get VM info: %w", err)
+		iem.log.Warn("failed to get VM disks, forcing full export", "error", err)
+		result.NeedsFullExport = true
+		result.Reason = fmt.Sprintf("Failed to get disk info: %v", err)
+		return result, nil
 	}
 
-	// TODO: Implement GetVMDisks in vsphere.VSphereClient
-	// For now, return a result that forces full export
-	result.NeedsFullExport = true
-	result.Reason = "Disk change detection not yet implemented"
-	iem.log.Info("full export required: disk detection not implemented")
-	return result, nil
+	// Build current disk map (disk key -> disk info)
+	currentDiskMap := make(map[string]types.VirtualDisk)
+	var totalCurrentSize int64
+	for _, disk := range currentDisks {
+		// Get disk backing info to extract the file path
+		backing, ok := disk.Backing.(types.BaseVirtualDeviceFileBackingInfo)
+		if !ok {
+			continue
+		}
+		backingInfo := backing.GetVirtualDeviceFileBackingInfo()
+		diskKey := filepath.Base(backingInfo.FileName)
+		currentDiskMap[diskKey] = disk
 
-	// NOTE: Code below is commented out until GetVMDisks is implemented in vsphere.VSphereClient
-	// The implementation would:
-	// 1. Get current disk information
-	// 2. Compare with previous state
-	// 3. Identify changed, new, removed disks
-	// 4. Calculate potential savings
-	// 5. Determine if full export is needed
+		// Calculate total size
+		if disk.CapacityInBytes > 0 {
+			totalCurrentSize += disk.CapacityInBytes
+		}
+	}
+
+	// Compare with previous state
+	var changedDisks, newDisks, removedDisks []string
+
+	// Check for new or changed disks
+	for diskKey := range currentDiskMap {
+		if prevSize, exists := prevState.DiskSizes[diskKey]; exists {
+			// Disk existed before - check if it changed
+			// For now, we consider any disk as potentially changed
+			// In production, you might compare modification times or checksums
+			if prevChecksum, hasChecksum := prevState.DiskChecksums[diskKey]; hasChecksum {
+				// Disk has a checksum - assume it might have changed
+				changedDisks = append(changedDisks, diskKey)
+				iem.log.Debug("disk may have changed", "disk", diskKey, "prev_checksum", prevChecksum[:8])
+			} else {
+				// No checksum available - assume changed if size different
+				if currentDiskMap[diskKey].CapacityInBytes != prevSize {
+					changedDisks = append(changedDisks, diskKey)
+					iem.log.Debug("disk size changed", "disk", diskKey,
+						"old_size", prevSize, "new_size", currentDiskMap[diskKey].CapacityInBytes)
+				}
+			}
+		} else {
+			// New disk
+			newDisks = append(newDisks, diskKey)
+			iem.log.Debug("new disk detected", "disk", diskKey)
+		}
+	}
+
+	// Check for removed disks
+	for prevDisk := range prevState.DiskSizes {
+		if _, exists := currentDiskMap[prevDisk]; !exists {
+			removedDisks = append(removedDisks, prevDisk)
+			iem.log.Debug("disk removed", "disk", prevDisk)
+		}
+	}
+
+	// Determine if full export is needed
+	if len(newDisks) > 0 || len(removedDisks) > 0 {
+		result.NeedsFullExport = true
+		result.Reason = fmt.Sprintf("Disk topology changed: %d new, %d removed disks", len(newDisks), len(removedDisks))
+		result.ChangedDisks = changedDisks
+		result.NewDisks = newDisks
+		result.RemovedDisks = removedDisks
+		iem.log.Info("full export required: disk topology changed",
+			"new_disks", len(newDisks),
+			"removed_disks", len(removedDisks))
+		return result, nil
+	}
+
+	// Calculate potential savings with incremental export
+	if len(changedDisks) > 0 {
+		// Some disks changed - incremental might be beneficial
+		unchangedSize := int64(0)
+		for diskKey, size := range prevState.DiskSizes {
+			if _, changed := contains(changedDisks, diskKey); !changed {
+				unchangedSize += size
+			}
+		}
+
+		result.NeedsFullExport = false
+		result.ChangedDisks = changedDisks
+		result.TotalSavings = unchangedSize
+		result.Reason = fmt.Sprintf("Incremental export can save ~%s (%d unchanged disks)",
+			formatBytes(unchangedSize), len(prevState.DiskSizes)-len(changedDisks))
+
+		iem.log.Info("incremental export recommended",
+			"changed_disks", len(changedDisks),
+			"unchanged_disks", len(prevState.DiskSizes)-len(changedDisks),
+			"potential_savings", formatBytes(unchangedSize))
+	} else {
+		// No disks changed
+		result.NeedsFullExport = false
+		result.Reason = "No disk changes detected since last export"
+		result.TotalSavings = prevState.TotalSize
+
+		iem.log.Info("no changes detected - incremental not needed",
+			"vm_size", formatBytes(totalCurrentSize))
+	}
+
+	return result, nil
+}
+
+// Helper function to check if a string slice contains a value
+func contains(slice []string, val string) (int, bool) {
+	for i, item := range slice {
+		if item == val {
+			return i, true
+		}
+	}
+	return -1, false
 }
 
 // CreateExportState creates export state from export results
