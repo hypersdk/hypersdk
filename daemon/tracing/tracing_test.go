@@ -131,6 +131,50 @@ func TestNewProvider_Sampling(t *testing.T) {
 	}
 }
 
+func TestStartSpan(t *testing.T) {
+	config := &Config{
+		Enabled:     true,
+		ServiceName: "test",
+		Exporter:    "stdout",
+	}
+
+	provider, err := NewProvider(config)
+	if err != nil {
+		t.Fatalf("failed to create provider: %v", err)
+	}
+	defer provider.Shutdown(context.Background())
+
+	tracer := provider.Tracer("test")
+
+	// Test StartSpan helper function
+	ctx, span := StartSpan(context.Background(), tracer, "test-span-helper")
+	defer span.End()
+
+	if ctx == nil {
+		t.Error("expected context to be returned")
+	}
+
+	if span == nil {
+		t.Error("expected span to be created")
+	}
+
+	// Verify span is in context
+	retrievedSpan := trace.SpanFromContext(ctx)
+	if !retrievedSpan.SpanContext().IsValid() {
+		t.Error("expected valid span in context")
+	}
+
+	// Test with additional span options
+	ctx2, span2 := StartSpan(context.Background(), tracer, "test-span-with-attrs",
+		trace.WithAttributes(attribute.String("key", "value")),
+	)
+	defer span2.End()
+
+	if ctx2 == nil {
+		t.Error("expected context to be returned with options")
+	}
+}
+
 func TestSpanHelpers(t *testing.T) {
 	config := &Config{
 		Enabled:     true,
