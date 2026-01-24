@@ -440,3 +440,79 @@ func TestMemoryCacheMultipleOperations(t *testing.T) {
 		}
 	}
 }
+
+func TestMemoryCacheExistsExpired(t *testing.T) {
+	cache := newMemoryCache(DefaultConfig())
+	defer cache.Close()
+
+	ctx := context.Background()
+
+	// Set value with very short TTL
+	cache.Set(ctx, "expiring", "value", 10*time.Millisecond)
+
+	// Verify exists initially
+	exists, err := cache.Exists(ctx, "expiring")
+	if err != nil {
+		t.Errorf("failed to check existence: %v", err)
+	}
+	if !exists {
+		t.Error("expected key to exist")
+	}
+
+	// Wait for expiration
+	time.Sleep(20 * time.Millisecond)
+
+	// Verify doesn't exist after expiration
+	exists, err = cache.Exists(ctx, "expiring")
+	if err != nil {
+		t.Errorf("failed to check existence after expiration: %v", err)
+	}
+	if exists {
+		t.Error("expected key to not exist after expiration")
+	}
+}
+
+func TestMemoryCacheEvictionWithExpiredEntries(t *testing.T) {
+	config := DefaultConfig()
+	config.MaxMemorySize = 1024 // 1 KB limit
+
+	cache := newMemoryCache(config)
+	defer cache.Close()
+
+	ctx := context.Background()
+
+	// Create a large value (500 bytes)
+	largeValue := make([]byte, 500)
+	for i := range largeValue {
+		largeValue[i] = 'A'
+	}
+
+	// Set entries with short TTL that will expire
+	cache.Set(ctx, "expire1", string(largeValue), 10*time.Millisecond)
+	cache.Set(ctx, "expire2", string(largeValue), 10*time.Millisecond)
+
+	// Wait for them to expire
+	time.Sleep(20 * time.Millisecond)
+
+	// Now add a new entry - should trigger eviction of expired entries
+	cache.Set(ctx, "new1", string(largeValue), 1*time.Hour)
+
+	// Verify expired entries were removed
+	exists1, _ := cache.Exists(ctx, "expire1")
+	exists2, _ := cache.Exists(ctx, "expire2")
+
+	if exists1 || exists2 {
+		t.Error("expected expired entries to be evicted")
+	}
+
+	// Verify new entry exists
+	exists3, _ := cache.Exists(ctx, "new1")
+	if !exists3 {
+		t.Error("expected new entry to exist")
+	}
+
+	stats := cache.Stats()
+	if stats.Evictions == 0 {
+		t.Error("expected evictions to be recorded")
+	}
+}
