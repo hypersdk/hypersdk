@@ -582,3 +582,58 @@ func TestBackupWithSubdirectories(t *testing.T) {
 		}
 	}
 }
+
+func TestNoopLogger(t *testing.T) {
+	// Test that noopLogger can be created and all methods can be called without panic
+	logger := &noopLogger{}
+
+	// All these should not panic
+	logger.Debug("debug message")
+	logger.Debug("debug with context", "key", "value")
+	logger.Info("info message")
+	logger.Info("info with context", "key1", "value1", "key2", "value2")
+	logger.Warn("warn message")
+	logger.Warn("warn with context", "error", "something")
+	logger.Error("error message")
+	logger.Error("error with context", "code", 500, "message", "internal error")
+
+	// If we get here without panic, test passes
+}
+
+func TestManagerStop(t *testing.T) {
+	tmpDir := t.TempDir()
+	config := DefaultConfig()
+	config.BackupDir = tmpDir
+
+	manager, err := NewManager(config, nil)
+	if err != nil {
+		t.Fatalf("failed to create manager: %v", err)
+	}
+
+	// Verify stopCh is created
+	if manager.stopCh == nil {
+		t.Fatal("expected stopCh to be initialized")
+	}
+
+	// Call Stop - should not panic
+	manager.Stop()
+
+	// Verify stopCh is closed by trying to receive from it
+	select {
+	case <-manager.stopCh:
+		// Channel is closed, as expected
+	case <-time.After(100 * time.Millisecond):
+		t.Error("stopCh was not closed")
+	}
+}
+
+func TestManagerStopNilChannel(t *testing.T) {
+	// Create manager without stopCh
+	manager := &Manager{
+		config:  DefaultConfig(),
+		backups: make(map[string]*BackupMetadata),
+	}
+
+	// Call Stop with nil stopCh - should not panic
+	manager.Stop()
+}
