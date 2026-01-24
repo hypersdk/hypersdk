@@ -65,13 +65,19 @@ func TestListResourcePools(t *testing.T) {
 }
 
 func TestCreateResourcePool(t *testing.T) {
-	t.Skip("Skipping resource pool creation test - modifies vCenter")
-
 	client, cleanup := setupTestClient(t)
 	defer cleanup()
 
+	ctx := context.Background()
+
+	// Get existing resource pools to use as parent
+	pools, err := client.ListResourcePools(ctx, "")
+	require.NoError(t, err)
+	require.NotEmpty(t, pools, "need at least one resource pool as parent")
+
 	config := ResourcePoolConfig{
 		Name:                "test-pool",
+		ParentPath:          pools[0].Path,
 		CPUReservationMhz:   1000,
 		CPULimitMhz:         4000,
 		MemoryReservationMB: 2048,
@@ -81,11 +87,11 @@ func TestCreateResourcePool(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	err := client.CreateResourcePool(ctx, config)
+	err = client.CreateResourcePool(ctx, config)
 	require.NoError(t, err)
 
 	// Verify pool was created
-	pools, err := client.ListResourcePools(ctx, config.Name)
+	pools, err = client.ListResourcePools(ctx, config.Name)
 	require.NoError(t, err)
 	assert.NotEmpty(t, pools)
 
@@ -102,22 +108,27 @@ func TestCreateResourcePool(t *testing.T) {
 }
 
 func TestUpdateResourcePool(t *testing.T) {
-	t.Skip("Skipping resource pool update test - modifies vCenter")
-
 	client, cleanup := setupTestClient(t)
 	defer cleanup()
+
+	ctx := context.Background()
+
+	// Get existing resource pools to use as parent
+	pools, err := client.ListResourcePools(ctx, "")
+	require.NoError(t, err)
+	require.NotEmpty(t, pools, "need at least one resource pool as parent")
 
 	// First create a pool
 	createConfig := ResourcePoolConfig{
 		Name:                "test-pool-update",
+		ParentPath:          pools[0].Path,
 		CPUReservationMhz:   1000,
 		CPULimitMhz:         4000,
 		MemoryReservationMB: 2048,
 		MemoryLimitMB:       8192,
 	}
 
-	ctx := context.Background()
-	err := client.CreateResourcePool(ctx, createConfig)
+	err = client.CreateResourcePool(ctx, createConfig)
 	require.NoError(t, err)
 
 	// Update the pool
@@ -136,7 +147,7 @@ func TestUpdateResourcePool(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify update
-	pools, err := client.ListResourcePools(ctx, updateConfig.Name)
+	pools, err = client.ListResourcePools(ctx, updateConfig.Name)
 	require.NoError(t, err)
 
 	found := false
@@ -152,20 +163,25 @@ func TestUpdateResourcePool(t *testing.T) {
 }
 
 func TestDeleteResourcePool(t *testing.T) {
-	t.Skip("Skipping resource pool deletion test - modifies vCenter")
-
 	client, cleanup := setupTestClient(t)
 	defer cleanup()
+
+	ctx := context.Background()
+
+	// Get existing resource pools to use as parent
+	pools, err := client.ListResourcePools(ctx, "")
+	require.NoError(t, err)
+	require.NotEmpty(t, pools, "need at least one resource pool as parent")
 
 	// Create a pool to delete
 	config := ResourcePoolConfig{
 		Name:                "test-pool-delete",
+		ParentPath:          pools[0].Path,
 		CPUReservationMhz:   1000,
 		MemoryReservationMB: 2048,
 	}
 
-	ctx := context.Background()
-	err := client.CreateResourcePool(ctx, config)
+	err = client.CreateResourcePool(ctx, config)
 	require.NoError(t, err)
 
 	// Delete the pool
@@ -176,7 +192,7 @@ func TestDeleteResourcePool(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify deletion
-	pools, err := client.ListResourcePools(ctx, config.Name)
+	pools, err = client.ListResourcePools(ctx, config.Name)
 	require.NoError(t, err)
 
 	for _, pool := range pools {
