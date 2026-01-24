@@ -290,3 +290,124 @@ func TestExporterValidation(t *testing.T) {
 		})
 	}
 }
+
+func TestGetAvailableMethods(t *testing.T) {
+	log := logger.New("info")
+	detector := capabilities.NewDetector(log)
+
+	ctx := context.Background()
+	detector.Detect(ctx)
+
+	factory := NewExporterFactory(detector, log)
+
+	// Get available methods
+	methods := factory.GetAvailableMethods()
+
+	// Should return at least web (always available)
+	if len(methods) == 0 {
+		t.Error("Expected at least one available method")
+	}
+
+	// Verify all returned methods are actually available
+	for _, method := range methods {
+		if !detector.IsAvailable(method) {
+			t.Errorf("Method %s reported as available but detector says it's not", method)
+		}
+	}
+
+	// Web should always be available
+	foundWeb := false
+	for _, method := range methods {
+		if method == capabilities.ExportMethodWeb {
+			foundWeb = true
+			break
+		}
+	}
+	if !foundWeb {
+		t.Error("Expected web method to be in available methods")
+	}
+}
+
+func TestIsAvailable(t *testing.T) {
+	log := logger.New("info")
+	detector := capabilities.NewDetector(log)
+
+	ctx := context.Background()
+	detector.Detect(ctx)
+
+	factory := NewExporterFactory(detector, log)
+
+	tests := []struct {
+		name   string
+		method capabilities.ExportMethod
+	}{
+		{
+			name:   "web method",
+			method: capabilities.ExportMethodWeb,
+		},
+		{
+			name:   "ctl method",
+			method: capabilities.ExportMethodCTL,
+		},
+		{
+			name:   "govc method",
+			method: capabilities.ExportMethodGovc,
+		},
+		{
+			name:   "ovftool method",
+			method: capabilities.ExportMethodOvftool,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Should match detector's result
+			factoryResult := factory.IsAvailable(tt.method)
+			detectorResult := detector.IsAvailable(tt.method)
+
+			if factoryResult != detectorResult {
+				t.Errorf("Factory.IsAvailable(%s) = %v, but detector says %v",
+					tt.method, factoryResult, detectorResult)
+			}
+		})
+	}
+}
+
+func TestGetDefaultMethod(t *testing.T) {
+	log := logger.New("info")
+	detector := capabilities.NewDetector(log)
+
+	ctx := context.Background()
+	detector.Detect(ctx)
+
+	factory := NewExporterFactory(detector, log)
+
+	// Get default method from factory
+	factoryDefault := factory.GetDefaultMethod()
+
+	// Should match detector's default
+	detectorDefault := detector.GetDefaultMethod()
+
+	if factoryDefault != detectorDefault {
+		t.Errorf("Factory.GetDefaultMethod() = %s, but detector says %s",
+			factoryDefault, detectorDefault)
+	}
+
+	// Default method should be available
+	if !factory.IsAvailable(factoryDefault) {
+		t.Errorf("Default method %s is not available", factoryDefault)
+	}
+
+	// Default should be in the list of available methods
+	methods := factory.GetAvailableMethods()
+	found := false
+	for _, method := range methods {
+		if method == factoryDefault {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("Default method %s not in available methods list", factoryDefault)
+	}
+}
