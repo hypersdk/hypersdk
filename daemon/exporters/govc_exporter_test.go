@@ -3,7 +3,9 @@
 package exporters
 
 import (
+	"bufio"
 	"context"
+	"strings"
 	"testing"
 
 	"hypersdk/daemon/capabilities"
@@ -86,5 +88,40 @@ func TestGovcExporter_Export_InvalidJob(t *testing.T) {
 
 	if err == nil {
 		t.Error("Expected error for invalid job, got nil")
+	}
+}
+
+func TestGovcExporter_monitorErrors(t *testing.T) {
+	log := logger.New("info")
+	exporter := NewGovcExporter("/usr/bin/govc", log)
+
+	tests := []struct {
+		name  string
+		input string
+	}{
+		{
+			name:  "single error line",
+			input: "Error: connection failed\n",
+		},
+		{
+			name:  "multiple error lines",
+			input: "Warning: deprecated option\nError: file not found\n",
+		},
+		{
+			name:  "no errors",
+			input: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create a reader from the test input
+			reader := bufio.NewReader(strings.NewReader(tt.input))
+
+			// Run the monitor - it should not panic
+			exporter.monitorErrors(reader)
+
+			// If we get here without panic, the test passes
+		})
 	}
 }

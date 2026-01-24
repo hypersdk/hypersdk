@@ -3,7 +3,9 @@
 package exporters
 
 import (
+	"bufio"
 	"context"
+	"strings"
 	"testing"
 
 	"hypersdk/daemon/capabilities"
@@ -149,5 +151,119 @@ func TestCTLExporter_Export_InvalidJob(t *testing.T) {
 	// Should fail validation
 	if err == nil {
 		t.Error("Expected error for invalid job, got nil")
+	}
+}
+
+func TestCTLExporter_monitorProgress(t *testing.T) {
+	log := logger.New("info")
+	exporter := NewCTLExporter("/usr/bin/hyperctl", log)
+
+	tests := []struct {
+		name             string
+		input            string
+		expectCallback   bool
+		expectedPercent  float64
+		expectedStep     string
+	}{
+		{
+			name:            "valid progress line",
+			input:           "Progress: 45.5%\n",
+			expectCallback:  true,
+			expectedPercent: 45.5,
+			expectedStep:    "Progress: 45.5%",
+		},
+		{
+			name:            "multiple progress lines",
+			input:           "Starting export\nProgress: 25.0%\nProgress: 50.0%\nDone\n",
+			expectCallback:  true,
+			expectedPercent: 50.0,  // Last progress update
+			expectedStep:    "Progress: 50.0%",
+		},
+		{
+			name:           "no progress lines",
+			input:          "Starting export\nDone\n",
+			expectCallback: false,
+		},
+		{
+			name:           "malformed progress line",
+			input:          "Progress: abc%\n",
+			expectCallback: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create a reader from the test input
+			reader := bufio.NewReader(strings.NewReader(tt.input))
+
+			var lastProgress *models.JobProgress
+			callback := func(progress *models.JobProgress) {
+				lastProgress = progress
+			}
+
+			// Run the monitor
+			exporter.monitorProgress(reader, callback)
+
+			if tt.expectCallback {
+				if lastProgress == nil {
+					t.Fatal("Expected progress callback to be called, but it wasn't")
+				}
+
+				if lastProgress.PercentComplete != tt.expectedPercent {
+					t.Errorf("Expected percent %f, got %f", tt.expectedPercent, lastProgress.PercentComplete)
+				}
+
+				if lastProgress.CurrentStep != tt.expectedStep {
+					t.Errorf("Expected step '%s', got '%s'", tt.expectedStep, lastProgress.CurrentStep)
+				}
+
+				if lastProgress.Phase != "exporting" {
+					t.Errorf("Expected phase 'exporting', got '%s'", lastProgress.Phase)
+				}
+
+				if string(lastProgress.ExportMethod) != "ctl" {
+					t.Errorf("Expected export method 'ctl', got '%s'", lastProgress.ExportMethod)
+				}
+			} else {
+				if lastProgress != nil {
+					t.Errorf("Expected no callback, but got progress: %+v", lastProgress)
+				}
+			}
+		})
+	}
+}
+
+func TestCTLExporter_monitorErrors(t *testing.T) {
+	log := logger.New("info")
+	exporter := NewCTLExporter("/usr/bin/hyperctl", log)
+
+	tests := []struct {
+		name  string
+		input string
+	}{
+		{
+			name:  "single error line",
+			input: "Error: connection failed\n",
+		},
+		{
+			name:  "multiple error lines",
+			input: "Warning: deprecated option\nError: file not found\n",
+		},
+		{
+			name:  "no errors",
+			input: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create a reader from the test input
+			reader := bufio.NewReader(strings.NewReader(tt.input))
+
+			// Run the monitor - it should not panic
+			exporter.monitorErrors(reader)
+
+			// If we get here without panic, the test passes
+		})
 	}
 }
