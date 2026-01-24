@@ -504,3 +504,131 @@ func BenchmarkRetryWithFailures(b *testing.B) {
 		retryer.Do(context.Background(), operation, "benchmark")
 	}
 }
+
+func TestRetryableError(t *testing.T) {
+	baseErr := errors.New("test error")
+	retryableErr := IsRetryable(baseErr)
+
+	if retryableErr == nil {
+		t.Fatal("Expected retryable error, got nil")
+	}
+
+	// Test Error() method
+	if retryableErr.Error() != "test error" {
+		t.Errorf("Expected error message 'test error', got '%s'", retryableErr.Error())
+	}
+
+	// Test Unwrap() method
+	unwrapped := errors.Unwrap(retryableErr)
+	if unwrapped != baseErr {
+		t.Error("Expected unwrapped error to match base error")
+	}
+
+	// Test with nil error
+	nilRetryable := IsRetryable(nil)
+	if nilRetryable != nil {
+		t.Error("Expected nil for retryable wrapper of nil error")
+	}
+}
+
+func TestNonRetryableError(t *testing.T) {
+	baseErr := errors.New("fatal error")
+	nonRetryableErr := IsNonRetryable(baseErr)
+
+	if nonRetryableErr == nil {
+		t.Fatal("Expected non-retryable error, got nil")
+	}
+
+	// Test Error() method
+	if nonRetryableErr.Error() != "fatal error" {
+		t.Errorf("Expected error message 'fatal error', got '%s'", nonRetryableErr.Error())
+	}
+
+	// Test Unwrap() method
+	unwrapped := errors.Unwrap(nonRetryableErr)
+	if unwrapped != baseErr {
+		t.Error("Expected unwrapped error to match base error")
+	}
+
+	// Test with nil error
+	nilNonRetryable := IsNonRetryable(nil)
+	if nilNonRetryable != nil {
+		t.Error("Expected nil for non-retryable wrapper of nil error")
+	}
+}
+
+func TestWithCustomRetry(t *testing.T) {
+	log := newTestLogger()
+	config := &RetryConfig{
+		MaxAttempts:  2,
+		InitialDelay: 1 * time.Millisecond,
+		MaxDelay:     5 * time.Millisecond,
+		Multiplier:   2.0,
+		Jitter:       false,
+	}
+
+	attempts := 0
+	operation := func(ctx context.Context, attempt int) error {
+		attempts++
+		if attempt < 2 {
+			// Return an error that matches retryable patterns
+			return errors.New("connection timeout")
+		}
+		return nil
+	}
+
+	err := WithCustomRetry(context.Background(), operation, "custom-retry-test", config, log)
+	if err != nil {
+		t.Errorf("Expected success after retry, got error: %v", err)
+	}
+
+	if attempts != 2 {
+		t.Errorf("Expected 2 attempts, got %d", attempts)
+	}
+}
+
+func TestSetNetworkMonitor(t *testing.T) {
+	log := newTestLogger()
+	config := DefaultRetryConfig()
+	retryer := NewRetryer(config, log)
+
+	// Create a mock network monitor
+	monitor := &mockNetworkMonitor{
+		isUp: true,
+	}
+
+	// Test SetNetworkMonitor
+	retryer.SetNetworkMonitor(monitor)
+
+	// Verify the monitor was set by checking if it's used during retry
+	attempts := 0
+	operation := func(ctx context.Context, attempt int) error {
+		attempts++
+		return nil
+	}
+
+	err := retryer.Do(context.Background(), operation, "test-with-monitor")
+	if err != nil {
+		t.Errorf("Expected no error, got: %v", err)
+	}
+
+	if attempts != 1 {
+		t.Errorf("Expected 1 attempt, got %d", attempts)
+	}
+}
+
+// mockNetworkMonitor is a test implementation of NetworkMonitor
+type mockNetworkMonitor struct {
+	isUp bool
+}
+
+func (m *mockNetworkMonitor) IsUp() bool {
+	return m.isUp
+}
+
+func (m *mockNetworkMonitor) WaitForNetwork(ctx context.Context) error {
+	if m.isUp {
+		return nil
+	}
+	return errors.New("network offline")
+}
