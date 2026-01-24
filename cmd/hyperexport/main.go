@@ -457,8 +457,12 @@ func main() {
 			*manifestTargetFormat = loadedProfile.ManifestTargetFormat
 		}
 
-		// TODO: Apply pipeline settings from profile if needed
-		// Pipeline settings are configured via command-line flags for now
+		// Apply pipeline settings from profile
+		*enablePipeline = loadedProfile.AutoConvert
+		if loadedProfile.Hyper2KVMBinary != "" {
+			*hyper2kvmPath = loadedProfile.Hyper2KVMBinary
+		}
+		*streamPipeline = loadedProfile.StreamConversion
 	}
 
 	// Handle history operations (don't require provider connection)
