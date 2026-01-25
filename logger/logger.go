@@ -3,7 +3,9 @@
 package logger
 
 import (
+	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"strings"
@@ -19,6 +21,13 @@ const (
 	ERROR
 )
 
+type Format int
+
+const (
+	FormatText Format = iota
+	FormatJSON
+)
+
 type Logger interface {
 	Debug(msg string, keysAndValues ...interface{})
 	Info(msg string, keysAndValues ...interface{})
@@ -26,14 +35,29 @@ type Logger interface {
 	Error(msg string, keysAndValues ...interface{})
 }
 
+type Config struct {
+	Level  string
+	Format string // "text" or "json"
+	Output io.Writer
+}
+
 type StandardLogger struct {
 	level  Level
+	format Format
 	logger *log.Logger
 }
 
 func New(levelStr string) Logger {
+	return NewWithConfig(Config{
+		Level:  levelStr,
+		Format: "text",
+		Output: os.Stderr,
+	})
+}
+
+func NewWithConfig(cfg Config) Logger {
 	level := INFO
-	switch strings.ToLower(levelStr) {
+	switch strings.ToLower(cfg.Level) {
 	case "debug":
 		level = DEBUG
 	case "info":
@@ -44,9 +68,23 @@ func New(levelStr string) Logger {
 		level = ERROR
 	}
 
+	format := FormatText
+	switch strings.ToLower(cfg.Format) {
+	case "json":
+		format = FormatJSON
+	case "text":
+		format = FormatText
+	}
+
+	output := cfg.Output
+	if output == nil {
+		output = os.Stderr
+	}
+
 	return &StandardLogger{
 		level:  level,
-		logger: log.New(os.Stderr, "", 0),
+		format: format,
+		logger: log.New(output, "", 0),
 	}
 }
 
@@ -55,6 +93,14 @@ func (l *StandardLogger) log(level Level, levelStr, msg string, keysAndValues ..
 		return
 	}
 
+	if l.format == FormatJSON {
+		l.logJSON(levelStr, msg, keysAndValues...)
+	} else {
+		l.logText(levelStr, msg, keysAndValues...)
+	}
+}
+
+func (l *StandardLogger) logText(levelStr, msg string, keysAndValues ...interface{}) {
 	timestamp := time.Now().Format("2006-01-02 15:04:05")
 	prefix := fmt.Sprintf("[%s] %s: %s", timestamp, levelStr, msg)
 
@@ -71,6 +117,30 @@ func (l *StandardLogger) log(level Level, levelStr, msg string, keysAndValues ..
 	}
 
 	l.logger.Println(prefix)
+}
+
+func (l *StandardLogger) logJSON(levelStr, msg string, keysAndValues ...interface{}) {
+	entry := make(map[string]interface{})
+	entry["timestamp"] = time.Now().UTC().Format(time.RFC3339)
+	entry["level"] = levelStr
+	entry["msg"] = msg
+
+	// Add key-value pairs to the entry
+	for i := 0; i < len(keysAndValues); i += 2 {
+		if i+1 < len(keysAndValues) {
+			key := fmt.Sprintf("%v", keysAndValues[i])
+			entry[key] = keysAndValues[i+1]
+		}
+	}
+
+	jsonBytes, err := json.Marshal(entry)
+	if err != nil {
+		// Fallback to text format if JSON marshaling fails
+		l.logText(levelStr, msg, keysAndValues...)
+		return
+	}
+
+	l.logger.Println(string(jsonBytes))
 }
 
 func (l *StandardLogger) Debug(msg string, keysAndValues ...interface{}) {
