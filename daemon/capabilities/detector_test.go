@@ -382,3 +382,130 @@ func TestMethodPriorities(t *testing.T) {
 		})
 	}
 }
+
+func TestGetBestMethodFallbackToWeb(t *testing.T) {
+	log := logger.New("info")
+	detector := NewDetector(log)
+
+	// No capabilities set - should fall back to web
+	best := detector.GetBestMethod()
+	if best != ExportMethodWeb {
+		t.Errorf("Expected fallback to web when no capabilities available, got %s", best)
+	}
+}
+
+func TestGetBestMethodWithUnavailableMethods(t *testing.T) {
+	log := logger.New("info")
+	detector := NewDetector(log)
+
+	// Add methods but mark them as unavailable
+	detector.capabilities[ExportMethodCTL] = &ExportCapability{
+		Method:    ExportMethodCTL,
+		Available: false,
+		Priority:  1,
+	}
+
+	detector.capabilities[ExportMethodGovc] = &ExportCapability{
+		Method:    ExportMethodGovc,
+		Available: false,
+		Priority:  2,
+	}
+
+	detector.capabilities[ExportMethodOvftool] = &ExportCapability{
+		Method:    ExportMethodOvftool,
+		Available: false,
+		Priority:  3,
+	}
+
+	// Should still fall back to web
+	best := detector.GetBestMethod()
+	if best != ExportMethodWeb {
+		t.Errorf("Expected fallback to web when all methods unavailable, got %s", best)
+	}
+}
+
+func TestGetBestMethodSkipsUnavailable(t *testing.T) {
+	log := logger.New("info")
+	detector := NewDetector(log)
+
+	// CTL unavailable, govc available
+	detector.capabilities[ExportMethodCTL] = &ExportCapability{
+		Method:    ExportMethodCTL,
+		Available: false,
+		Priority:  1,
+	}
+
+	detector.capabilities[ExportMethodGovc] = &ExportCapability{
+		Method:    ExportMethodGovc,
+		Available: true,
+		Priority:  2,
+	}
+
+	best := detector.GetBestMethod()
+	if best != ExportMethodGovc {
+		t.Errorf("Expected govc (skipping unavailable CTL), got %s", best)
+	}
+}
+
+func TestDetectCTLNotFound(t *testing.T) {
+	log := logger.New("info")
+	detector := NewDetector(log)
+
+	// Ensure hyperctl is not in PATH
+	oldPath := os.Getenv("PATH")
+	os.Setenv("PATH", "/nonexistent")
+	defer os.Setenv("PATH", oldPath)
+
+	cap := detector.detectCTL()
+
+	if cap.Available {
+		t.Error("Expected CTL to be unavailable when binary not found")
+	}
+
+	if cap.Method != ExportMethodCTL {
+		t.Errorf("Expected method to be CTL, got %s", cap.Method)
+	}
+
+	if cap.Priority != 1 {
+		t.Errorf("Expected priority 1, got %d", cap.Priority)
+	}
+
+	if cap.Path != "" {
+		t.Errorf("Expected empty path when binary not found, got %s", cap.Path)
+	}
+}
+
+func TestDetectCTLVersionCheckFails(t *testing.T) {
+	log := logger.New("info")
+	detector := NewDetector(log)
+
+	// Create a mock binary that will fail version check
+	tmpDir := t.TempDir()
+	mockCTL := filepath.Join(tmpDir, "hyperctl")
+
+	// Create a script that exits with error
+	script := "#!/bin/sh\nexit 1\n"
+	if err := os.WriteFile(mockCTL, []byte(script), 0755); err != nil {
+		t.Fatalf("Failed to create mock binary: %v", err)
+	}
+
+	// Modify PATH
+	oldPath := os.Getenv("PATH")
+	os.Setenv("PATH", tmpDir+":"+oldPath)
+	defer os.Setenv("PATH", oldPath)
+
+	cap := detector.detectCTL()
+
+	// Should still be available even if version check fails
+	if !cap.Available {
+		t.Error("Expected CTL to be available even when version check fails")
+	}
+
+	if cap.Version != "unknown" {
+		t.Errorf("Expected version to be 'unknown', got %s", cap.Version)
+	}
+
+	if cap.Path != mockCTL {
+		t.Errorf("Expected path to be %s, got %s", mockCTL, cap.Path)
+	}
+}

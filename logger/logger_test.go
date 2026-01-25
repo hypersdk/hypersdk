@@ -3,6 +3,9 @@
 package logger
 
 import (
+	"bytes"
+	"encoding/json"
+	"strings"
 	"testing"
 )
 
@@ -212,5 +215,264 @@ func TestTestLogger_Format(t *testing.T) {
 				t.Errorf("format() result too short: %s", result)
 			}
 		})
+	}
+}
+
+// JSON Logger Tests
+
+func TestNewWithConfig_JSONFormat(t *testing.T) {
+	buf := &bytes.Buffer{}
+	log := NewWithConfig(Config{
+		Level:  "info",
+		Format: "json",
+		Output: buf,
+	})
+
+	if log == nil {
+		t.Fatal("NewWithConfig() returned nil logger")
+	}
+
+	stdLog, ok := log.(*StandardLogger)
+	if !ok {
+		t.Fatal("Expected *StandardLogger type")
+	}
+
+	if stdLog.format != FormatJSON {
+		t.Errorf("Expected FormatJSON, got %v", stdLog.format)
+	}
+}
+
+func TestJSONLogger_BasicMessage(t *testing.T) {
+	buf := &bytes.Buffer{}
+	log := NewWithConfig(Config{
+		Level:  "debug",
+		Format: "json",
+		Output: buf,
+	})
+
+	log.Info("test message")
+
+	output := buf.String()
+	if output == "" {
+		t.Fatal("Expected output, got empty string")
+	}
+
+	// Parse JSON
+	var entry map[string]interface{}
+	if err := json.Unmarshal([]byte(strings.TrimSpace(output)), &entry); err != nil {
+		t.Fatalf("Failed to parse JSON output: %v\nOutput: %s", err, output)
+	}
+
+	// Verify fields
+	if entry["level"] != "INFO" {
+		t.Errorf("Expected level=INFO, got %v", entry["level"])
+	}
+	if entry["msg"] != "test message" {
+		t.Errorf("Expected msg='test message', got %v", entry["msg"])
+	}
+	if entry["timestamp"] == nil {
+		t.Error("Expected timestamp field")
+	}
+}
+
+func TestJSONLogger_WithKeyValues(t *testing.T) {
+	buf := &bytes.Buffer{}
+	log := NewWithConfig(Config{
+		Level:  "debug",
+		Format: "json",
+		Output: buf,
+	})
+
+	log.Info("vm export started", "vm_path", "/datacenter/vm/test", "job_id", "abc123", "status", "running")
+
+	output := buf.String()
+	var entry map[string]interface{}
+	if err := json.Unmarshal([]byte(strings.TrimSpace(output)), &entry); err != nil {
+		t.Fatalf("Failed to parse JSON: %v", err)
+	}
+
+	if entry["level"] != "INFO" {
+		t.Errorf("Expected level=INFO, got %v", entry["level"])
+	}
+	if entry["msg"] != "vm export started" {
+		t.Errorf("Expected msg='vm export started', got %v", entry["msg"])
+	}
+	if entry["vm_path"] != "/datacenter/vm/test" {
+		t.Errorf("Expected vm_path='/datacenter/vm/test', got %v", entry["vm_path"])
+	}
+	if entry["job_id"] != "abc123" {
+		t.Errorf("Expected job_id='abc123', got %v", entry["job_id"])
+	}
+	if entry["status"] != "running" {
+		t.Errorf("Expected status='running', got %v", entry["status"])
+	}
+}
+
+func TestJSONLogger_AllLevels(t *testing.T) {
+	tests := []struct {
+		name          string
+		logFunc       func(Logger)
+		expectedLevel string
+	}{
+		{
+			name:          "debug level",
+			logFunc:       func(l Logger) { l.Debug("debug message") },
+			expectedLevel: "DEBUG",
+		},
+		{
+			name:          "info level",
+			logFunc:       func(l Logger) { l.Info("info message") },
+			expectedLevel: "INFO",
+		},
+		{
+			name:          "warn level",
+			logFunc:       func(l Logger) { l.Warn("warn message") },
+			expectedLevel: "WARN",
+		},
+		{
+			name:          "error level",
+			logFunc:       func(l Logger) { l.Error("error message") },
+			expectedLevel: "ERROR",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			buf := &bytes.Buffer{}
+			log := NewWithConfig(Config{
+				Level:  "debug",
+				Format: "json",
+				Output: buf,
+			})
+
+			tt.logFunc(log)
+
+			var entry map[string]interface{}
+			if err := json.Unmarshal([]byte(strings.TrimSpace(buf.String())), &entry); err != nil {
+				t.Fatalf("Failed to parse JSON: %v", err)
+			}
+
+			if entry["level"] != tt.expectedLevel {
+				t.Errorf("Expected level=%s, got %v", tt.expectedLevel, entry["level"])
+			}
+		})
+	}
+}
+
+func TestJSONLogger_LevelFiltering(t *testing.T) {
+	buf := &bytes.Buffer{}
+	log := NewWithConfig(Config{
+		Level:  "warn", // Only WARN and ERROR should be logged
+		Format: "json",
+		Output: buf,
+	})
+
+	log.Debug("debug message")
+	log.Info("info message")
+	log.Warn("warn message")
+	log.Error("error message")
+
+	output := buf.String()
+	lines := strings.Split(strings.TrimSpace(output), "\n")
+
+	// Should only have 2 lines (WARN and ERROR)
+	if len(lines) != 2 {
+		t.Errorf("Expected 2 log lines, got %d: %v", len(lines), lines)
+	}
+
+	// Verify first line is WARN
+	var warn map[string]interface{}
+	if err := json.Unmarshal([]byte(lines[0]), &warn); err != nil {
+		t.Fatalf("Failed to parse WARN JSON: %v", err)
+	}
+	if warn["level"] != "WARN" {
+		t.Errorf("Expected first line to be WARN, got %v", warn["level"])
+	}
+
+	// Verify second line is ERROR
+	var errEntry map[string]interface{}
+	if err := json.Unmarshal([]byte(lines[1]), &errEntry); err != nil {
+		t.Fatalf("Failed to parse ERROR JSON: %v", err)
+	}
+	if errEntry["level"] != "ERROR" {
+		t.Errorf("Expected second line to be ERROR, got %v", errEntry["level"])
+	}
+}
+
+func TestJSONLogger_NumericValues(t *testing.T) {
+	buf := &bytes.Buffer{}
+	log := NewWithConfig(Config{
+		Level:  "info",
+		Format: "json",
+		Output: buf,
+	})
+
+	log.Info("metrics", "cpu_percent", 75.5, "memory_mb", 2048, "goroutines", 42)
+
+	var entry map[string]interface{}
+	if err := json.Unmarshal([]byte(strings.TrimSpace(buf.String())), &entry); err != nil {
+		t.Fatalf("Failed to parse JSON: %v", err)
+	}
+
+	if entry["cpu_percent"] != 75.5 {
+		t.Errorf("Expected cpu_percent=75.5, got %v", entry["cpu_percent"])
+	}
+	if entry["memory_mb"] != float64(2048) {
+		t.Errorf("Expected memory_mb=2048, got %v", entry["memory_mb"])
+	}
+	if entry["goroutines"] != float64(42) {
+		t.Errorf("Expected goroutines=42, got %v", entry["goroutines"])
+	}
+}
+
+func TestTextLogger_StillWorks(t *testing.T) {
+	buf := &bytes.Buffer{}
+	log := NewWithConfig(Config{
+		Level:  "info",
+		Format: "text",
+		Output: buf,
+	})
+
+	log.Info("test message", "key1", "value1")
+
+	output := buf.String()
+	if output == "" {
+		t.Fatal("Expected output, got empty string")
+	}
+
+	// Should not be JSON
+	if strings.HasPrefix(output, "{") {
+		t.Error("Text format output should not be JSON")
+	}
+
+	// Should contain the message
+	if !strings.Contains(output, "test message") {
+		t.Errorf("Expected output to contain 'test message', got: %s", output)
+	}
+
+	// Should contain the key-value pair
+	if !strings.Contains(output, "key1=value1") {
+		t.Errorf("Expected output to contain 'key1=value1', got: %s", output)
+	}
+}
+
+func TestNewWithConfig_NilOutput(t *testing.T) {
+	log := NewWithConfig(Config{
+		Level:  "info",
+		Format: "json",
+		Output: nil, // Should default to os.Stderr
+	})
+
+	if log == nil {
+		t.Fatal("NewWithConfig() with nil output returned nil logger")
+	}
+
+	stdLog, ok := log.(*StandardLogger)
+	if !ok {
+		t.Fatal("Expected *StandardLogger type")
+	}
+
+	if stdLog.logger == nil {
+		t.Error("StandardLogger.logger should not be nil")
 	}
 }

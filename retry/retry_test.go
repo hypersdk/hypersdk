@@ -617,9 +617,189 @@ func TestSetNetworkMonitor(t *testing.T) {
 	}
 }
 
+func TestNetworkMonitorRecovery(t *testing.T) {
+	log := newTestLogger()
+	config := &RetryConfig{
+		MaxAttempts:    3,
+		InitialDelay:   10 * time.Millisecond,
+		WaitForNetwork: true,
+	}
+	retryer := NewRetryer(config, log)
+
+	// Create a mock network monitor that simulates network recovery
+	monitor := &mockNetworkMonitor{
+		isUp:              false,
+		recoverAfterCalls: 1,
+	}
+	retryer.SetNetworkMonitor(monitor)
+
+	attempts := 0
+	operation := func(ctx context.Context, attempt int) error {
+		attempts++
+		if attempt < 2 {
+			return errors.New("connection timeout")
+		}
+		return nil
+	}
+
+	err := retryer.Do(context.Background(), operation, "test-network-recovery")
+	if err != nil {
+		t.Errorf("Expected success after network recovery, got: %v", err)
+	}
+
+	if attempts != 2 {
+		t.Errorf("Expected 2 attempts, got %d", attempts)
+	}
+
+	if monitor.waitCalled < 1 {
+		t.Error("Expected WaitForNetwork to be called")
+	}
+}
+
+func TestNetworkMonitorContextCancellation(t *testing.T) {
+	log := newTestLogger()
+	config := &RetryConfig{
+		MaxAttempts:    5,
+		InitialDelay:   10 * time.Millisecond,
+		WaitForNetwork: true,
+	}
+	retryer := NewRetryer(config, log)
+
+	// Create a monitor that never recovers
+	monitor := &mockNetworkMonitor{
+		isUp:          false,
+		cancelContext: true,
+	}
+	retryer.SetNetworkMonitor(monitor)
+
+	attempts := 0
+	operation := func(ctx context.Context, attempt int) error {
+		attempts++
+		return errors.New("connection timeout")
+	}
+
+	err := retryer.Do(context.Background(), operation, "test-network-cancel")
+	if err == nil {
+		t.Error("Expected error due to context cancellation during network wait")
+	}
+
+	if !strings.Contains(err.Error(), "network wait cancelled") {
+		t.Errorf("Expected 'network wait cancelled' in error, got: %v", err)
+	}
+}
+
+func TestContextAlreadyCancelled(t *testing.T) {
+	log := newTestLogger()
+	config := &RetryConfig{
+		MaxAttempts:  3,
+		InitialDelay: 10 * time.Millisecond,
+	}
+	retryer := NewRetryer(config, log)
+
+	// Create an already-cancelled context
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	attempts := 0
+	operation := func(ctx context.Context, attempt int) error {
+		attempts++
+		return errors.New("should not reach here")
+	}
+
+	err := retryer.Do(ctx, operation, "test-cancelled-context")
+	if err == nil {
+		t.Error("Expected error due to cancelled context")
+	}
+
+	if !errors.Is(err, context.Canceled) {
+		t.Errorf("Expected context.Canceled error, got: %v", err)
+	}
+
+	// Should not execute operation at all
+	if attempts != 0 {
+		t.Errorf("Expected 0 attempts (context already cancelled), got %d", attempts)
+	}
+}
+
+func TestDoWithResultNetworkRecovery(t *testing.T) {
+	log := newTestLogger()
+	config := &RetryConfig{
+		MaxAttempts:    3,
+		InitialDelay:   10 * time.Millisecond,
+		WaitForNetwork: true,
+	}
+	retryer := NewRetryer(config, log)
+
+	monitor := &mockNetworkMonitor{
+		isUp:              false,
+		recoverAfterCalls: 1,
+	}
+	retryer.SetNetworkMonitor(monitor)
+
+	attempts := 0
+	operation := func(ctx context.Context, attempt int) (interface{}, error) {
+		attempts++
+		if attempt < 2 {
+			return nil, errors.New("network timeout")
+		}
+		return "recovered", nil
+	}
+
+	result, err := retryer.DoWithResult(context.Background(), operation, "test-result-network")
+	if err != nil {
+		t.Errorf("Expected success after network recovery, got: %v", err)
+	}
+
+	if result != "recovered" {
+		t.Errorf("Expected 'recovered', got: %v", result)
+	}
+
+	if attempts != 2 {
+		t.Errorf("Expected 2 attempts, got %d", attempts)
+	}
+}
+
+func TestDoWithResultContextCancelled(t *testing.T) {
+	log := newTestLogger()
+	config := &RetryConfig{
+		MaxAttempts:  3,
+		InitialDelay: 10 * time.Millisecond,
+	}
+	retryer := NewRetryer(config, log)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	attempts := 0
+	operation := func(ctx context.Context, attempt int) (interface{}, error) {
+		attempts++
+		return nil, errors.New("should not execute")
+	}
+
+	result, err := retryer.DoWithResult(ctx, operation, "test-result-cancelled")
+	if err == nil {
+		t.Error("Expected error due to cancelled context")
+	}
+
+	if result != nil {
+		t.Errorf("Expected nil result, got: %v", result)
+	}
+
+	if !errors.Is(err, context.Canceled) {
+		t.Errorf("Expected context.Canceled error, got: %v", err)
+	}
+
+	if attempts != 0 {
+		t.Errorf("Expected 0 attempts, got %d", attempts)
+	}
+}
+
 // mockNetworkMonitor is a test implementation of NetworkMonitor
 type mockNetworkMonitor struct {
-	isUp bool
+	isUp              bool
+	waitCalled        int
+	recoverAfterCalls int
+	cancelContext     bool
 }
 
 func (m *mockNetworkMonitor) IsUp() bool {
@@ -627,8 +807,20 @@ func (m *mockNetworkMonitor) IsUp() bool {
 }
 
 func (m *mockNetworkMonitor) WaitForNetwork(ctx context.Context) error {
+	m.waitCalled++
+
+	if m.cancelContext {
+		return context.Canceled
+	}
+
+	if m.recoverAfterCalls > 0 && m.waitCalled >= m.recoverAfterCalls {
+		m.isUp = true
+		return nil
+	}
+
 	if m.isUp {
 		return nil
 	}
+
 	return errors.New("network offline")
 }

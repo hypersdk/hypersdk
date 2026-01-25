@@ -76,11 +76,48 @@ func TestWebExporter_Validate(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name: "missing vcenter server",
+			name: "missing vcenter config",
 			job: &models.JobDefinition{
 				VMPath:    "/datacenter/vm/test-vm",
 				OutputDir: "/tmp/output",
-				VCenter:   &models.VCenterConfig{},
+				VCenter:   nil,
+			},
+			wantErr: true,
+		},
+		{
+			name: "vcenter with empty server",
+			job: &models.JobDefinition{
+				VMPath:    "/datacenter/vm/test-vm",
+				OutputDir: "/tmp/output",
+				VCenter: &models.VCenterConfig{
+					Server:   "",
+					Username: "admin",
+					Password: "password",
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "missing vcenter username",
+			job: &models.JobDefinition{
+				VMPath:    "/datacenter/vm/test-vm",
+				OutputDir: "/tmp/output",
+				VCenter: &models.VCenterConfig{
+					Server:   "vcenter.example.com",
+					Password: "password",
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "missing vcenter password",
+			job: &models.JobDefinition{
+				VMPath:    "/datacenter/vm/test-vm",
+				OutputDir: "/tmp/output",
+				VCenter: &models.VCenterConfig{
+					Server:   "vcenter.example.com",
+					Username: "admin",
+				},
 			},
 			wantErr: true,
 		},

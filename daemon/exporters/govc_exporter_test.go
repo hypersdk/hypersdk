@@ -65,6 +65,36 @@ func TestGovcExporter_Validate(t *testing.T) {
 			},
 			wantErr: true,
 		},
+		{
+			name: "missing output_dir",
+			job: &models.JobDefinition{
+				VMPath: "/datacenter/vm/test-vm",
+				VCenter: &models.VCenterConfig{
+					Server: "vcenter.example.com",
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "missing vcenter config",
+			job: &models.JobDefinition{
+				VMPath:    "/datacenter/vm/test-vm",
+				OutputDir: "/tmp/output",
+				VCenter:   nil,
+			},
+			wantErr: true,
+		},
+		{
+			name: "vcenter with empty server",
+			job: &models.JobDefinition{
+				VMPath:    "/datacenter/vm/test-vm",
+				OutputDir: "/tmp/output",
+				VCenter: &models.VCenterConfig{
+					Server: "",
+				},
+			},
+			wantErr: true,
+		},
 	}
 
 	for _, tt := range tests {

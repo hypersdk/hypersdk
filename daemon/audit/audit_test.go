@@ -265,3 +265,280 @@ func TestLogRotation(t *testing.T) {
 		t.Error("expected at least one log file")
 	}
 }
+
+func TestQueryWithFilters(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	logger, err := NewFileLogger(tmpDir, 10, 30, 5)
+	if err != nil {
+		t.Fatalf("failed to create logger: %v", err)
+	}
+	defer logger.Close()
+
+	// Log events with different attributes
+	now := time.Now()
+	events := []*Event{
+		{
+			ID:        "1",
+			Timestamp: now.Add(-2 * time.Hour),
+			EventType: EventTypeLogin,
+			Status:    EventStatusSuccess,
+			Username:  "alice",
+			Resource:  "resource-a",
+		},
+		{
+			ID:        "2",
+			Timestamp: now.Add(-1 * time.Hour),
+			EventType: EventTypeExportVM,
+			Status:    EventStatusFailure,
+			Username:  "bob",
+			Resource:  "resource-b",
+		},
+		{
+			ID:        "3",
+			Timestamp: now,
+			EventType: EventTypeLogin,
+			Status:    EventStatusSuccess,
+			Username:  "alice",
+			Resource:  "resource-a",
+		},
+	}
+
+	for _, event := range events {
+		if err := logger.Log(event); err != nil {
+			t.Fatalf("failed to log event: %v", err)
+		}
+	}
+
+	// Query by username
+	usernameFilter := QueryFilter{Username: "alice"}
+	results, err := logger.Query(usernameFilter)
+	if err != nil {
+		t.Fatalf("failed to query by username: %v", err)
+	}
+	if len(results) != 2 {
+		t.Errorf("expected 2 alice events, got %d", len(results))
+	}
+
+	// Query by event type
+	typeFilter := QueryFilter{EventType: EventTypeExportVM}
+	results, err = logger.Query(typeFilter)
+	if err != nil {
+		t.Fatalf("failed to query by type: %v", err)
+	}
+	if len(results) != 1 {
+		t.Errorf("expected 1 ExportVM event, got %d", len(results))
+	}
+
+	// Query by status
+	statusFilter := QueryFilter{Status: EventStatusFailure}
+	results, err = logger.Query(statusFilter)
+	if err != nil {
+		t.Fatalf("failed to query by status: %v", err)
+	}
+	if len(results) != 1 {
+		t.Errorf("expected 1 failure event, got %d", len(results))
+	}
+
+	// Query by resource
+	resourceFilter := QueryFilter{Resource: "resource-a"}
+	results, err = logger.Query(resourceFilter)
+	if err != nil {
+		t.Fatalf("failed to query by resource: %v", err)
+	}
+	if len(results) != 2 {
+		t.Errorf("expected 2 resource-a events, got %d", len(results))
+	}
+
+	// Query by time range
+	startTime := now.Add(-90 * time.Minute)
+	endTime := now.Add(-30 * time.Minute)
+	timeFilter := QueryFilter{StartTime: &startTime, EndTime: &endTime}
+	results, err = logger.Query(timeFilter)
+	if err != nil {
+		t.Fatalf("failed to query by time range: %v", err)
+	}
+	if len(results) != 1 {
+		t.Errorf("expected 1 event in time range, got %d", len(results))
+	}
+}
+
+func TestQueryWithStartTimeFilter(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	logger, err := NewFileLogger(tmpDir, 10, 30, 5)
+	if err != nil {
+		t.Fatalf("failed to create logger: %v", err)
+	}
+	defer logger.Close()
+
+	now := time.Now()
+	oldEvent := &Event{
+		ID:        "1",
+		Timestamp: now.Add(-2 * time.Hour),
+		EventType: EventTypeLogin,
+		Username:  "alice",
+	}
+	newEvent := &Event{
+		ID:        "2",
+		Timestamp: now,
+		EventType: EventTypeLogin,
+		Username:  "bob",
+	}
+
+	logger.Log(oldEvent)
+	logger.Log(newEvent)
+
+	// Query with start time filter
+	startTime := now.Add(-1 * time.Hour)
+	filter := QueryFilter{StartTime: &startTime}
+	results, err := logger.Query(filter)
+	if err != nil {
+		t.Fatalf("failed to query: %v", err)
+	}
+
+	if len(results) != 1 {
+		t.Errorf("expected 1 event after start time, got %d", len(results))
+	}
+	if len(results) > 0 && results[0].Username != "bob" {
+		t.Errorf("expected bob's event, got %s", results[0].Username)
+	}
+}
+
+func TestQueryWithEndTimeFilter(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	logger, err := NewFileLogger(tmpDir, 10, 30, 5)
+	if err != nil {
+		t.Fatalf("failed to create logger: %v", err)
+	}
+	defer logger.Close()
+
+	now := time.Now()
+	oldEvent := &Event{
+		ID:        "1",
+		Timestamp: now.Add(-2 * time.Hour),
+		EventType: EventTypeLogin,
+		Username:  "alice",
+	}
+	newEvent := &Event{
+		ID:        "2",
+		Timestamp: now,
+		EventType: EventTypeLogin,
+		Username:  "bob",
+	}
+
+	logger.Log(oldEvent)
+	logger.Log(newEvent)
+
+	// Query with end time filter
+	endTime := now.Add(-1 * time.Hour)
+	filter := QueryFilter{EndTime: &endTime}
+	results, err := logger.Query(filter)
+	if err != nil {
+		t.Fatalf("failed to query: %v", err)
+	}
+
+	if len(results) != 1 {
+		t.Errorf("expected 1 event before end time, got %d", len(results))
+	}
+	if len(results) > 0 && results[0].Username != "alice" {
+		t.Errorf("expected alice's event, got %s", results[0].Username)
+	}
+}
+
+func TestCloseNilFile(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	logger, err := NewFileLogger(tmpDir, 10, 30, 5)
+	if err != nil {
+		t.Fatalf("failed to create logger: %v", err)
+	}
+
+	// Close the logger
+	logger.Close()
+
+	// Set file to nil and close again - should not panic
+	logger.file = nil
+	err = logger.Close()
+	if err != nil {
+		t.Errorf("close with nil file should not error: %v", err)
+	}
+}
+
+func TestShouldRotateNilFile(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	logger, err := NewFileLogger(tmpDir, 10, 30, 5)
+	if err != nil {
+		t.Fatalf("failed to create logger: %v", err)
+	}
+	defer logger.Close()
+
+	// Set file to nil
+	logger.file = nil
+
+	// shouldRotate should return true when file is nil
+	if !logger.shouldRotate() {
+		t.Error("shouldRotate should return true when file is nil")
+	}
+}
+
+func TestShouldRotateFileSize(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	logger, err := NewFileLogger(tmpDir, 10, 30, 5)
+	if err != nil {
+		t.Fatalf("failed to create logger: %v", err)
+	}
+	defer logger.Close()
+
+	// Set very small max size
+	logger.maxSize = 100
+
+	// Log an event
+	event := NewEvent(EventTypeLogin, "user")
+	logger.Log(event)
+
+	// Log many more events to exceed size
+	for i := 0; i < 50; i++ {
+		event := NewEvent(EventTypeLogin, "user")
+		event.Details["data"] = "some long data to increase file size"
+		logger.Log(event)
+	}
+
+	// shouldRotate should return true when file exceeds max size
+	if !logger.shouldRotate() {
+		t.Error("shouldRotate should return true when file exceeds maxSize")
+	}
+}
+
+func TestNewFileLoggerInvalidDirectory(t *testing.T) {
+	// Try to create logger with invalid directory
+	_, err := NewFileLogger("/nonexistent/invalid/path", 10, 30, 5)
+	if err == nil {
+		t.Error("expected error when creating logger with invalid directory")
+	}
+}
+
+func TestQueryEmptyDirectory(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	logger, err := NewFileLogger(tmpDir, 10, 30, 5)
+	if err != nil {
+		t.Fatalf("failed to create logger: %v", err)
+	}
+	defer logger.Close()
+
+	// Close and remove all files
+	logger.Close()
+
+	// Query should return empty results, not error
+	results, err := logger.Query(QueryFilter{})
+	if err != nil {
+		t.Errorf("query on empty directory should not error: %v", err)
+	}
+	if len(results) != 0 {
+		t.Errorf("expected 0 results from empty directory, got %d", len(results))
+	}
+}

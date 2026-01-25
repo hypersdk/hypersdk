@@ -5,6 +5,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -1243,5 +1244,232 @@ func TestDisabledSectionsSkipValidation(t *testing.T) {
 		for _, err := range result.Errors {
 			t.Logf("  - %s", err.Error())
 		}
+	}
+}
+
+func TestValidateQueueHighWorkersWarning(t *testing.T) {
+	config := getValidConfig()
+	config.Queue.MaxWorkers = 1500
+
+	validator := NewValidator(config)
+	result := validator.Validate()
+
+	if !result.Valid {
+		t.Error("expected valid config with warning")
+	}
+
+	if len(result.Warnings) == 0 {
+		t.Error("expected warning for very high max_workers")
+	}
+
+	foundWarning := false
+	for _, warn := range result.Warnings {
+		if strings.Contains(warn, "max_workers is very high") {
+			foundWarning = true
+			break
+		}
+	}
+
+	if !foundWarning {
+		t.Error("expected warning about high max_workers")
+	}
+}
+
+func TestValidateQueueLargeQueueSizeWarning(t *testing.T) {
+	config := getValidConfig()
+	config.Queue.MaxQueueSize = 2000000
+
+	validator := NewValidator(config)
+	result := validator.Validate()
+
+	if !result.Valid {
+		t.Error("expected valid config with warning")
+	}
+
+	if len(result.Warnings) == 0 {
+		t.Error("expected warning for very large max_queue_size")
+	}
+
+	foundWarning := false
+	for _, warn := range result.Warnings {
+		if strings.Contains(warn, "max_queue_size is very large") {
+			foundWarning = true
+			break
+		}
+	}
+
+	if !foundWarning {
+		t.Error("expected warning about large max_queue_size")
+	}
+}
+
+func TestValidateQueueShortTimeoutWarning(t *testing.T) {
+	config := getValidConfig()
+	config.Queue.DefaultTimeout = 30 * time.Second
+
+	validator := NewValidator(config)
+	result := validator.Validate()
+
+	if !result.Valid {
+		t.Error("expected valid config with warning")
+	}
+
+	if len(result.Warnings) == 0 {
+		t.Error("expected warning for very short default_timeout")
+	}
+
+	foundWarning := false
+	for _, warn := range result.Warnings {
+		if strings.Contains(warn, "default_timeout is very short") {
+			foundWarning = true
+			break
+		}
+	}
+
+	if !foundWarning {
+		t.Error("expected warning about short default_timeout")
+	}
+}
+
+func TestValidateCacheSmallMemoryWarning(t *testing.T) {
+	config := getValidConfig()
+	config.Cache.MaxMemorySize = 512 * 1024 // 512KB
+
+	validator := NewValidator(config)
+	result := validator.Validate()
+
+	if !result.Valid {
+		t.Error("expected valid config with warning")
+	}
+
+	if len(result.Warnings) == 0 {
+		t.Error("expected warning for very small max_memory_size")
+	}
+
+	foundWarning := false
+	for _, warn := range result.Warnings {
+		if strings.Contains(warn, "max_memory_size is very small") {
+			foundWarning = true
+			break
+		}
+	}
+
+	if !foundWarning {
+		t.Error("expected warning about small max_memory_size")
+	}
+}
+
+func TestValidateCacheLongTTLWarning(t *testing.T) {
+	config := getValidConfig()
+	config.Cache.DefaultTTL = 48 * time.Hour
+
+	validator := NewValidator(config)
+	result := validator.Validate()
+
+	if !result.Valid {
+		t.Error("expected valid config with warning")
+	}
+
+	if len(result.Warnings) == 0 {
+		t.Error("expected warning for very long default_ttl")
+	}
+
+	foundWarning := false
+	for _, warn := range result.Warnings {
+		if strings.Contains(warn, "default_ttl is very long") {
+			foundWarning = true
+			break
+		}
+	}
+
+	if !foundWarning {
+		t.Error("expected warning about long default_ttl")
+	}
+}
+
+func TestValidateBackupRelativePathWarning(t *testing.T) {
+	config := getValidConfig()
+	config.Backup.Enabled = true
+	config.Backup.BackupDir = "relative/path"
+
+	validator := NewValidator(config)
+	result := validator.Validate()
+
+	if !result.Valid {
+		t.Error("expected valid config with warning")
+	}
+
+	if len(result.Warnings) == 0 {
+		t.Error("expected warning for non-absolute backup_dir")
+	}
+
+	foundWarning := false
+	for _, warn := range result.Warnings {
+		if strings.Contains(warn, "backup_dir is not an absolute path") {
+			foundWarning = true
+			break
+		}
+	}
+
+	if !foundWarning {
+		t.Error("expected warning about non-absolute backup_dir")
+	}
+}
+
+func TestValidateBackupZeroRetentionWarning(t *testing.T) {
+	config := getValidConfig()
+	config.Backup.Enabled = true
+	config.Backup.RetentionDays = 0
+
+	validator := NewValidator(config)
+	result := validator.Validate()
+
+	if !result.Valid {
+		t.Error("expected valid config with warning")
+	}
+
+	if len(result.Warnings) == 0 {
+		t.Error("expected warning for zero retention_days")
+	}
+
+	foundWarning := false
+	for _, warn := range result.Warnings {
+		if strings.Contains(warn, "retention_days is 0") {
+			foundWarning = true
+			break
+		}
+	}
+
+	if !foundWarning {
+		t.Error("expected warning about zero retention_days")
+	}
+}
+
+func TestValidateBackupShortIntervalWarning(t *testing.T) {
+	config := getValidConfig()
+	config.Backup.Enabled = true
+	config.Backup.Interval = 30 * time.Minute
+
+	validator := NewValidator(config)
+	result := validator.Validate()
+
+	if !result.Valid {
+		t.Error("expected valid config with warning")
+	}
+
+	if len(result.Warnings) == 0 {
+		t.Error("expected warning for very short backup interval")
+	}
+
+	foundWarning := false
+	for _, warn := range result.Warnings {
+		if strings.Contains(warn, "interval is very short") {
+			foundWarning = true
+			break
+		}
+	}
+
+	if !foundWarning {
+		t.Error("expected warning about short backup interval")
 	}
 }

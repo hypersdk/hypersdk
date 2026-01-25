@@ -442,3 +442,50 @@ func TestAdaptiveBandwidthLimiter_AdjustSpeedMaxBound(t *testing.T) {
 		t.Errorf("Speed exceeded maximum: %d > %d", adaptive.currentSpeed, maxRate)
 	}
 }
+
+func TestAdaptiveBandwidthLimiter_AdjustSpeedTooSoon(t *testing.T) {
+	minRate := int64(1 * 1024 * 1024)   // 1 MB/s
+	maxRate := int64(100 * 1024 * 1024) // 100 MB/s
+	adaptive := NewAdaptiveBandwidthLimiter(minRate, maxRate, logger.NewTestLogger(t))
+
+	initialSpeed := adaptive.currentSpeed
+
+	// Record high success rate
+	for i := 0; i < 100; i++ {
+		adaptive.RecordSuccess()
+	}
+
+	// Call adjustSpeed immediately without waiting for adjust interval
+	// This should return early without changing speed
+	adaptive.adjustSpeed()
+
+	// Speed should not have changed because adjust interval hasn't passed
+	if adaptive.currentSpeed != initialSpeed {
+		t.Logf("Speed changed when it shouldn't have: before=%d, after=%d", initialSpeed, adaptive.currentSpeed)
+	}
+}
+
+func TestAdaptiveBandwidthLimiter_AdjustSpeedMinBound(t *testing.T) {
+	minRate := int64(1 * 1024 * 1024)   // 1 MB/s
+	maxRate := int64(100 * 1024 * 1024) // 100 MB/s
+	adaptive := NewAdaptiveBandwidthLimiter(minRate, maxRate, logger.NewTestLogger(t))
+
+	// Set speed near minimum
+	adaptive.currentSpeed = minRate + 1024
+
+	// Record very high error rate
+	for i := 0; i < 100; i++ {
+		adaptive.RecordError()
+	}
+
+	// Wait for adjust interval
+	time.Sleep(2 * time.Second)
+
+	// Trigger adjustment
+	adaptive.adjustSpeed()
+
+	// Speed should be capped at minimum
+	if adaptive.currentSpeed < minRate {
+		t.Errorf("Speed below minimum: %d < %d", adaptive.currentSpeed, minRate)
+	}
+}

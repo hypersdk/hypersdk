@@ -784,3 +784,243 @@ func TestSQLiteStore_DoubleClose(t *testing.T) {
 	// SQLite might return an error on double close, which is acceptable
 	// We just verify it doesn't panic
 }
+
+func TestSQLiteStore_UpdateJobNotFound(t *testing.T) {
+	tmpFile, _ := os.CreateTemp("", "test-db-*.sqlite")
+	tmpFile.Close()
+	defer os.Remove(tmpFile.Name())
+
+	store, err := NewSQLiteStore(tmpFile.Name())
+	if err != nil {
+		t.Fatalf("Failed to create store: %v", err)
+	}
+	defer store.Close()
+
+	// Try to update non-existent job
+	job := &models.Job{
+		Definition: models.JobDefinition{
+			ID:     "nonexistent-job",
+			VMPath: "/datacenter/vm/test",
+		},
+		Status: models.JobStatusPending,
+	}
+
+	err = store.UpdateJob(job)
+	if err == nil {
+		t.Error("Expected error when updating non-existent job")
+	}
+}
+
+func TestSQLiteStore_GetJobNotFound(t *testing.T) {
+	tmpFile, _ := os.CreateTemp("", "test-db-*.sqlite")
+	tmpFile.Close()
+	defer os.Remove(tmpFile.Name())
+
+	store, err := NewSQLiteStore(tmpFile.Name())
+	if err != nil {
+		t.Fatalf("Failed to create store: %v", err)
+	}
+	defer store.Close()
+
+	// Try to get non-existent job
+	_, err = store.GetJob("nonexistent-job")
+	if err == nil {
+		t.Error("Expected error when getting non-existent job")
+	}
+}
+
+func TestSQLiteStore_DeleteJobNotFound(t *testing.T) {
+	tmpFile, _ := os.CreateTemp("", "test-db-*.sqlite")
+	tmpFile.Close()
+	defer os.Remove(tmpFile.Name())
+
+	store, err := NewSQLiteStore(tmpFile.Name())
+	if err != nil {
+		t.Fatalf("Failed to create store: %v", err)
+	}
+	defer store.Close()
+
+	// Try to delete non-existent job
+	err = store.DeleteJob("nonexistent-job")
+	if err == nil {
+		t.Error("Expected error when deleting non-existent job")
+	}
+}
+
+func TestSQLiteStore_UpdateScheduleNotFound(t *testing.T) {
+	tmpFile, _ := os.CreateTemp("", "test-db-*.sqlite")
+	tmpFile.Close()
+	defer os.Remove(tmpFile.Name())
+
+	store, err := NewSQLiteStore(tmpFile.Name())
+	if err != nil {
+		t.Fatalf("Failed to create store: %v", err)
+	}
+	defer store.Close()
+
+	// Try to update non-existent schedule
+	schedule := &models.ScheduledJob{
+		ID:          "nonexistent-schedule",
+		Schedule:    "0 0 * * *",
+		JobTemplate: models.JobDefinition{VMPath: "/vm/test"},
+	}
+
+	err = store.UpdateSchedule(schedule)
+	if err == nil {
+		t.Error("Expected error when updating non-existent schedule")
+	}
+}
+
+func TestSQLiteStore_GetScheduleNotFound(t *testing.T) {
+	tmpFile, _ := os.CreateTemp("", "test-db-*.sqlite")
+	tmpFile.Close()
+	defer os.Remove(tmpFile.Name())
+
+	store, err := NewSQLiteStore(tmpFile.Name())
+	if err != nil {
+		t.Fatalf("Failed to create store: %v", err)
+	}
+	defer store.Close()
+
+	// Try to get non-existent schedule
+	_, err = store.GetSchedule("nonexistent-schedule")
+	if err == nil {
+		t.Error("Expected error when getting non-existent schedule")
+	}
+}
+
+func TestSQLiteStore_DeleteScheduleNotFound(t *testing.T) {
+	tmpFile, _ := os.CreateTemp("", "test-db-*.sqlite")
+	tmpFile.Close()
+	defer os.Remove(tmpFile.Name())
+
+	store, err := NewSQLiteStore(tmpFile.Name())
+	if err != nil {
+		t.Fatalf("Failed to create store: %v", err)
+	}
+	defer store.Close()
+
+	// Try to delete non-existent schedule
+	err = store.DeleteSchedule("nonexistent-schedule")
+	if err == nil {
+		t.Error("Expected error when deleting non-existent schedule")
+	}
+}
+
+func TestSQLiteStore_ListJobsWithFilter(t *testing.T) {
+	tmpFile, _ := os.CreateTemp("", "test-db-*.sqlite")
+	tmpFile.Close()
+	defer os.Remove(tmpFile.Name())
+
+	store, err := NewSQLiteStore(tmpFile.Name())
+	if err != nil {
+		t.Fatalf("Failed to create store: %v", err)
+	}
+	defer store.Close()
+
+	// Save multiple jobs with different statuses
+	jobs := []*models.Job{
+		{
+			Definition: models.JobDefinition{
+				ID:     "job-completed",
+				VMPath: "/datacenter/vm/vm1",
+			},
+			Status: models.JobStatusCompleted,
+		},
+		{
+			Definition: models.JobDefinition{
+				ID:     "job-running",
+				VMPath: "/datacenter/vm/vm2",
+			},
+			Status: models.JobStatusRunning,
+		},
+		{
+			Definition: models.JobDefinition{
+				ID:     "job-failed",
+				VMPath: "/datacenter/vm/vm3",
+			},
+			Status: models.JobStatusFailed,
+		},
+	}
+
+	for _, job := range jobs {
+		if err := store.SaveJob(job); err != nil {
+			t.Fatalf("Failed to save job %s: %v", job.Definition.ID, err)
+		}
+	}
+
+	// List jobs with status filter
+	filter := JobFilter{Status: []models.JobStatus{models.JobStatusCompleted}}
+	listed, err := store.ListJobs(filter)
+	if err != nil {
+		t.Fatalf("Failed to list jobs: %v", err)
+	}
+
+	if len(listed) != 1 {
+		t.Errorf("Expected 1 completed job, got %d", len(listed))
+	}
+
+	if len(listed) > 0 && listed[0].Definition.ID != "job-completed" {
+		t.Errorf("Expected job-completed, got %s", listed[0].Definition.ID)
+	}
+}
+
+func TestSQLiteStore_ListSchedulesInactive(t *testing.T) {
+	tmpFile, _ := os.CreateTemp("", "test-db-*.sqlite")
+	tmpFile.Close()
+	defer os.Remove(tmpFile.Name())
+
+	store, err := NewSQLiteStore(tmpFile.Name())
+	if err != nil {
+		t.Fatalf("Failed to create store: %v", err)
+	}
+	defer store.Close()
+
+	// Save active and inactive schedules
+	now := time.Now()
+	activeSchedule := &models.ScheduledJob{
+		ID:          "active-schedule",
+		Name:        "Active Job",
+		Schedule:    "0 0 * * *",
+		JobTemplate: models.JobDefinition{VMPath: "/vm/1"},
+		Enabled:     true,
+		CreatedAt:   now,
+		UpdatedAt:   now,
+		NextRun:     now.Add(1 * time.Hour),
+	}
+
+	inactiveSchedule := &models.ScheduledJob{
+		ID:          "inactive-schedule",
+		Name:        "Inactive Job",
+		Schedule:    "0 0 * * *",
+		JobTemplate: models.JobDefinition{VMPath: "/vm/2"},
+		Enabled:     false,
+		CreatedAt:   now,
+		UpdatedAt:   now,
+		NextRun:     now.Add(1 * time.Hour),
+	}
+
+	if err := store.SaveSchedule(activeSchedule); err != nil {
+		t.Fatalf("Failed to save active schedule: %v", err)
+	}
+
+	if err := store.SaveSchedule(inactiveSchedule); err != nil {
+		t.Fatalf("Failed to save inactive schedule: %v", err)
+	}
+
+	// List enabled schedules
+	enabled := true
+	schedules, err := store.ListSchedules(&enabled)
+	if err != nil {
+		t.Fatalf("Failed to list schedules: %v", err)
+	}
+
+	if len(schedules) != 1 {
+		t.Errorf("Expected 1 active schedule, got %d", len(schedules))
+	}
+
+	if len(schedules) > 0 && schedules[0].ID != "active-schedule" {
+		t.Errorf("Expected active-schedule, got %s", schedules[0].ID)
+	}
+}
+

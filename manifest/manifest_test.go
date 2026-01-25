@@ -372,6 +372,118 @@ func TestValidateInvalidVersion(t *testing.T) {
 	}
 }
 
+func TestValidate_NilManifest(t *testing.T) {
+	err := Validate(nil)
+	if err == nil {
+		t.Error("Expected error for nil manifest, got nil")
+	}
+
+	if !strings.Contains(err.Error(), "manifest is nil") {
+		t.Errorf("Expected 'manifest is nil' error, got: %v", err)
+	}
+}
+
+func TestValidate_NoDisks(t *testing.T) {
+	manifest := &ArtifactManifest{
+		ManifestVersion: CurrentVersion,
+		Disks:           []DiskArtifact{},
+	}
+
+	err := Validate(manifest)
+	if err == nil {
+		t.Error("Expected error for manifest with no disks, got nil")
+	}
+
+	if !strings.Contains(err.Error(), "must have at least one disk") {
+		t.Errorf("Expected 'must have at least one disk' error, got: %v", err)
+	}
+}
+
+func TestValidate_WithVMMetadata(t *testing.T) {
+	tmpDir := t.TempDir()
+	diskPath := filepath.Join(tmpDir, "test.vmdk")
+	os.WriteFile(diskPath, []byte("test"), 0644)
+
+	builder := NewBuilder()
+	builder.AddDisk("disk-0", "vmdk", diskPath, 1024, 0, "boot")
+	builder.WithVM(4, 8, "uefi", "linux", "Ubuntu 22.04", false)
+
+	manifest, _ := builder.Build()
+
+	err := Validate(manifest)
+	if err != nil {
+		t.Errorf("Validate failed for manifest with valid VM metadata: %v", err)
+	}
+}
+
+func TestValidate_WithInvalidVMMetadata(t *testing.T) {
+	tmpDir := t.TempDir()
+	diskPath := filepath.Join(tmpDir, "test.vmdk")
+	os.WriteFile(diskPath, []byte("test"), 0644)
+
+	builder := NewBuilder()
+	builder.AddDisk("disk-0", "vmdk", diskPath, 1024, 0, "boot")
+
+	manifest, _ := builder.Build()
+	manifest.VM = &VMMetadata{
+		CPU:      -1,
+		MemGB:    8,
+		Firmware: "uefi",
+	}
+
+	err := Validate(manifest)
+	if err == nil {
+		t.Error("Expected error for negative CPU, got nil")
+	}
+
+	if !strings.Contains(err.Error(), "cpu must be non-negative") {
+		t.Errorf("Expected 'cpu must be non-negative' error, got: %v", err)
+	}
+}
+
+func TestValidate_WithNICs(t *testing.T) {
+	tmpDir := t.TempDir()
+	diskPath := filepath.Join(tmpDir, "test.vmdk")
+	os.WriteFile(diskPath, []byte("test"), 0644)
+
+	builder := NewBuilder()
+	builder.AddDisk("disk-0", "vmdk", diskPath, 1024, 0, "boot")
+	builder.AddNIC("nic-0", "00:11:22:33:44:55", "test-network")
+
+	manifest, _ := builder.Build()
+
+	err := Validate(manifest)
+	if err != nil {
+		t.Errorf("Validate failed for manifest with valid NICs: %v", err)
+	}
+}
+
+func TestValidate_WithInvalidNIC(t *testing.T) {
+	tmpDir := t.TempDir()
+	diskPath := filepath.Join(tmpDir, "test.vmdk")
+	os.WriteFile(diskPath, []byte("test"), 0644)
+
+	builder := NewBuilder()
+	builder.AddDisk("disk-0", "vmdk", diskPath, 1024, 0, "boot")
+
+	manifest, _ := builder.Build()
+	manifest.NICs = []NICInfo{
+		{
+			MAC:     "invalid",
+			Network: "test-network",
+		},
+	}
+
+	err := Validate(manifest)
+	if err == nil {
+		t.Error("Expected error for invalid NIC MAC, got nil")
+	}
+
+	if !strings.Contains(err.Error(), "mac") && !strings.Contains(err.Error(), "invalid") {
+		t.Errorf("Expected MAC validation error, got: %v", err)
+	}
+}
+
 func TestSerializeJSON(t *testing.T) {
 	tmpDir := t.TempDir()
 	diskPath := filepath.Join(tmpDir, "test.vmdk")
@@ -822,6 +934,278 @@ func TestValidateNIC_EmptyMAC(t *testing.T) {
 	err := validateNIC(nic, 0)
 	if err != nil {
 		t.Errorf("Empty MAC should be valid (optional field): %v", err)
+	}
+}
+
+func TestValidateDisk_EmptyID(t *testing.T) {
+	tmpDir := t.TempDir()
+	diskPath := filepath.Join(tmpDir, "test.vmdk")
+	os.WriteFile(diskPath, []byte("test"), 0644)
+
+	disk := DiskArtifact{
+		ID:           "",
+		SourceFormat: "vmdk",
+		Bytes:        1024,
+		LocalPath:    diskPath,
+	}
+
+	diskIDs := make(map[string]bool)
+	err := validateDisk(disk, 0, diskIDs)
+	if err == nil {
+		t.Error("Expected error for empty disk ID, got nil")
+	}
+
+	if !strings.Contains(err.Error(), "id is required") {
+		t.Errorf("Expected 'id is required' error, got: %v", err)
+	}
+}
+
+func TestValidateDisk_InvalidIDPattern(t *testing.T) {
+	tmpDir := t.TempDir()
+	diskPath := filepath.Join(tmpDir, "test.vmdk")
+	os.WriteFile(diskPath, []byte("test"), 0644)
+
+	disk := DiskArtifact{
+		ID:           "disk@invalid#chars",
+		SourceFormat: "vmdk",
+		Bytes:        1024,
+		LocalPath:    diskPath,
+	}
+
+	diskIDs := make(map[string]bool)
+	err := validateDisk(disk, 0, diskIDs)
+	if err == nil {
+		t.Error("Expected error for invalid disk ID pattern, got nil")
+	}
+
+	if !strings.Contains(err.Error(), "must match pattern") {
+		t.Errorf("Expected 'must match pattern' error, got: %v", err)
+	}
+}
+
+func TestValidateDisk_DuplicateID(t *testing.T) {
+	tmpDir := t.TempDir()
+	diskPath := filepath.Join(tmpDir, "test.vmdk")
+	os.WriteFile(diskPath, []byte("test"), 0644)
+
+	disk := DiskArtifact{
+		ID:           "disk-0",
+		SourceFormat: "vmdk",
+		Bytes:        1024,
+		LocalPath:    diskPath,
+	}
+
+	diskIDs := map[string]bool{"disk-0": true}
+	err := validateDisk(disk, 0, diskIDs)
+	if err == nil {
+		t.Error("Expected error for duplicate disk ID, got nil")
+	}
+
+	if !strings.Contains(err.Error(), "duplicate disk ID") {
+		t.Errorf("Expected 'duplicate disk ID' error, got: %v", err)
+	}
+}
+
+func TestValidateDisk_InvalidSourceFormat(t *testing.T) {
+	tmpDir := t.TempDir()
+	diskPath := filepath.Join(tmpDir, "test.vmdk")
+	os.WriteFile(diskPath, []byte("test"), 0644)
+
+	disk := DiskArtifact{
+		ID:           "disk-0",
+		SourceFormat: "invalid-format",
+		Bytes:        1024,
+		LocalPath:    diskPath,
+	}
+
+	diskIDs := make(map[string]bool)
+	err := validateDisk(disk, 0, diskIDs)
+	if err == nil {
+		t.Error("Expected error for invalid source format, got nil")
+	}
+
+	if !strings.Contains(err.Error(), "source_format") {
+		t.Errorf("Expected 'source_format' error, got: %v", err)
+	}
+}
+
+func TestValidateDisk_NegativeBytes(t *testing.T) {
+	tmpDir := t.TempDir()
+	diskPath := filepath.Join(tmpDir, "test.vmdk")
+	os.WriteFile(diskPath, []byte("test"), 0644)
+
+	disk := DiskArtifact{
+		ID:           "disk-0",
+		SourceFormat: "vmdk",
+		Bytes:        -100,
+		LocalPath:    diskPath,
+	}
+
+	diskIDs := make(map[string]bool)
+	err := validateDisk(disk, 0, diskIDs)
+	if err == nil {
+		t.Error("Expected error for negative bytes, got nil")
+	}
+
+	if !strings.Contains(err.Error(), "must be non-negative") {
+		t.Errorf("Expected 'must be non-negative' error, got: %v", err)
+	}
+}
+
+func TestValidateDisk_EmptyLocalPath(t *testing.T) {
+	disk := DiskArtifact{
+		ID:           "disk-0",
+		SourceFormat: "vmdk",
+		Bytes:        1024,
+		LocalPath:    "",
+	}
+
+	diskIDs := make(map[string]bool)
+	err := validateDisk(disk, 0, diskIDs)
+	if err == nil {
+		t.Error("Expected error for empty local path, got nil")
+	}
+
+	if !strings.Contains(err.Error(), "local_path is required") {
+		t.Errorf("Expected 'local_path is required' error, got: %v", err)
+	}
+}
+
+func TestValidateDisk_NonexistentPath(t *testing.T) {
+	disk := DiskArtifact{
+		ID:           "disk-0",
+		SourceFormat: "vmdk",
+		Bytes:        1024,
+		LocalPath:    "/nonexistent/path/test.vmdk",
+	}
+
+	diskIDs := make(map[string]bool)
+	err := validateDisk(disk, 0, diskIDs)
+	if err == nil {
+		t.Error("Expected error for nonexistent path, got nil")
+	}
+
+	if !strings.Contains(err.Error(), "not found") {
+		t.Errorf("Expected 'not found' error, got: %v", err)
+	}
+}
+
+func TestValidateDisk_InvalidChecksum(t *testing.T) {
+	tmpDir := t.TempDir()
+	diskPath := filepath.Join(tmpDir, "test.vmdk")
+	os.WriteFile(diskPath, []byte("test"), 0644)
+
+	disk := DiskArtifact{
+		ID:           "disk-0",
+		SourceFormat: "vmdk",
+		Bytes:        1024,
+		LocalPath:    diskPath,
+		Checksum:     "invalid-checksum-format",
+	}
+
+	diskIDs := make(map[string]bool)
+	err := validateDisk(disk, 0, diskIDs)
+	if err == nil {
+		t.Error("Expected error for invalid checksum format, got nil")
+	}
+
+	if !strings.Contains(err.Error(), "checksum must match format") {
+		t.Errorf("Expected 'checksum must match format' error, got: %v", err)
+	}
+}
+
+func TestValidateDisk_NegativeBootOrder(t *testing.T) {
+	tmpDir := t.TempDir()
+	diskPath := filepath.Join(tmpDir, "test.vmdk")
+	os.WriteFile(diskPath, []byte("test"), 0644)
+
+	disk := DiskArtifact{
+		ID:            "disk-0",
+		SourceFormat:  "vmdk",
+		Bytes:         1024,
+		LocalPath:     diskPath,
+		BootOrderHint: -1,
+	}
+
+	diskIDs := make(map[string]bool)
+	err := validateDisk(disk, 0, diskIDs)
+	if err == nil {
+		t.Error("Expected error for negative boot order, got nil")
+	}
+
+	if !strings.Contains(err.Error(), "boot_order_hint must be non-negative") {
+		t.Errorf("Expected 'boot_order_hint must be non-negative' error, got: %v", err)
+	}
+}
+
+func TestValidateDisk_InvalidDiskType(t *testing.T) {
+	tmpDir := t.TempDir()
+	diskPath := filepath.Join(tmpDir, "test.vmdk")
+	os.WriteFile(diskPath, []byte("test"), 0644)
+
+	disk := DiskArtifact{
+		ID:           "disk-0",
+		SourceFormat: "vmdk",
+		Bytes:        1024,
+		LocalPath:    diskPath,
+		DiskType:     "invalid-type",
+	}
+
+	diskIDs := make(map[string]bool)
+	err := validateDisk(disk, 0, diskIDs)
+	if err == nil {
+		t.Error("Expected error for invalid disk type, got nil")
+	}
+
+	if !strings.Contains(err.Error(), "disk_type") {
+		t.Errorf("Expected 'disk_type' error, got: %v", err)
+	}
+}
+
+func TestValidateDisk_ValidDiskTypes(t *testing.T) {
+	tmpDir := t.TempDir()
+	diskPath := filepath.Join(tmpDir, "test.vmdk")
+	os.WriteFile(diskPath, []byte("test"), 0644)
+
+	validTypes := []string{"boot", "data", "unknown"}
+
+	for _, diskType := range validTypes {
+		disk := DiskArtifact{
+			ID:           "disk-" + diskType,
+			SourceFormat: "vmdk",
+			Bytes:        1024,
+			LocalPath:    diskPath,
+			DiskType:     diskType,
+		}
+
+		diskIDs := make(map[string]bool)
+		err := validateDisk(disk, 0, diskIDs)
+		if err != nil {
+			t.Errorf("validateDisk failed for valid disk type %q: %v", diskType, err)
+		}
+	}
+}
+
+func TestValidateDisk_ValidSourceFormats(t *testing.T) {
+	tmpDir := t.TempDir()
+	diskPath := filepath.Join(tmpDir, "test.vmdk")
+	os.WriteFile(diskPath, []byte("test"), 0644)
+
+	validFormats := []string{"vmdk", "qcow2", "raw", "vhd", "vhdx", "vdi"}
+
+	for _, format := range validFormats {
+		disk := DiskArtifact{
+			ID:           "disk-" + format,
+			SourceFormat: format,
+			Bytes:        1024,
+			LocalPath:    diskPath,
+		}
+
+		diskIDs := make(map[string]bool)
+		err := validateDisk(disk, 0, diskIDs)
+		if err != nil {
+			t.Errorf("validateDisk failed for valid format %q: %v", format, err)
+		}
 	}
 }
 
@@ -1364,5 +1748,69 @@ func TestWithMetadata(t *testing.T) {
 
 	if builder.manifest.Metadata.Tags["owner"] != "admin" {
 		t.Errorf("Expected tag owner='admin', got '%s'", builder.manifest.Metadata.Tags["owner"])
+	}
+}
+
+func TestWithMetadata_NilTags(t *testing.T) {
+	builder := NewBuilder()
+	builder.WithSource("vsphere", "vcenter.example.com", "", "", "TestVM")
+
+	// Call WithMetadata with nil tags
+	builder.WithMetadata("1.0.0", "job-123", nil)
+
+	if builder.manifest.Metadata == nil {
+		t.Fatal("Expected metadata to be set")
+	}
+
+	if builder.manifest.Metadata.HyperSDKVersion != "1.0.0" {
+		t.Errorf("Expected HyperSDKVersion='1.0.0', got '%s'", builder.manifest.Metadata.HyperSDKVersion)
+	}
+
+	if builder.manifest.Metadata.JobID != "job-123" {
+		t.Errorf("Expected JobID='job-123', got '%s'", builder.manifest.Metadata.JobID)
+	}
+
+	// Tags should not be set when nil is passed
+	if builder.manifest.Metadata.Tags != nil && len(builder.manifest.Metadata.Tags) > 0 {
+		t.Error("Expected tags to remain empty when nil is passed")
+	}
+}
+
+func TestWithMetadata_UpdateExisting(t *testing.T) {
+	builder := NewBuilder()
+	builder.WithSource("vsphere", "vcenter.example.com", "", "", "TestVM")
+
+	// First call to WithMetadata
+	tags1 := map[string]string{"env": "dev"}
+	builder.WithMetadata("1.0.0", "job-123", tags1)
+
+	// Second call to WithMetadata (metadata already exists)
+	tags2 := map[string]string{"env": "prod", "team": "ops"}
+	builder.WithMetadata("2.0.0", "job-456", tags2)
+
+	if builder.manifest.Metadata == nil {
+		t.Fatal("Expected metadata to be set")
+	}
+
+	// Should be updated to latest values
+	if builder.manifest.Metadata.HyperSDKVersion != "2.0.0" {
+		t.Errorf("Expected HyperSDKVersion='2.0.0', got '%s'", builder.manifest.Metadata.HyperSDKVersion)
+	}
+
+	if builder.manifest.Metadata.JobID != "job-456" {
+		t.Errorf("Expected JobID='job-456', got '%s'", builder.manifest.Metadata.JobID)
+	}
+
+	// Tags should be replaced with new tags
+	if len(builder.manifest.Metadata.Tags) != 2 {
+		t.Errorf("Expected 2 tags, got %d", len(builder.manifest.Metadata.Tags))
+	}
+
+	if builder.manifest.Metadata.Tags["env"] != "prod" {
+		t.Errorf("Expected tag env='prod', got '%s'", builder.manifest.Metadata.Tags["env"])
+	}
+
+	if builder.manifest.Metadata.Tags["team"] != "ops" {
+		t.Errorf("Expected tag team='ops', got '%s'", builder.manifest.Metadata.Tags["team"])
 	}
 }

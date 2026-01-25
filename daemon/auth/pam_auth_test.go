@@ -411,3 +411,195 @@ func TestAuthenticateUser_SessionStorage(t *testing.T) {
 		t.Errorf("expected at least 2 sessions, got %d", sessionCount)
 	}
 }
+
+func TestLogoutNonExistentSession(t *testing.T) {
+	manager := NewAuthManager()
+
+	// Logout a session that doesn't exist - should not panic
+	manager.Logout("non-existent-token")
+
+	// Verify no sessions exist
+	manager.mu.RLock()
+	sessionCount := len(manager.sessions)
+	manager.mu.RUnlock()
+
+	if sessionCount != 0 {
+		t.Errorf("expected 0 sessions, got %d", sessionCount)
+	}
+}
+
+func TestValidateSessionEmptyToken(t *testing.T) {
+	manager := NewAuthManager()
+
+	// Try to validate empty token
+	_, err := manager.ValidateSession("")
+	if err == nil {
+		t.Error("expected error for empty token")
+	}
+}
+
+func TestSessionExpiryEdgeCase(t *testing.T) {
+	manager := NewAuthManager()
+
+	// Create a session that expires exactly now
+	session := &Session{
+		Token:     "edge-token",
+		Username:  "testuser",
+		ExpiresAt: time.Now(),
+	}
+
+	manager.sessions[session.Token] = session
+
+	// Wait a tiny bit to ensure we're past expiry
+	time.Sleep(10 * time.Millisecond)
+
+	// Session should be expired
+	_, err := manager.ValidateSession(session.Token)
+	if err == nil {
+		t.Error("expected session to be expired")
+	}
+}
+
+func TestConcurrentLogout(t *testing.T) {
+	manager := NewAuthManager()
+
+	// Create multiple sessions
+	for i := 0; i < 10; i++ {
+		session := &Session{
+			Token:     string(rune('a' + i)),
+			Username:  "testuser",
+			ExpiresAt: time.Now().Add(1 * time.Hour),
+		}
+		manager.sessions[session.Token] = session
+	}
+
+	// Concurrent logouts
+	done := make(chan bool, 10)
+	for i := 0; i < 10; i++ {
+		go func(index int) {
+			manager.Logout(string(rune('a' + index)))
+			done <- true
+		}(i)
+	}
+
+	// Wait for all goroutines
+	for i := 0; i < 10; i++ {
+		<-done
+	}
+
+	// All sessions should be gone
+	manager.mu.RLock()
+	sessionCount := len(manager.sessions)
+	manager.mu.RUnlock()
+
+	if sessionCount != 0 {
+		t.Errorf("expected 0 sessions after concurrent logout, got %d", sessionCount)
+	}
+}
+
+func TestSessionCreatedAtTimestamp(t *testing.T) {
+	manager := NewAuthManager()
+
+	before := time.Now()
+
+	session := &Session{
+		Token:     "timestamp-token",
+		Username:  "testuser",
+		CreatedAt: time.Now(),
+		ExpiresAt: time.Now().Add(1 * time.Hour),
+	}
+
+	manager.sessions[session.Token] = session
+
+	after := time.Now()
+
+	validatedSession, err := manager.ValidateSession("timestamp-token")
+	if err != nil {
+		t.Fatalf("failed to validate session: %v", err)
+	}
+
+	// CreatedAt should be between before and after
+	if validatedSession.CreatedAt.Before(before) || validatedSession.CreatedAt.After(after) {
+		t.Error("CreatedAt timestamp not within expected range")
+	}
+}
+
+func TestMultipleLogoutsForSameSession(t *testing.T) {
+	manager := NewAuthManager()
+
+	session := &Session{
+		Token:     "multiple-logout-token",
+		Username:  "testuser",
+		ExpiresAt: time.Now().Add(1 * time.Hour),
+	}
+
+	manager.sessions[session.Token] = session
+
+	// First logout
+	manager.Logout("multiple-logout-token")
+
+	// Verify session is gone
+	_, err := manager.ValidateSession("multiple-logout-token")
+	if err == nil {
+		t.Error("expected error after first logout")
+	}
+
+	// Second logout should not panic
+	manager.Logout("multiple-logout-token")
+
+	// Third logout should not panic
+	manager.Logout("multiple-logout-token")
+}
+
+func TestGenerateTokenUniqueness(t *testing.T) {
+	// Generate many tokens to ensure uniqueness
+	tokens := make(map[string]bool)
+	count := 1000
+
+	for i := 0; i < count; i++ {
+		token, err := generateToken()
+		if err != nil {
+			t.Fatalf("failed to generate token: %v", err)
+		}
+
+		if tokens[token] {
+			t.Error("duplicate token generated")
+		}
+
+		tokens[token] = true
+	}
+
+	if len(tokens) != count {
+		t.Errorf("expected %d unique tokens, got %d", count, len(tokens))
+	}
+}
+
+func TestSessionsMapInitialization(t *testing.T) {
+	manager := NewAuthManager()
+
+	// Verify sessions map is initialized and empty
+	manager.mu.RLock()
+	sessionCount := len(manager.sessions)
+	manager.mu.RUnlock()
+
+	if sessionCount != 0 {
+		t.Errorf("expected 0 initial sessions, got %d", sessionCount)
+	}
+
+	// Verify we can add sessions without panic
+	session := &Session{
+		Token:     "init-test-token",
+		Username:  "testuser",
+		ExpiresAt: time.Now().Add(1 * time.Hour),
+	}
+
+	manager.sessions[session.Token] = session
+
+	manager.mu.RLock()
+	sessionCount = len(manager.sessions)
+	manager.mu.RUnlock()
+
+	if sessionCount != 1 {
+		t.Errorf("expected 1 session after adding, got %d", sessionCount)
+	}
+}

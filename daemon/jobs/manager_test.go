@@ -382,3 +382,465 @@ func TestGetVSphereClient(t *testing.T) {
 	// This test would hang trying to connect to a non-existent server
 	t.Skip("Skipping GetVSphereClient test - requires vSphere credentials")
 }
+
+func TestNormalizeJobDefinition(t *testing.T) {
+	log := logger.New("info")
+	detector := newTestDetector(log)
+	manager := NewManager(log, detector)
+
+	tests := []struct {
+		name     string
+		input    *models.JobDefinition
+		validate func(*testing.T, *models.JobDefinition)
+	}{
+		{
+			name: "convert old-style VCenter fields",
+			input: &models.JobDefinition{
+				VCenterURL: "vcenter.example.com",
+				Username:   "admin",
+				Password:   "password",
+				Insecure:   true,
+			},
+			validate: func(t *testing.T, def *models.JobDefinition) {
+				if def.VCenter == nil {
+					t.Error("Expected VCenter to be set")
+					return
+				}
+				if def.VCenter.Server != "vcenter.example.com" {
+					t.Errorf("Expected Server='vcenter.example.com', got '%s'", def.VCenter.Server)
+				}
+				if def.VCenter.Username != "admin" {
+					t.Errorf("Expected Username='admin', got '%s'", def.VCenter.Username)
+				}
+				if def.VCenter.Password != "password" {
+					t.Errorf("Expected Password='password', got '%s'", def.VCenter.Password)
+				}
+				if !def.VCenter.Insecure {
+					t.Error("Expected Insecure=true")
+				}
+			},
+		},
+		{
+			name: "fallback server when empty",
+			input: &models.JobDefinition{
+				Username: "admin",
+				Password: "password",
+			},
+			validate: func(t *testing.T, def *models.JobDefinition) {
+				if def.VCenter == nil {
+					t.Error("Expected VCenter to be set")
+					return
+				}
+				if def.VCenter.Server != "vcenter.example.com" {
+					t.Errorf("Expected fallback Server='vcenter.example.com', got '%s'", def.VCenter.Server)
+				}
+			},
+		},
+		{
+			name: "normalize output paths",
+			input: &models.JobDefinition{
+				OutputPath: "/tmp/output",
+			},
+			validate: func(t *testing.T, def *models.JobDefinition) {
+				if def.OutputDir != "/tmp/output" {
+					t.Errorf("Expected OutputDir='/tmp/output', got '%s'", def.OutputDir)
+				}
+			},
+		},
+		{
+			name: "normalize export method",
+			input: &models.JobDefinition{
+				Method: "govc",
+			},
+			validate: func(t *testing.T, def *models.JobDefinition) {
+				if def.ExportMethod != "govc" {
+					t.Errorf("Expected ExportMethod='govc', got '%s'", def.ExportMethod)
+				}
+			},
+		},
+		{
+			name: "set default format",
+			input: &models.JobDefinition{
+				Format: "",
+			},
+			validate: func(t *testing.T, def *models.JobDefinition) {
+				if def.Format != "ovf" {
+					t.Errorf("Expected Format='ovf', got '%s'", def.Format)
+				}
+			},
+		},
+		{
+			name: "preserve existing VCenter",
+			input: &models.JobDefinition{
+				VCenter: &models.VCenterConfig{
+					Server:   "existing.vcenter.com",
+					Username: "existing-user",
+				},
+				VCenterURL: "ignored.vcenter.com",
+			},
+			validate: func(t *testing.T, def *models.JobDefinition) {
+				if def.VCenter.Server != "existing.vcenter.com" {
+					t.Errorf("Expected existing VCenter to be preserved, got '%s'", def.VCenter.Server)
+				}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			manager.normalizeJobDefinition(tt.input)
+			tt.validate(t, tt.input)
+		})
+	}
+}
+
+func TestSelectExportMethod(t *testing.T) {
+	log := logger.New("info")
+	detector := newTestDetector(log)
+	manager := NewManager(log, detector)
+
+	tests := []struct {
+		name     string
+		jobDef   *models.JobDefinition
+		expected capabilities.ExportMethod
+	}{
+		{
+			name: "use specified method when available",
+			jobDef: &models.JobDefinition{
+				ExportMethod: string(capabilities.ExportMethodWeb),
+			},
+			expected: capabilities.ExportMethodWeb,
+		},
+		{
+			name: "use default when method not specified",
+			jobDef: &models.JobDefinition{
+				ExportMethod: "",
+			},
+			expected: capabilities.ExportMethodWeb, // Web is always available in test setup
+		},
+		{
+			name: "fallback to default when method unavailable",
+			jobDef: &models.JobDefinition{
+				ExportMethod: "unavailable-method",
+			},
+			expected: capabilities.ExportMethodWeb,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := manager.selectExportMethod(tt.jobDef)
+			if result != tt.expected {
+				t.Errorf("Expected method '%s', got '%s'", tt.expected, result)
+			}
+		})
+	}
+}
+
+func TestGetJobWithProgress(t *testing.T) {
+	log := logger.New("info")
+	detector := newTestDetector(log)
+	mgr := NewManager(log, detector)
+
+	// Create a job
+	jobDef := models.JobDefinition{
+		Name:       "test-job",
+		VMPath:     "/datacenter/vm/test-vm",
+		OutputPath: "/tmp/test-output",
+	}
+
+	jobID, err := mgr.SubmitJob(jobDef)
+	if err != nil {
+		t.Fatalf("Failed to submit job: %v", err)
+	}
+
+	// Set progress on the job
+	mgr.mu.Lock()
+	if job, exists := mgr.jobs[jobID]; exists {
+		job.Progress = &models.JobProgress{
+			Phase:           "exporting",
+			PercentComplete: 50.0,
+			CurrentStep:     "Downloading disk",
+			ExportMethod:    "web",
+		}
+	}
+	mgr.mu.Unlock()
+
+	// Get the job
+	retrievedJob, err := mgr.GetJob(jobID)
+	if err != nil {
+		t.Fatalf("Failed to get job: %v", err)
+	}
+
+	// Verify progress was deep copied
+	if retrievedJob.Progress == nil {
+		t.Fatal("Expected progress to be present")
+	}
+
+	if retrievedJob.Progress.Phase != "exporting" {
+		t.Errorf("Expected phase 'exporting', got '%s'", retrievedJob.Progress.Phase)
+	}
+
+	if retrievedJob.Progress.PercentComplete != 50.0 {
+		t.Errorf("Expected 50%% complete, got %.1f%%", retrievedJob.Progress.PercentComplete)
+	}
+}
+
+func TestGetJobWithResult(t *testing.T) {
+	log := logger.New("info")
+	detector := newTestDetector(log)
+	mgr := NewManager(log, detector)
+
+	// Create a job
+	jobDef := models.JobDefinition{
+		Name:       "test-job",
+		VMPath:     "/datacenter/vm/test-vm",
+		OutputPath: "/tmp/test-output",
+	}
+
+	jobID, err := mgr.SubmitJob(jobDef)
+	if err != nil {
+		t.Fatalf("Failed to submit job: %v", err)
+	}
+
+	// Set result on the job
+	mgr.mu.Lock()
+	if job, exists := mgr.jobs[jobID]; exists {
+		job.Result = &models.JobResult{
+			Success:      true,
+			ExportMethod: "web",
+			Files:        []string{"disk1.vmdk", "disk2.vmdk", "vm.ovf"},
+			TotalSize:    1024000,
+		}
+	}
+	mgr.mu.Unlock()
+
+	// Get the job
+	retrievedJob, err := mgr.GetJob(jobID)
+	if err != nil {
+		t.Fatalf("Failed to get job: %v", err)
+	}
+
+	// Verify result was deep copied
+	if retrievedJob.Result == nil {
+		t.Fatal("Expected result to be present")
+	}
+
+	if !retrievedJob.Result.Success {
+		t.Error("Expected result success to be true")
+	}
+
+	if len(retrievedJob.Result.Files) != 3 {
+		t.Errorf("Expected 3 files, got %d", len(retrievedJob.Result.Files))
+	}
+
+	if retrievedJob.Result.TotalSize != 1024000 {
+		t.Errorf("Expected total size 1024000, got %d", retrievedJob.Result.TotalSize)
+	}
+}
+
+func TestListJobsWithLimit(t *testing.T) {
+	log := logger.New("info")
+	detector := newTestDetector(log)
+	mgr := NewManager(log, detector)
+
+	// Create multiple jobs
+	for i := 0; i < 5; i++ {
+		jobDef := models.JobDefinition{
+			Name:       "test-job",
+			VMPath:     "/datacenter/vm/test-vm",
+			OutputPath: "/tmp/test-output",
+		}
+		_, err := mgr.SubmitJob(jobDef)
+		if err != nil {
+			t.Fatalf("Failed to submit job %d: %v", i, err)
+		}
+	}
+
+	// List with limit
+	jobs := mgr.ListJobs(nil, 3)
+	if len(jobs) != 3 {
+		t.Errorf("Expected 3 jobs with limit, got %d", len(jobs))
+	}
+}
+
+func TestListJobsWithProgressAndResult(t *testing.T) {
+	log := logger.New("info")
+	detector := newTestDetector(log)
+	mgr := NewManager(log, detector)
+
+	// Create a job
+	jobDef := models.JobDefinition{
+		Name:       "test-job",
+		VMPath:     "/datacenter/vm/test-vm",
+		OutputPath: "/tmp/test-output",
+	}
+
+	jobID, err := mgr.SubmitJob(jobDef)
+	if err != nil {
+		t.Fatalf("Failed to submit job: %v", err)
+	}
+
+	// Set progress and result
+	mgr.mu.Lock()
+	if job, exists := mgr.jobs[jobID]; exists {
+		job.Progress = &models.JobProgress{
+			Phase:           "exporting",
+			PercentComplete: 75.0,
+		}
+		job.Result = &models.JobResult{
+			Success: true,
+			Files:   []string{"file1.vmdk", "file2.ovf"},
+		}
+	}
+	mgr.mu.Unlock()
+
+	// List all jobs
+	jobs := mgr.ListJobs(nil, 0)
+	if len(jobs) != 1 {
+		t.Fatalf("Expected 1 job, got %d", len(jobs))
+	}
+
+	// Verify progress and result were deep copied
+	job := jobs[0]
+	if job.Progress == nil {
+		t.Error("Expected progress to be present in listed job")
+	}
+	if job.Result == nil {
+		t.Error("Expected result to be present in listed job")
+	}
+
+	if job.Progress != nil && job.Progress.PercentComplete != 75.0 {
+		t.Errorf("Expected 75%% progress, got %.1f%%", job.Progress.PercentComplete)
+	}
+
+	if job.Result != nil && len(job.Result.Files) != 2 {
+		t.Errorf("Expected 2 files in result, got %d", len(job.Result.Files))
+	}
+}
+
+func TestListJobsFilteringWithProgress(t *testing.T) {
+	log := logger.New("info")
+	detector := newTestDetector(log)
+	mgr := NewManager(log, detector)
+
+	// Create jobs with different statuses
+	for i := 0; i < 3; i++ {
+		jobDef := models.JobDefinition{
+			Name:       "test-job",
+			VMPath:     "/datacenter/vm/test-vm",
+			OutputPath: "/tmp/test-output",
+		}
+		jobID, err := mgr.SubmitJob(jobDef)
+		if err != nil {
+			t.Fatalf("Failed to submit job %d: %v", i, err)
+		}
+
+		// Set different statuses and add progress
+		mgr.mu.Lock()
+		if job, exists := mgr.jobs[jobID]; exists {
+			if i == 0 {
+				job.Status = models.JobStatusRunning
+			} else if i == 1 {
+				job.Status = models.JobStatusCompleted
+			} else {
+				job.Status = models.JobStatusFailed
+			}
+			job.Progress = &models.JobProgress{
+				Phase:           "test",
+				PercentComplete: float64(i * 25),
+			}
+		}
+		mgr.mu.Unlock()
+	}
+
+	// List only completed jobs
+	completedJobs := mgr.ListJobs([]models.JobStatus{models.JobStatusCompleted}, 0)
+	if len(completedJobs) != 1 {
+		t.Errorf("Expected 1 completed job, got %d", len(completedJobs))
+	}
+
+	// Verify the completed job has progress
+	if len(completedJobs) > 0 && completedJobs[0].Progress == nil {
+		t.Error("Expected progress in completed job")
+	}
+}
+
+func TestListJobsEmptyStatuses(t *testing.T) {
+	log := logger.New("info")
+	detector := newTestDetector(log)
+	mgr := NewManager(log, detector)
+
+	// Create a job
+	jobDef := models.JobDefinition{
+		Name:       "test-job",
+		VMPath:     "/datacenter/vm/test-vm",
+		OutputPath: "/tmp/test-output",
+	}
+
+	_, err := mgr.SubmitJob(jobDef)
+	if err != nil {
+		t.Fatalf("Failed to submit job: %v", err)
+	}
+
+	// List with empty statuses array - should return all jobs
+	jobs := mgr.ListJobs([]models.JobStatus{}, 0)
+	if len(jobs) != 1 {
+		t.Errorf("Expected 1 job with empty status filter, got %d", len(jobs))
+	}
+}
+
+func TestGetJobDeepCopyIsolation(t *testing.T) {
+	log := logger.New("info")
+	detector := newTestDetector(log)
+	mgr := NewManager(log, detector)
+
+	// Create a job
+	jobDef := models.JobDefinition{
+		Name:       "test-job",
+		VMPath:     "/datacenter/vm/test-vm",
+		OutputPath: "/tmp/test-output",
+	}
+
+	jobID, err := mgr.SubmitJob(jobDef)
+	if err != nil {
+		t.Fatalf("Failed to submit job: %v", err)
+	}
+
+	// Set progress and result
+	mgr.mu.Lock()
+	if job, exists := mgr.jobs[jobID]; exists {
+		job.Progress = &models.JobProgress{
+			Phase:           "exporting",
+			PercentComplete: 50.0,
+		}
+		job.Result = &models.JobResult{
+			Files: []string{"file1.vmdk"},
+		}
+	}
+	mgr.mu.Unlock()
+
+	// Get the job
+	retrievedJob, err := mgr.GetJob(jobID)
+	if err != nil {
+		t.Fatalf("Failed to get job: %v", err)
+	}
+
+	// Modify the retrieved job's fields
+	retrievedJob.Progress.PercentComplete = 100.0
+	retrievedJob.Result.Files = append(retrievedJob.Result.Files, "file2.vmdk")
+
+	// Get the job again and verify original values weren't modified
+	retrievedJob2, err := mgr.GetJob(jobID)
+	if err != nil {
+		t.Fatalf("Failed to get job second time: %v", err)
+	}
+
+	if retrievedJob2.Progress.PercentComplete != 50.0 {
+		t.Errorf("Deep copy failed: original progress was modified to %.1f%%", retrievedJob2.Progress.PercentComplete)
+	}
+
+	if len(retrievedJob2.Result.Files) != 1 {
+		t.Errorf("Deep copy failed: original files slice was modified to length %d", len(retrievedJob2.Result.Files))
+	}
+}

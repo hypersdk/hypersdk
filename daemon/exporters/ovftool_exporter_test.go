@@ -68,12 +68,59 @@ func TestOvftoolExporter_Validate(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name: "missing vcenter credentials",
+			name: "missing output_dir",
+			job: &models.JobDefinition{
+				VMPath: "/datacenter/vm/test-vm",
+				VCenter: &models.VCenterConfig{
+					Server:   "vcenter.example.com",
+					Username: "admin",
+					Password: "password",
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "missing vcenter config",
+			job: &models.JobDefinition{
+				VMPath:    "/datacenter/vm/test-vm",
+				OutputDir: "/tmp/output",
+				VCenter:   nil,
+			},
+			wantErr: true,
+		},
+		{
+			name: "vcenter with empty server",
 			job: &models.JobDefinition{
 				VMPath:    "/datacenter/vm/test-vm",
 				OutputDir: "/tmp/output",
 				VCenter: &models.VCenterConfig{
-					Server: "vcenter.example.com",
+					Server:   "",
+					Username: "admin",
+					Password: "password",
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "missing vcenter username",
+			job: &models.JobDefinition{
+				VMPath:    "/datacenter/vm/test-vm",
+				OutputDir: "/tmp/output",
+				VCenter: &models.VCenterConfig{
+					Server:   "vcenter.example.com",
+					Password: "password",
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "missing vcenter password",
+			job: &models.JobDefinition{
+				VMPath:    "/datacenter/vm/test-vm",
+				OutputDir: "/tmp/output",
+				VCenter: &models.VCenterConfig{
+					Server:   "vcenter.example.com",
+					Username: "admin",
 				},
 			},
 			wantErr: true,
