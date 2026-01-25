@@ -33,7 +33,7 @@ require (
 	github.com/pkg/sftp v1.13.10
 	github.com/prometheus/client_golang v1.23.2
 	github.com/pterm/pterm v0.12.82
-	github.com/redis/go-redis/v9 v9.7.0
+	github.com/redis/go-redis/v9 v9.17.3
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/schollz/progressbar/v3 v3.19.0
 	github.com/stretchr/testify v1.11.1
