@@ -7,13 +7,13 @@ import { StatCard } from './StatCard';
 import { JobsTable } from './JobsTable';
 import { AlertsList } from './AlertsList';
 import { ChartContainer } from './ChartContainer';
-import { JobSubmissionForm } from './JobSubmissionForm';
+import VSphereExportWorkflow from './VSphereExportWorkflow';
 import { WorkflowDashboard } from './WorkflowDashboard';
 import { ManifestBuilder } from './ManifestBuilder';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { useMetricsHistory } from '../hooks/useMetricsHistory';
 import { formatBytes, formatDuration, getStatusColor } from '../utils/formatters';
-import { cancelJob, submitJob } from '../utils/api';
+import { cancelJob } from '../utils/api';
 
 interface DashboardProps {
   onLogout?: () => void;
@@ -40,16 +40,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
     }
   };
 
-  const handleSubmitJob = async (jobData: unknown) => {
-    try {
-      await submitJob(jobData);
-      setShowJobForm(false);
-      alert('Job submitted successfully!');
-    } catch (err) {
-      console.error('Failed to submit job:', err);
-      throw err;
-    }
-  };
+  // Job submission is now handled by VSphereExportWorkflow component
 
   const jobsChartData = useMemo(() => {
     return history.map((m) => ({
@@ -248,7 +239,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onLogout }) => {
                 Close
               </button>
             </div>
-            <JobSubmissionForm onSubmit={handleSubmitJob} />
+            <VSphereExportWorkflow />
           </div>
         </div>
       )}

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 
 interface LoginProps {
   onLogin: (username: string, password: string) => Promise<void>;
@@ -7,8 +7,20 @@ interface LoginProps {
 export const Login: React.FC<LoginProps> = ({ onLogin }) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [rememberMe, setRememberMe] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Load saved credentials on mount
+  useEffect(() => {
+    const savedUsername = localStorage.getItem('hypersdk_username');
+    const savedPassword = localStorage.getItem('hypersdk_password');
+    if (savedUsername && savedPassword) {
+      setUsername(savedUsername);
+      setPassword(savedPassword);
+      setRememberMe(true);
+    }
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -17,6 +29,17 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
 
     try {
       await onLogin(username, password);
+
+      // Save credentials if "Remember Me" is checked
+      if (rememberMe) {
+        localStorage.setItem('hypersdk_username', username);
+        localStorage.setItem('hypersdk_password', password);
+        localStorage.setItem('hypersdk_remember', 'true');
+      } else {
+        localStorage.removeItem('hypersdk_username');
+        localStorage.removeItem('hypersdk_password');
+        localStorage.removeItem('hypersdk_remember');
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed');
     } finally {
@@ -26,10 +49,10 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
 
   const inputStyle: React.CSSProperties = {
     width: '100%',
-    padding: '16px 20px',
-    border: '2px solid #000',
+    padding: '10px 14px',
+    border: '1px solid #d1d5db',
     borderRadius: '4px',
-    fontSize: '16px',
+    fontSize: '14px',
     backgroundColor: '#fff',
     color: '#000',
     transition: 'all 0.25s cubic-bezier(0.215, 0.61, 0.355, 1)',
@@ -37,10 +60,10 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
 
   const labelStyle: React.CSSProperties = {
     display: 'block',
-    fontSize: '14px',
+    fontSize: '13px',
     fontWeight: '600',
-    color: '#000',
-    marginBottom: '10px',
+    color: '#374151',
+    marginBottom: '6px',
   };
 
   return (
@@ -54,25 +77,26 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
     }}>
       <div style={{
         backgroundColor: '#fff',
-        borderRadius: '4px',
-        padding: '48px 40px',
+        borderRadius: '8px',
+        padding: '32px 28px',
         width: '100%',
-        maxWidth: '480px',
-        border: '1px solid #e0e0e0',
+        maxWidth: '380px',
+        border: '1px solid #e5e7eb',
+        boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
       }}>
         {/* Logo/Title */}
-        <div style={{ textAlign: 'center', marginBottom: '40px' }}>
+        <div style={{ textAlign: 'center', marginBottom: '28px' }}>
           <h1 style={{
-            fontSize: '32px',
+            fontSize: '24px',
             fontWeight: '700',
-            color: '#000',
-            margin: '0 0 8px 0',
+            color: '#111827',
+            margin: '0 0 4px 0',
           }}>
             HyperSDK
           </h1>
           <p style={{
-            fontSize: '16px',
-            color: '#222324',
+            fontSize: '14px',
+            color: '#6b7280',
             margin: 0,
           }}>
             Sign in to your account
@@ -82,12 +106,12 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
         {/* Error Message */}
         {error && (
           <div style={{
-            padding: '16px',
+            padding: '10px 12px',
             backgroundColor: '#fee2e2',
             color: '#991b1b',
-            borderRadius: '4px',
-            marginBottom: '24px',
-            fontSize: '14px',
+            borderRadius: '6px',
+            marginBottom: '18px',
+            fontSize: '13px',
             fontWeight: '500',
           }}>
             {error}
@@ -96,7 +120,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
 
         {/* Login Form */}
         <form onSubmit={handleSubmit}>
-          <div style={{ marginBottom: '24px' }}>
+          <div style={{ marginBottom: '16px' }}>
             <label htmlFor="username" style={labelStyle}>
               Username
             </label>
@@ -113,12 +137,12 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
                 e.currentTarget.style.outline = 'none';
               }}
               onBlur={(e) => {
-                e.currentTarget.style.borderColor = '#000';
+                e.currentTarget.style.borderColor = '#d1d5db';
               }}
             />
           </div>
 
-          <div style={{ marginBottom: '32px' }}>
+          <div style={{ marginBottom: '16px' }}>
             <label htmlFor="password" style={labelStyle}>
               Password
             </label>
@@ -135,9 +159,40 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
                 e.currentTarget.style.outline = 'none';
               }}
               onBlur={(e) => {
-                e.currentTarget.style.borderColor = '#000';
+                e.currentTarget.style.borderColor = '#d1d5db';
               }}
             />
+          </div>
+
+          {/* Remember Me Checkbox */}
+          <div style={{ marginBottom: '20px' }}>
+            <label style={{
+              display: 'flex',
+              alignItems: 'center',
+              cursor: 'pointer',
+              userSelect: 'none',
+            }}>
+              <input
+                type="checkbox"
+                checked={rememberMe}
+                onChange={(e) => setRememberMe(e.target.checked)}
+                disabled={isLoading}
+                style={{
+                  width: '16px',
+                  height: '16px',
+                  marginRight: '8px',
+                  cursor: isLoading ? 'not-allowed' : 'pointer',
+                  accentColor: '#f0583a',
+                }}
+              />
+              <span style={{
+                fontSize: '13px',
+                color: '#6b7280',
+                fontWeight: '500',
+              }}>
+                Remember me
+              </span>
+            </label>
           </div>
 
           <button
@@ -146,7 +201,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
             onMouseEnter={(e) => {
               if (!isLoading) {
                 e.currentTarget.style.backgroundColor = '#d94b32';
-                e.currentTarget.style.transform = 'translateY(-2px)';
+                e.currentTarget.style.transform = 'translateY(-1px)';
               }
             }}
             onMouseLeave={(e) => {
@@ -157,33 +212,33 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
             }}
             style={{
               width: '100%',
-              padding: '16px',
+              padding: '11px',
               backgroundColor: isLoading ? '#9ca3af' : '#f0583a',
               color: '#fff',
               border: 'none',
-              borderRadius: '4px',
-              fontSize: '16px',
+              borderRadius: '6px',
+              fontSize: '14px',
               fontWeight: '600',
               cursor: isLoading ? 'not-allowed' : 'pointer',
               transition: 'all 0.25s cubic-bezier(0.215, 0.61, 0.355, 1)',
             }}
           >
-            {isLoading ? 'signing in...' : 'sign in'}
+            {isLoading ? 'Signing in...' : 'Sign in'}
           </button>
         </form>
 
         {/* Footer Links */}
         <div style={{
-          marginTop: '32px',
-          paddingTop: '24px',
-          borderTop: '1px solid #e0e0e0',
+          marginTop: '20px',
+          paddingTop: '16px',
+          borderTop: '1px solid #e5e7eb',
           textAlign: 'center',
         }}>
           <a
             href="#"
             style={{
-              color: '#222324',
-              fontSize: '14px',
+              color: '#6b7280',
+              fontSize: '13px',
               textDecoration: 'none',
               transition: 'color 0.25s cubic-bezier(0.215, 0.61, 0.355, 1)',
             }}
@@ -191,7 +246,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
               e.currentTarget.style.color = '#f0583a';
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.color = '#222324';
+              e.currentTarget.style.color = '#6b7280';
             }}
           >
             Forgot password?

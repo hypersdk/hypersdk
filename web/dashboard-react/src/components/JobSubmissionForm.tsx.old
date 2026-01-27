@@ -1,16 +1,25 @@
 import React, { useState } from 'react';
 
 interface JobSubmissionFormProps {
-  onSubmit: (jobData: any) => Promise<void>;
+  onSubmit?: (jobData: any) => Promise<void>;
+  initialProvider?: string;
+  initialVMIdentifier?: string;
+  initialVMName?: string;
 }
 
 type CloudProvider = 'vsphere' | 'aws' | 'azure' | 'gcp' | 'hyperv' | 'oci' | 'openstack' | 'alibabacloud' | 'proxmox';
 
-export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({ onSubmit }) => {
-  const [provider, setProvider] = useState<CloudProvider>('vsphere');
+export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({
+  onSubmit,
+  initialProvider,
+  initialVMIdentifier,
+  initialVMName
+}) => {
+  const [provider, setProvider] = useState<CloudProvider>((initialProvider as CloudProvider) || 'vsphere');
   const [formData, setFormData] = useState<Record<string, any>>({
-    name: '',
-    provider: 'vsphere',
+    name: initialVMName || '',
+    provider: initialProvider || 'vsphere',
+    vm_identifier: initialVMIdentifier || '',
     output_dir: '/tmp/exports',
     format: 'ova',
     compress: false,
@@ -70,7 +79,29 @@ export const JobSubmissionForm: React.FC<JobSubmissionFormProps> = ({ onSubmit }
     setSuccess(false);
 
     try {
-      await onSubmit({ ...formData, provider });
+      const jobData = { ...formData, provider };
+
+      // Use provided onSubmit or default API call
+      if (onSubmit) {
+        await onSubmit(jobData);
+      } else {
+        // Default: Submit job via API
+        const response = await fetch('/api/jobs/submit', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(jobData),
+        });
+
+        if (!response.ok) {
+          throw new Error(`Failed to submit job: ${response.statusText}`);
+        }
+
+        const result = await response.json();
+        console.log('Job submitted:', result);
+      }
+
       setSuccess(true);
       setTimeout(() => setSuccess(false), 3000);
     } catch (err) {
