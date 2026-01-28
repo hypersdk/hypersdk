@@ -18,6 +18,9 @@ Welcome to the HyperSDK documentation. This guide helps you navigate all availab
 
 ### Deployment & Configuration
 - **[Deployment Guide](deployment-guide.md)** - Production deployment guidelines
+- **[Docker/Podman Deployment](../deployments/docker/README.md)** - Container deployment with Docker Compose
+- **[Kubernetes Deployment](../deployments/kubernetes/README.md)** - Kubernetes with Kustomize (dev/staging/prod)
+- **[Systemd Integration](../systemd/README.md)** - Native Linux systemd service
 - **[Multi-Cloud Guide](multi-cloud-guide.md)** - Multi-cloud migration workflows
 
 ### Cloud Provider Integrations

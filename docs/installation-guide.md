@@ -73,25 +73,55 @@ go build -o hyperctl ./cmd/hyperctl
 sudo make install
 ```
 
-### Method 3: Docker Container
+### Method 3: Docker/Podman Container
+
+HyperSDK provides comprehensive containerization with Docker/Podman support:
 
 ```bash
-# Pull image
-docker pull ghcr.io/ssahani/hypersdk:latest
+# Clone repository
+git clone https://github.com/ssahani/hypersdk.git
+cd hypersdk
 
-# Run daemon in container
-docker run -d \
-  --name hypervisord \
-  -p 8080:8080 \
-  -v /var/lib/hypersdk:/var/lib/hypersdk \
-  -v /etc/hypervisord:/etc/hypervisord \
-  ghcr.io/ssahani/hypersdk:latest
+# Build container images
+./deployments/scripts/build-images.sh --builder podman
 
-# Use CLI tools via docker exec
-docker exec -it hypervisord hyperctl status
+# Start full stack (hypervisord + Redis + Prometheus + Grafana)
+cd deployments/docker
+podman compose up -d
+
+# Access services:
+# - API:       http://localhost:8080
+# - Dashboard: http://localhost:8080/web/dashboard/
+# - Grafana:   http://localhost:3000
+# - Prometheus: http://localhost:9090
 ```
 
-### Method 4: Binary Download
+See [Docker/Podman Deployment Guide](../deployments/docker/README.md) for details.
+
+### Method 4: Kubernetes
+
+Deploy to Kubernetes with Kustomize (supports dev/staging/prod environments):
+
+```bash
+# Clone repository
+git clone https://github.com/ssahani/hypersdk.git
+cd hypersdk
+
+# Configure secrets
+cp deployments/kubernetes/base/secrets.yaml.example \
+   deployments/kubernetes/overlays/development/secrets.yaml
+vim deployments/kubernetes/overlays/development/secrets.yaml
+
+# Deploy to development
+./deployments/scripts/deploy-k8s.sh development
+
+# Access API
+kubectl port-forward -n hypersdk svc/hypervisord 8080:8080
+```
+
+See [Kubernetes Deployment Guide](../deployments/kubernetes/README.md) for details.
+
+### Method 5: Binary Download
 
 ```bash
 # Download binaries

@@ -19,7 +19,59 @@ Built with:
 
 ---
 
-## ⚡ Quick Start (5 minutes)
+## 🚀 Deployment Options
+
+Choose the deployment method that best fits your environment:
+
+### **Option 1: Docker/Podman** (Recommended for Quick Start)
+
+Get up and running in under 5 minutes with containers:
+
+```bash
+# Build and start full stack
+git clone https://github.com/ssahani/hypersdk.git
+cd hypersdk
+./deployments/scripts/build-images.sh --builder podman
+cd deployments/docker && podman compose up -d
+
+# Access dashboard
+open http://localhost:8080/web/dashboard/
+```
+
+**Includes:** HyperSDK + Redis + Prometheus + Grafana monitoring
+
+See [Docker/Podman Guide](../deployments/docker/README.md) for details.
+
+### **Option 2: Kubernetes** (Recommended for Production)
+
+Deploy to Kubernetes with Kustomize:
+
+```bash
+git clone https://github.com/ssahani/hypersdk.git
+cd hypersdk
+./deployments/scripts/deploy-k8s.sh development
+kubectl port-forward -n hypersdk svc/hypervisord 8080:8080
+```
+
+See [Kubernetes Guide](../deployments/kubernetes/README.md) for details.
+
+### **Option 3: Native Installation** (Traditional Method)
+
+Install directly on Linux:
+
+```bash
+# Install RPM package
+sudo dnf install hypersdk-*.rpm
+
+# Or build from source
+make build && sudo make install
+```
+
+See [Installation Guide](installation-guide.md) for details.
+
+---
+
+## ⚡ Quick Start (Native Installation)
 
 ### 1. Set Your vCenter Credentials
 
