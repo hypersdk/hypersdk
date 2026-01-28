@@ -7,6 +7,15 @@ Welcome to the HyperSDK documentation. This guide helps you navigate all availab
 - **[Getting Started](getting-started.md)** - Quick start guide for new users
 - **[Quickstart Guide](quickstart-guide.md)** - Fast-track setup and usage
 - **[README](../README.md)** - Project overview and introduction
+- **[Docker Quick Start](../examples/docker-quickstart.md)** - Get running with Docker in 5 minutes
+- **[Kubernetes Quick Start](../examples/kubernetes-quickstart.md)** - Deploy to Kubernetes in 10 minutes
+
+## Tutorials
+
+Step-by-step tutorials for common tasks:
+- **[Getting Started Tutorial](tutorials/getting-started.md)** - Your first VM export with Docker, Kubernetes, or Docker Compose
+- **[Configuration Tutorial](tutorials/configuration.md)** - Advanced configuration options for all deployment methods
+- **[Multi-Cloud Setup](tutorials/multi-cloud-setup.md)** - Configure and use multiple cloud providers simultaneously
 
 ## User Guides
 
@@ -111,6 +120,10 @@ hypersdk/
 │   ├── multi-cloud-guide.md   # Multi-cloud workflows
 │   ├── project-summary.md     # Architecture overview
 │   ├── test-results.md        # Test coverage and results
+│   ├── tutorials/             # Step-by-step tutorials
+│   │   ├── getting-started.md  # First VM export tutorial
+│   │   ├── configuration.md    # Configuration tutorial
+│   │   └── multi-cloud-setup.md # Multi-cloud setup tutorial
 │   ├── user-guides/           # Step-by-step guides
 │   │   ├── 01-interactive-mode.md
 │   │   ├── 02-vm-export-guide.md
@@ -167,6 +180,8 @@ hypersdk/
 │       └── ...
 ├── examples/                  # Configuration examples
 │   ├── README.md
+│   ├── docker-quickstart.md    # Docker quick start guide
+│   ├── kubernetes-quickstart.md # Kubernetes quick start guide
 │   ├── example-vm-export.yaml
 │   ├── example-vm-export.json
 │   ├── example-batch-export.yaml
@@ -180,15 +195,17 @@ hypersdk/
 ## Contributing
 
 When adding new documentation:
-1. Place user guides in `docs/user-guides/` with numeric prefix (e.g., `05-new-guide.md`)
-2. Place feature docs in `docs/features/` with numeric prefix
-3. Place API docs in `docs/api/` with numeric prefix
-4. Place cloud provider integrations in `docs/cloud-providers/`
-5. Place testing docs in `docs/testing/`
-6. Place integration guides in `docs/integration/`
-7. Place development notes in `docs/development/`
-8. Update this index file to include the new document
-9. Follow the existing documentation style and format
+1. Place tutorials in `docs/tutorials/` (step-by-step guides with examples)
+2. Place user guides in `docs/user-guides/` with numeric prefix (e.g., `05-new-guide.md`)
+3. Place feature docs in `docs/features/` with numeric prefix
+4. Place API docs in `docs/api/` with numeric prefix
+5. Place cloud provider integrations in `docs/cloud-providers/`
+6. Place testing docs in `docs/testing/`
+7. Place integration guides in `docs/integration/`
+8. Place development notes in `docs/development/`
+9. Place quick start examples in `examples/` (e.g., `docker-quickstart.md`)
+10. Update this index file to include the new document
+11. Follow the existing documentation style and format
 
 ## License
 
