@@ -165,6 +165,69 @@ Validate HyperSDK deployment on k3d cluster.
 - Access URLs
 - Optional: Test results saved to file
 
+### test-helm-chart.sh
+
+Comprehensive test suite for the HyperSDK Helm chart.
+
+**Usage:**
+```bash
+./test-helm-chart.sh [OPTIONS]
+```
+
+**Options:**
+- `-h, --help` - Show help message
+- `-c, --chart PATH` - Path to Helm chart (default: deployments/helm/hypersdk)
+- `-n, --namespace NAME` - Kubernetes namespace for deployment test (default: hypersdk-helm-test)
+- `-r, --release NAME` - Helm release name (default: hypersdk-test)
+- `-d, --deploy` - Actually deploy to cluster (requires active K8s context)
+- `-v, --verbose` - Enable verbose output
+- `--skip-lint` - Skip Helm lint test
+- `--skip-template` - Skip template rendering tests
+- `--skip-values` - Skip values file tests
+
+**Examples:**
+```bash
+# Run all tests
+./test-helm-chart.sh
+
+# Run tests with deployment to cluster
+./test-helm-chart.sh --deploy
+
+# Run with verbose output
+./test-helm-chart.sh -v
+
+# Test specific chart path
+./test-helm-chart.sh --chart /path/to/chart
+
+# Skip some tests for faster feedback
+./test-helm-chart.sh --skip-lint --skip-values
+```
+
+**Tests Performed:**
+1. Chart directory structure
+2. Chart.yaml validation
+3. values.yaml validation
+4. Helm lint
+5. Template rendering (default values)
+6. Template rendering (minikube values)
+7. Template rendering (GKE values)
+8. Template rendering (EKS values)
+9. Template rendering (AKS values)
+10. Required templates exist
+11. All example values files
+12. Chart version format
+13. YAML validity
+14. NOTES.txt template
+
+**Output:**
+- Individual test results (PASS/FAIL)
+- Test summary with counts
+- Success rate percentage
+- Exit code: 0 for 100% pass, 1 for 80-99% pass, 1 for <80% pass
+
+**CI/CD Integration:**
+This script is used in `.github/workflows/helm-test.yml` for automated testing.
+
 ### health-check.sh
 
 Perform health checks across different deployment environments.
