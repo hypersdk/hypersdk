@@ -9,6 +9,7 @@ Welcome to the HyperSDK documentation. This guide helps you navigate all availab
 - **[README](../README.md)** - Project overview and introduction
 - **[Docker Quick Start](../examples/docker-quickstart.md)** - Get running with Docker in 5 minutes
 - **[Kubernetes Quick Start](../examples/kubernetes-quickstart.md)** - Deploy to Kubernetes in 10 minutes
+- **[K3d Quick Start](../examples/k3d-quickstart.md)** - Local k3d cluster testing and development
 
 ## Tutorials
 
