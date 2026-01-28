@@ -47,11 +47,14 @@ data:
       timezone: "UTC"
       max_concurrent_jobs: 3
 
-    # Webhooks
-    webhooks:
-      enabled: false
-      timeout: 30s
-      retry_attempts: 3
+    # Webhooks (array of webhook configurations)
+    webhooks: []
+    # Example:
+    # webhooks:
+    #   - url: "https://example.com/webhook"
+    #     events: ["job.completed", "job.failed"]
+    #     timeout: 30s
+    #     retry_attempts: 3
 
     # Metrics
     metrics:
