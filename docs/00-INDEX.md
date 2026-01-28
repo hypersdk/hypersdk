@@ -29,6 +29,7 @@ Step-by-step tutorials for common tasks:
 
 ### Deployment & Configuration
 - **[Deployment Guide](deployment-guide.md)** - Production deployment guidelines
+- **[Upstream Kubernetes Guide](guides/upstream-kubernetes.md)** - GKE, EKS, AKS, vanilla K8s deployment
 - **[Docker/Podman Deployment](../deployments/docker/README.md)** - Container deployment with Docker Compose
 - **[Kubernetes Deployment](../deployments/kubernetes/README.md)** - Kubernetes with Kustomize (dev/staging/prod)
 - **[Systemd Integration](../systemd/README.md)** - Native Linux systemd service
