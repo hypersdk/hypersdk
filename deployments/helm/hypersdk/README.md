@@ -443,6 +443,34 @@ credentials:
     existingSecret: "vsphere-credentials"
 ```
 
+### Example 6: Red Hat OpenShift
+
+OpenShift requires specific configurations for Routes and SecurityContextConstraints.
+
+**Quick Start**:
+
+```bash
+# Install with OpenShift-specific values
+helm install hypersdk hypersdk/hypersdk \
+  -f https://raw.githubusercontent.com/ssahani/hypersdk/main/deployments/helm/hypersdk/examples/openshift-values.yaml \
+  -n hypersdk --create-namespace
+
+# Or with custom route hostname
+helm install hypersdk hypersdk/hypersdk \
+  -f examples/openshift-values.yaml \
+  --set route.host=hypersdk.apps.$(oc get ingresses.config.openshift.io cluster -o jsonpath='{.spec.domain}') \
+  -n hypersdk
+```
+
+**Features**:
+- OpenShift Routes (instead of Ingress)
+- Custom SecurityContextConstraints (SCC)
+- OpenShift cluster monitoring integration
+- Network policies for OpenShift
+- Compatible with random UID assignment
+
+**See**: [../../OPENSHIFT.md](../../OPENSHIFT.md) for comprehensive OpenShift deployment guide including GitOps, Pipelines, and production best practices.
+
 ## Upgrading
 
 ### To 0.2.0
@@ -494,6 +522,7 @@ kubectl get secret my-hypersdk-vsphere -n hypersdk -o yaml
 ## Further Information
 
 - [Kubernetes Deployment Guide](../../docs/guides/upstream-kubernetes.md)
+- [OpenShift Deployment Guide](../../OPENSHIFT.md)
 - [Configuration Reference](../../docs/tutorials/configuration.md)
 - [API Documentation](../../docs/api/README.md)
 

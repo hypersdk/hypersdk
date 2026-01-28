@@ -10,6 +10,7 @@ keywords:
   - multi-cloud
   - vsphere
   - kubernetes
+  - openshift
   - backup
   - disaster-recovery
 
@@ -26,3 +27,6 @@ icon: https://raw.githubusercontent.com/ssahani/hypersdk/main/docs/images/logo.p
 annotations:
   category: Infrastructure
   licenses: LGPL-3.0-or-later
+  # OpenShift compatibility
+  openshift.io/provides: hypersdk
+  com.redhat.openshift.versions: "v4.10-v4.15"

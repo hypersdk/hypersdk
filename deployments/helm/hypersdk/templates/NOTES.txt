@@ -10,7 +10,13 @@ To learn more about the release, try:
 HyperSDK has been deployed successfully!
 
 1. Get the application URL:
-{{- if .Values.ingress.enabled }}
+{{- if .Values.route.enabled }}
+  {{- if .Values.route.host }}
+  http{{ if .Values.route.tls }}s{{ end }}://{{ .Values.route.host }}
+  {{- else }}
+  oc get route {{ include "hypersdk.fullname" . }} -n {{ .Release.Namespace }} -o jsonpath='{.spec.host}'
+  {{- end }}
+{{- else if .Values.ingress.enabled }}
 {{- range $host := .Values.ingress.hosts }}
   {{- range .paths }}
   http{{ if $.Values.ingress.tls }}s{{ end }}://{{ $host.host }}{{ .path }}
@@ -116,6 +122,18 @@ Security:
   ✓ NetworkPolicy enabled
   {{- if .Values.podSecurityContext.runAsNonRoot }}
   ✓ Running as non-root user
+  {{- end }}
+{{- end }}
+
+{{- if .Values.openshift.enabled }}
+
+OpenShift:
+  ✓ OpenShift-specific features enabled
+  {{- if .Values.openshift.scc.enabled }}
+  ✓ Custom SecurityContextConstraints created
+  {{- end }}
+  {{- if .Values.route.enabled }}
+  ✓ Route configured for external access
   {{- end }}
 {{- end }}
 

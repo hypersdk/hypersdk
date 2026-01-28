@@ -76,6 +76,34 @@ ingress:
   #    hosts:
   #      - hypersdk.example.com
 
+# OpenShift Route (alternative to Ingress)
+route:
+  enabled: false
+  host: ""  # e.g., hypersdk.apps.example.com
+  path: ""
+  annotations: {}
+    # haproxy.router.openshift.io/timeout: 5m
+    # haproxy.router.openshift.io/balance: roundrobin
+  tls:
+    termination: edge  # edge, passthrough, or reencrypt
+    insecureEdgeTerminationPolicy: Redirect
+    # certificate: ""
+    # key: ""
+    # caCertificate: ""
+    # destinationCACertificate: ""
+  wildcardPolicy: None
+
+# OpenShift-specific configuration
+openshift:
+  # Enable OpenShift-specific features
+  enabled: false
+
+  # SecurityContextConstraints
+  scc:
+    enabled: false
+    annotations: {}
+      # kubernetes.io/description: "Custom SCC for HyperSDK"
+
 resources:
   requests:
     memory: "512Mi"
