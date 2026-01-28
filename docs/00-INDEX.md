@@ -16,6 +16,7 @@ Step-by-step tutorials for common tasks:
 - **[Getting Started Tutorial](tutorials/getting-started.md)** - Your first VM export with Docker, Kubernetes, or Docker Compose
 - **[Configuration Tutorial](tutorials/configuration.md)** - Advanced configuration options for all deployment methods
 - **[Multi-Cloud Setup](tutorials/multi-cloud-setup.md)** - Configure and use multiple cloud providers simultaneously
+- **[NFS Shared Storage](tutorials/nfs-shared-storage.md)** - Deploy with NFS for cross-environment access (Kubernetes + Native Linux)
 
 ## User Guides
 
@@ -123,7 +124,8 @@ hypersdk/
 │   ├── tutorials/             # Step-by-step tutorials
 │   │   ├── getting-started.md  # First VM export tutorial
 │   │   ├── configuration.md    # Configuration tutorial
-│   │   └── multi-cloud-setup.md # Multi-cloud setup tutorial
+│   │   ├── multi-cloud-setup.md # Multi-cloud setup tutorial
+│   │   └── nfs-shared-storage.md # NFS shared storage setup
 │   ├── user-guides/           # Step-by-step guides
 │   │   ├── 01-interactive-mode.md
 │   │   ├── 02-vm-export-guide.md
