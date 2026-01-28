@@ -66,7 +66,9 @@ podAnnotations:
 podSecurityContext:
   runAsNonRoot: true
   # OpenShift will assign UID from SCC range (1000-1000 in our SCC)
-  # Do not set runAsUser here - let OpenShift assign it
+  # Explicitly unset runAsUser and runAsGroup - let OpenShift assign from SCC
+  runAsUser: null
+  runAsGroup: null
   fsGroup: 1000
   seccompProfile:
     type: RuntimeDefault
