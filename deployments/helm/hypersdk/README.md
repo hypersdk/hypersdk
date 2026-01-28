@@ -136,6 +136,108 @@ helm install my-hypersdk ./deployments/helm/hypersdk \
   --create-namespace
 ```
 
+## Accessing the Application
+
+HyperSDK exposes a web server on port 8080 and metrics on port 8081.
+
+### Kubernetes (Ingress)
+
+**Get the Ingress URL**:
+
+```bash
+# Get ingress hostname
+kubectl get ingress my-hypersdk -n hypersdk
+
+# Access in browser
+http://my-hypersdk.example.com
+```
+
+**Configure Ingress**:
+
+```yaml
+ingress:
+  enabled: true
+  className: "nginx"
+  hosts:
+    - host: hypersdk.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+```
+
+### OpenShift (Route)
+
+**Get the Route URL**:
+
+```bash
+# Get route URL
+ROUTE_URL=$(oc get route my-hypersdk -n hypersdk -o jsonpath='{.spec.host}')
+echo "HyperSDK Web Server: https://${ROUTE_URL}"
+
+# Access in browser
+firefox https://${ROUTE_URL}
+```
+
+**Configure Route** (see [OpenShift documentation](../../OPENSHIFT.md#accessing-the-web-server)):
+
+```yaml
+route:
+  enabled: true
+  host: hypersdk.apps.cluster.example.com
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
+
+# Disable Ingress when using Route
+ingress:
+  enabled: false
+```
+
+### Port Forwarding (Development)
+
+**Forward Web Server**:
+
+```bash
+# Forward port 8080 to localhost
+kubectl port-forward svc/my-hypersdk 8080:8080 -n hypersdk
+
+# Access at
+http://localhost:8080
+```
+
+**Forward Both Web and Metrics**:
+
+```bash
+# Forward both ports
+kubectl port-forward svc/my-hypersdk 8080:8080 8081:8081 -n hypersdk
+
+# Access web server
+http://localhost:8080
+
+# Access metrics
+http://localhost:8081/metrics
+```
+
+### Quick Access Commands
+
+```bash
+# Check deployment status
+kubectl get pods,svc,ingress -n hypersdk
+
+# View logs
+kubectl logs -f -l app.kubernetes.io/name=hypersdk -n hypersdk
+
+# Get service URL (LoadBalancer)
+kubectl get svc my-hypersdk -n hypersdk -o jsonpath='{.status.loadBalancer.ingress[0].hostname}'
+
+# Test health endpoint (if available)
+curl http://localhost:8080/health
+```
+
+For more detailed access methods, see:
+- [OpenShift Access Guide](../../OPENSHIFT.md#accessing-the-web-server)
+- [Examples](examples/README.md)
+
 ## Uninstalling the Chart
 
 ```bash

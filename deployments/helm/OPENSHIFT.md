@@ -8,6 +8,7 @@ Complete guide for deploying HyperSDK on Red Hat OpenShift Container Platform.
 - [Prerequisites](#prerequisites)
 - [Quick Start](#quick-start)
 - [OpenShift-Specific Features](#openshift-specific-features)
+- [Accessing the Web Server](#accessing-the-web-server)
 - [Deployment Methods](#deployment-methods)
 - [Security Configuration](#security-configuration)
 - [Networking](#networking)
@@ -108,13 +109,34 @@ curl -k https://${ROUTE_URL}/health
 
 ### 3. Access Application
 
+**Get the Route URL**:
+
 ```bash
 # Get route URL
-oc get route hypersdk -n hypersdk
-
-# Open in browser
-https://hypersdk.apps.cluster.example.com
+ROUTE_URL=$(oc get route hypersdk -n hypersdk -o jsonpath='{.spec.host}')
+echo "HyperSDK Web Server: https://${ROUTE_URL}"
 ```
+
+**Access via Browser** (Recommended):
+
+```bash
+# Open the web UI in your browser
+firefox https://${ROUTE_URL}
+# or
+google-chrome https://${ROUTE_URL}
+```
+
+**Or use Port Forwarding** (Development):
+
+```bash
+# Forward the web server to localhost
+oc port-forward svc/hypersdk 8080:8080 -n hypersdk
+
+# Access at
+http://localhost:8080
+```
+
+For more access methods, see [Accessing the Web Server](#accessing-the-web-server).
 
 ## OpenShift-Specific Features
 
@@ -306,6 +328,298 @@ oc port-forward -n openshift-monitoring \
 
 # Open browser
 http://localhost:9090
+```
+
+## Accessing the Web Server
+
+HyperSDK (hypervisord) exposes a web server on port 8080 and metrics on port 8081. OpenShift provides multiple ways to access these services.
+
+### Method 1: OpenShift Route (Recommended for Production)
+
+The OpenShift Route provides external HTTPS access with automatic TLS termination.
+
+**How It Works**:
+```
+User Browser → Route (TLS) → Service → Pod (hypervisord:8080)
+  HTTPS           Edge        ClusterIP    Container
+```
+
+**Access via Browser**:
+
+```bash
+# Get the Route URL
+ROUTE_URL=$(oc get route hypersdk -n hypersdk -o jsonpath='{.spec.host}')
+echo "Web Server: https://${ROUTE_URL}"
+
+# Open in browser
+firefox https://${ROUTE_URL}
+# or
+google-chrome https://${ROUTE_URL}
+```
+
+**Access via Command Line**:
+
+```bash
+# Test the web server
+curl -k https://${ROUTE_URL}
+
+# Test specific endpoints (if available)
+curl -k https://${ROUTE_URL}/health
+curl -k https://${ROUTE_URL}/api/v1/status
+```
+
+**Route Configuration**:
+
+The Route is automatically created with:
+- **TLS Termination**: Edge (router handles SSL)
+- **Redirect**: HTTP → HTTPS automatic
+- **Port**: 8080 (hypervisord web server)
+
+**Custom Domain**:
+
+```bash
+# Install with custom domain
+helm install hypersdk hypersdk/hypersdk \
+  -f examples/openshift-values.yaml \
+  --set route.host=hypersdk.production.com \
+  -n hypersdk
+```
+
+### Method 2: Port Forwarding (Recommended for Development)
+
+Port forwarding provides direct access to the service from your local machine.
+
+**Forward Web Server**:
+
+```bash
+# Forward port 8080 to localhost
+oc port-forward svc/hypersdk 8080:8080 -n hypersdk
+
+# Access at
+curl http://localhost:8080
+firefox http://localhost:8080
+```
+
+**Forward Both Web and Metrics**:
+
+```bash
+# Forward both ports simultaneously
+oc port-forward svc/hypersdk 8080:8080 8081:8081 -n hypersdk
+
+# Access web server
+curl http://localhost:8080
+
+# Access metrics
+curl http://localhost:8081/metrics
+```
+
+**Forward to Different Local Port**:
+
+```bash
+# If port 8080 is already in use
+oc port-forward svc/hypersdk 9090:8080 -n hypersdk
+
+# Access at
+curl http://localhost:9090
+```
+
+**Forward Directly to Pod** (for debugging):
+
+```bash
+# Get pod name
+POD=$(oc get pods -n hypersdk -l app.kubernetes.io/name=hypersdk -o jsonpath='{.items[0].metadata.name}')
+
+# Forward from specific pod
+oc port-forward pod/$POD 8080:8080 -n hypersdk
+```
+
+### Method 3: Internal Service DNS
+
+For pod-to-pod communication within the cluster.
+
+**From Same Namespace**:
+
+```bash
+# Service DNS (short form)
+curl http://hypersdk:8080
+
+# Access metrics
+curl http://hypersdk:8081/metrics
+```
+
+**From Different Namespace**:
+
+```bash
+# Fully qualified service DNS
+curl http://hypersdk.hypersdk.svc.cluster.local:8080
+
+# Format: <service>.<namespace>.svc.cluster.local:<port>
+```
+
+**Test with Debug Pod**:
+
+```bash
+# Start interactive debug pod
+oc run curl-test --image=curlimages/curl --rm -it -n hypersdk -- sh
+
+# From inside the pod
+curl http://hypersdk:8080
+curl http://hypersdk:8081/metrics
+exit
+```
+
+### Method 4: OpenShift Web Console
+
+Access the web server through the OpenShift console GUI.
+
+**Via Routes**:
+
+1. Login to OpenShift Console
+2. Navigate to: **Networking → Routes**
+3. Select project/namespace: **hypersdk**
+4. Click on: **hypersdk** route
+5. Click the URL under "Location" column
+6. Opens in browser: `https://hypersdk.apps.cluster.example.com`
+
+**Via Topology View** (Developer Perspective):
+
+1. Switch to **Developer** perspective (dropdown top-left)
+2. Select project: **hypersdk**
+3. Click: **Topology**
+4. Click the **hypersdk** deployment circle
+5. Right sidebar shows route link
+6. Click to open web interface
+
+**Port Forward from Console**:
+
+1. Navigate: **Workloads → Pods**
+2. Select: hypersdk pod
+3. Click: **Actions** → **Port forward**
+4. Select port: **8080**
+5. Click: **Start**
+6. Access at: `http://localhost:8080`
+
+### Access Method Comparison
+
+| Method | URL Example | Use Case | Pros | Cons |
+|--------|-------------|----------|------|------|
+| **Route** | `https://hypersdk.apps.example.com` | Production | External, TLS, Production-ready | Requires DNS |
+| **Port-forward** | `http://localhost:8080` | Development | Quick, no config | Local only, temporary |
+| **Service DNS** | `http://hypersdk:8080` | Microservices | Fast, internal | Cluster-only |
+| **Console** | Click in UI | Management | Visual, easy | Manual process |
+
+### Accessing Metrics
+
+The metrics endpoint (port 8081) can be accessed using the same methods:
+
+**Via Route** (if additional route created):
+
+```bash
+# Create separate route for metrics
+oc create route edge hypersdk-metrics \
+  --service=hypersdk \
+  --port=8081 \
+  --hostname=hypersdk-metrics.apps.cluster.example.com \
+  -n hypersdk
+
+# Access
+curl -k https://hypersdk-metrics.apps.cluster.example.com/metrics
+```
+
+**Via Port Forward**:
+
+```bash
+# Forward metrics port
+oc port-forward svc/hypersdk 8081:8081 -n hypersdk
+
+# Access metrics
+curl http://localhost:8081/metrics
+```
+
+**Via Service DNS**:
+
+```bash
+# From another pod
+curl http://hypersdk:8081/metrics
+```
+
+### Troubleshooting Access
+
+**Route Not Accessible**:
+
+```bash
+# 1. Check Route exists
+oc get route hypersdk -n hypersdk
+
+# 2. Check Service has endpoints
+oc get endpoints hypersdk -n hypersdk
+# Should show pod IPs, not <none>
+
+# 3. Check Pod is running
+oc get pods -n hypersdk -l app.kubernetes.io/name=hypersdk
+# Status should be "Running"
+
+# 4. Test connectivity
+ROUTE_URL=$(oc get route hypersdk -n hypersdk -o jsonpath='{.spec.host}')
+curl -v -k https://$ROUTE_URL
+```
+
+**Port Forward Not Working**:
+
+```bash
+# 1. Verify service exists
+oc get svc hypersdk -n hypersdk
+
+# 2. Check pod status
+oc get pods -n hypersdk -l app.kubernetes.io/name=hypersdk
+
+# 3. Try direct pod access
+POD=$(oc get pod -n hypersdk -l app.kubernetes.io/name=hypersdk -o name | head -1)
+oc port-forward $POD 8080:8080 -n hypersdk
+```
+
+**Connection Refused**:
+
+```bash
+# Check if hypervisord is listening on correct port
+oc exec -it deployment/hypersdk -n hypersdk -- netstat -tlnp | grep 8080
+
+# Check pod logs
+oc logs -l app.kubernetes.io/name=hypersdk -n hypersdk
+
+# Check service endpoints
+oc describe svc hypersdk -n hypersdk
+```
+
+### Production Examples
+
+**Multiple Routes for Different Services**:
+
+```bash
+# Main web UI
+oc get route hypersdk -n hypersdk
+
+# Additional route for metrics
+oc create route edge hypersdk-metrics \
+  --service=hypersdk \
+  --port=8081 \
+  --hostname=metrics-hypersdk.production.com \
+  -n hypersdk
+
+# Access
+https://hypersdk.production.com           # Web UI
+https://metrics-hypersdk.production.com   # Metrics
+```
+
+**Passthrough TLS** (if hypervisord handles TLS):
+
+```yaml
+# values.yaml
+route:
+  enabled: true
+  host: hypersdk.production.com
+  tls:
+    termination: passthrough
 ```
 
 ## Deployment Methods
