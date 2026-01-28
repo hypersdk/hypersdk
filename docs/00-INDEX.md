@@ -64,6 +64,8 @@ Step-by-step tutorials for common tasks:
   - **[Daemon API](api/01-daemon-api.md)** - REST API reference
   - **[API Endpoints](api/02-endpoints.md)** - Endpoint reference
   - **[New Features](api/03-new-features.md)** - Recent API additions
+- **[Architecture Documentation](architecture/)** - System architecture and design
+  - **[NFS Deployment Architecture](architecture/nfs-deployment-architecture.md)** - Complete NFS architecture with diagrams
 - **[Project Summary](project-summary.md)** - High-level architecture overview
 
 ### Examples
@@ -148,6 +150,8 @@ hypersdk/
 │   │   ├── oci-integration.md
 │   │   ├── openstack-integration.md
 │   │   └── proxmox-integration.md
+│   ├── architecture/          # Architecture documentation
+│   │   └── nfs-deployment-architecture.md # NFS deployment architecture
 │   ├── api/                   # API references
 │   │   ├── README.md
 │   │   ├── 00-overview.md
