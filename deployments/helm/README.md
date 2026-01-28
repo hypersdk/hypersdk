@@ -1,6 +1,6 @@
 # HyperSDK Helm Charts - Complete Deployment Solution
 
-Enterprise-grade Helm charts and comprehensive documentation for deploying HyperSDK on Kubernetes.
+Enterprise-grade Helm charts and comprehensive documentation for deploying HyperSDK on Kubernetes and OpenShift.
 
 ## 🚀 Quick Start
 
@@ -15,6 +15,21 @@ helm install hypersdk hypersdk/hypersdk --namespace hypersdk --create-namespace
 helm install hypersdk oci://ghcr.io/ssahani/charts/hypersdk --version 0.2.0 \
   --namespace hypersdk --create-namespace
 ```
+
+### OpenShift Installation
+
+```bash
+# Install with OpenShift-specific configuration
+helm install hypersdk hypersdk/hypersdk \
+  -f https://raw.githubusercontent.com/ssahani/hypersdk/main/deployments/helm/hypersdk/examples/openshift-values.yaml \
+  --namespace hypersdk --create-namespace
+
+# Access via Route
+ROUTE_URL=$(oc get route hypersdk -n hypersdk -o jsonpath='{.spec.host}')
+firefox https://$ROUTE_URL
+```
+
+See [OPENSHIFT.md](OPENSHIFT.md) for complete OpenShift deployment guide.
 
 ### Access Application
 
@@ -33,6 +48,7 @@ curl http://localhost:8080/health
 ### Start Here
 
 - **New Users** → [OPERATIONAL-EXCELLENCE.md](OPERATIONAL-EXCELLENCE.md) - Complete index with role-based quick starts
+- **OpenShift** → [OPENSHIFT.md](OPENSHIFT.md) - Complete guide for Red Hat OpenShift deployment
 - **Need Help** → [TROUBLESHOOTING-FAQ.md](TROUBLESHOOTING-FAQ.md) - 30+ common issues with solutions
 - **Migrating** → [MIGRATION.md](MIGRATION.md) - Migrate from Docker, VM, YAML, etc.
 - **Contributing** → [CONTRIBUTING.md](CONTRIBUTING.md) - Development and contribution guide

@@ -169,6 +169,43 @@ helm install hypersdk hypersdk/hypersdk \
   -n hypersdk
 ```
 
+## 🌐 Accessing the Application
+
+HyperSDK exposes a web server on port 8080 and metrics on port 8081.
+
+### OpenShift Route (Production)
+
+```bash
+# Get Route URL
+ROUTE_URL=$(oc get route hypersdk -n hypersdk -o jsonpath='{.spec.host}')
+
+# Access in browser
+firefox https://$ROUTE_URL
+
+# Or via curl
+curl -k https://$ROUTE_URL
+```
+
+### Port Forwarding (Development)
+
+```bash
+# Forward web server
+oc port-forward svc/hypersdk 8080:8080 -n hypersdk
+
+# Access at
+http://localhost:8080
+```
+
+### Multiple Access Methods
+
+The implementation provides 4 different ways to access the application:
+1. **OpenShift Route** - Production HTTPS access with TLS
+2. **Port Forwarding** - Development and debugging
+3. **Service DNS** - Internal pod-to-pod communication
+4. **OpenShift Console** - GUI-based access
+
+For complete access documentation, see [OPENSHIFT.md - Accessing the Web Server](../../OPENSHIFT.md#accessing-the-web-server).
+
 ## 🔐 Security Features
 
 1. **Custom SCC** - Fine-grained control over pod security

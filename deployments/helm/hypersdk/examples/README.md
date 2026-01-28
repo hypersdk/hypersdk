@@ -48,6 +48,23 @@ helm install hypersdk hypersdk/hypersdk \
 
 **Documentation**: See [../../../OPENSHIFT.md](../../../OPENSHIFT.md) for complete OpenShift deployment guide.
 
+**Accessing the Application**:
+
+After installation, access the HyperSDK web server (port 8080):
+
+```bash
+# Get the Route URL
+ROUTE_URL=$(oc get route hypersdk -n hypersdk -o jsonpath='{.spec.host}')
+
+# Access in browser
+firefox https://$ROUTE_URL
+
+# Or use port forwarding for development
+oc port-forward svc/hypersdk 8080:8080 -n hypersdk
+```
+
+See [Accessing the Web Server](../../../OPENSHIFT.md#accessing-the-web-server) for all access methods.
+
 ## Creating Custom Values
 
 You can create your own values file by starting with one of these examples:
