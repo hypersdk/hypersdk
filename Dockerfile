@@ -23,16 +23,19 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
     ./cmd/hyper2kvm
 
 # Runtime stage
-FROM alpine:latest
+FROM registry.fedoraproject.org/fedora-minimal:43
+
+LABEL org.opencontainers.image.base.name="registry.fedoraproject.org/fedora-minimal:43"
 
 # Install runtime dependencies
-RUN apk add --no-cache \
+RUN microdnf install -y \
     ca-certificates \
-    tzdata
+    tzdata \
+    && microdnf clean all
 
 # Create non-root user
-RUN addgroup -g 1000 hyper2kvm && \
-    adduser -D -u 1000 -G hyper2kvm hyper2kvm
+RUN groupadd -g 1000 hyper2kvm && \
+    useradd -u 1000 -g hyper2kvm -m -d /home/hyper2kvm -s /sbin/nologin hyper2kvm
 
 # Create directories
 RUN mkdir -p /exports && \

@@ -44,24 +44,25 @@ RUN ls -lh hypervisord
 # ==============================================================================
 # Runtime Stage
 # ==============================================================================
-FROM alpine:3.19
+FROM registry.fedoraproject.org/fedora-minimal:43
 
 LABEL maintainer="HyperSDK Team"
 LABEL org.opencontainers.image.title="HyperSDK hypervisord"
 LABEL org.opencontainers.image.description="Multi-cloud VM export daemon with REST API"
 LABEL org.opencontainers.image.source="https://github.com/ssahani/hypersdk"
+LABEL org.opencontainers.image.base.name="registry.fedoraproject.org/fedora-minimal:43"
 
 # Install runtime dependencies
-RUN apk add --no-cache \
+RUN microdnf install -y \
     ca-certificates \
     tzdata \
     sqlite \
     curl \
-    && update-ca-certificates
+    && microdnf clean all
 
 # Create non-root user and group
-RUN addgroup -g 1000 hypersdk && \
-    adduser -D -u 1000 -G hypersdk -h /home/hypersdk hypersdk
+RUN groupadd -g 1000 hypersdk && \
+    useradd -u 1000 -g hypersdk -m -d /home/hypersdk -s /sbin/nologin hypersdk
 
 # Create necessary directories with proper permissions
 RUN mkdir -p \
