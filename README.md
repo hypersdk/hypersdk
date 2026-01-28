@@ -1166,6 +1166,19 @@ helm install my-hypersdk hypersdk/hypersdk \
 kubectl port-forward -n hypersdk svc/hypersdk 8080:8080
 ```
 
+Quick deployment script:
+
+```bash
+# Deploy to k3d
+./deployments/scripts/deploy-helm.sh k3d --create-namespace --wait
+
+# Deploy to GKE
+./deployments/scripts/deploy-helm.sh gke --from-repo --create-namespace
+
+# Deploy to minikube
+./deployments/scripts/deploy-helm.sh minikube --create-namespace
+```
+
 Cloud-specific deployments:
 
 ```bash

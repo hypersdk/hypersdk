@@ -35,6 +35,73 @@ Build all HyperSDK container images.
 ./build-images.sh --builder podman
 ```
 
+### deploy-helm.sh
+
+Deploy HyperSDK to Kubernetes using Helm (recommended).
+
+**Usage:**
+```bash
+./deploy-helm.sh [ENVIRONMENT] [OPTIONS]
+```
+
+**Environments:**
+- `k3d` - k3d local development cluster
+- `kind` - KIND local testing cluster
+- `minikube` - Minikube local cluster
+- `gke` - Google Kubernetes Engine
+- `eks` - Amazon Elastic Kubernetes Service
+- `aks` - Azure Kubernetes Service
+- `production` - Generic production deployment
+- `custom` - Custom values file
+
+**Options:**
+- `-h, --help` - Show help message
+- `-n, --namespace NAME` - Kubernetes namespace (default: hypersdk)
+- `-r, --release NAME` - Helm release name (default: hypersdk)
+- `-f, --values FILE` - Custom values file
+- `--from-repo` - Install from Helm repository (not local chart)
+- `--version VERSION` - Chart version (when using --from-repo)
+- `--create-namespace` - Create namespace if it doesn't exist
+- `--wait` - Wait for deployment to be ready
+- `--timeout DURATION` - Timeout for wait (default: 5m)
+- `--dry-run` - Show what would be installed
+- `--upgrade` - Upgrade existing release
+- `--set KEY=VALUE` - Set Helm values
+
+**Examples:**
+```bash
+# Deploy to k3d cluster
+./deploy-helm.sh k3d --create-namespace --wait
+
+# Deploy to GKE from Helm repository
+./deploy-helm.sh gke --from-repo --create-namespace
+
+# Deploy with custom values
+./deploy-helm.sh custom --values my-values.yaml
+
+# Upgrade existing deployment
+./deploy-helm.sh production --upgrade --wait
+
+# Set specific values
+./deploy-helm.sh minikube --set replicaCount=2 --set config.logLevel=debug
+
+# Dry run
+./deploy-helm.sh kind --dry-run
+```
+
+**Features:**
+- Environment-specific configurations
+- Automatic prerequisite checking
+- Helm repository support
+- Local chart support
+- Access information display
+- Useful commands reference
+
+**See Also:**
+- [Helm Chart README](../helm/hypersdk/README.md)
+- [Helm Repository Setup](../helm/HELM-REPOSITORY-SETUP.md)
+- [Upgrade Guide](../helm/UPGRADE.md)
+
 ### deploy-k8s.sh
 
 Deploy HyperSDK to Kubernetes cluster using Kustomize.
