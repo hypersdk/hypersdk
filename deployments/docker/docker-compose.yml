@@ -10,6 +10,10 @@ services:
   # HyperSDK Daemon
   # ============================================================================
   hypervisord:
+    # Option 1: Use pre-built image from GitHub Container Registry (uncomment to use)
+    # image: ghcr.io/ssahani/hypersdk-hypervisord:${VERSION:-latest}
+
+    # Option 2: Build locally (default)
     build:
       context: ../..
       dockerfile: deployments/docker/dockerfiles/Dockerfile.hypervisord
