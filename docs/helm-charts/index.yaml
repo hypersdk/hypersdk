@@ -1,0 +1,31 @@
+apiVersion: v1
+entries:
+  hypersdk:
+  - annotations:
+      category: Infrastructure
+      licenses: LGPL-3.0-or-later
+    apiVersion: v2
+    appVersion: 0.2.0
+    created: "2026-01-30T20:49:22.168026929+05:30"
+    description: Multi-cloud VM migration platform for Kubernetes
+    digest: 6840f2c84bb3ce5936e277a0bbd696fcf37cee9d0829dcbe36fbdb41fa0478bd
+    home: https://github.com/ssahani/hypersdk
+    icon: https://raw.githubusercontent.com/ssahani/hypersdk/main/docs/images/logo.png
+    keywords:
+    - vm-migration
+    - multi-cloud
+    - vsphere
+    - kubernetes
+    - backup
+    - disaster-recovery
+    maintainers:
+    - email: ssahani@example.com
+      name: Susant Sahani
+    name: hypersdk
+    sources:
+    - https://github.com/ssahani/hypersdk
+    type: application
+    urls:
+    - https://ssahani.github.io/hypersdk/hypersdk-0.2.0.tgz
+    version: 0.2.0
+generated: "2026-01-30T20:49:22.164233472+05:30"

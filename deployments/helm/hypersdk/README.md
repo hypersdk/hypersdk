@@ -5,7 +5,8 @@ Official Helm chart for deploying HyperSDK to Kubernetes.
 ## TL;DR
 
 ```bash
-helm repo add hypersdk https://ssahani.github.io/hypersdk/charts
+helm repo add hypersdk https://ssahani.github.io/hypersdk/helm-charts
+helm repo update
 helm install my-hypersdk hypersdk/hypersdk
 ```
 
@@ -32,15 +33,41 @@ This chart bootstraps a HyperSDK deployment on a Kubernetes cluster using the He
 
 ## Installing the Chart
 
-### Quick Start
+### From Helm Repository (Recommended)
 
 ```bash
 # Add Helm repository
-helm repo add hypersdk https://ssahani.github.io/hypersdk/charts
+helm repo add hypersdk https://ssahani.github.io/hypersdk/helm-charts
 helm repo update
 
-# Install with vSphere credentials
+# Search available charts
+helm search repo hypersdk
+
+# Install latest version
 helm install my-hypersdk hypersdk/hypersdk \
+  --create-namespace \
+  --namespace hypersdk \
+  --set credentials.vsphere.enabled=true \
+  --set credentials.vsphere.url="https://vcenter.example.com/sdk" \
+  --set credentials.vsphere.username="administrator@vsphere.local" \
+  --set credentials.vsphere.password="your-password"
+
+# Install specific version
+helm install my-hypersdk hypersdk/hypersdk \
+  --version 0.2.0 \
+  --create-namespace \
+  --namespace hypersdk
+```
+
+### From Local Chart
+
+```bash
+# Clone repository
+git clone https://github.com/ssahani/hypersdk.git
+cd hypersdk
+
+# Install from local path
+helm install my-hypersdk ./deployments/helm/hypersdk \
   --create-namespace \
   --namespace hypersdk \
   --set credentials.vsphere.enabled=true \

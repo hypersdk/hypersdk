@@ -1144,6 +1144,54 @@ See [deployments/docker/README.md](deployments/docker/README.md) for detailed in
 
 ### Kubernetes
 
+#### Helm Chart (Recommended)
+
+Deploy with Helm for production-ready configuration:
+
+```bash
+# Add Helm repository
+helm repo add hypersdk https://ssahani.github.io/hypersdk/helm-charts
+helm repo update
+
+# Install HyperSDK
+helm install my-hypersdk hypersdk/hypersdk \
+  --namespace hypersdk \
+  --create-namespace \
+  --set credentials.vsphere.enabled=true \
+  --set credentials.vsphere.url="https://vcenter.example.com/sdk" \
+  --set credentials.vsphere.username="admin" \
+  --set credentials.vsphere.password="change-me"
+
+# Access API
+kubectl port-forward -n hypersdk svc/hypersdk 8080:8080
+```
+
+Cloud-specific deployments:
+
+```bash
+# Google Kubernetes Engine (GKE)
+helm install my-hypersdk hypersdk/hypersdk \
+  --values https://raw.githubusercontent.com/ssahani/hypersdk/main/deployments/helm/hypersdk/examples/gke-values.yaml \
+  --namespace hypersdk \
+  --create-namespace
+
+# Amazon EKS
+helm install my-hypersdk hypersdk/hypersdk \
+  --values https://raw.githubusercontent.com/ssahani/hypersdk/main/deployments/helm/hypersdk/examples/eks-values.yaml \
+  --namespace hypersdk \
+  --create-namespace
+
+# Azure AKS
+helm install my-hypersdk hypersdk/hypersdk \
+  --values https://raw.githubusercontent.com/ssahani/hypersdk/main/deployments/helm/hypersdk/examples/aks-values.yaml \
+  --namespace hypersdk \
+  --create-namespace
+```
+
+See [deployments/helm/hypersdk/README.md](deployments/helm/hypersdk/README.md) for complete Helm documentation.
+
+#### Kustomize
+
 Deploy to Kubernetes with Kustomize:
 
 ```bash

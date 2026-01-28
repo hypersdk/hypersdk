@@ -228,6 +228,78 @@ Comprehensive test suite for the HyperSDK Helm chart.
 **CI/CD Integration:**
 This script is used in `.github/workflows/helm-test.yml` for automated testing.
 
+### package-helm-chart.sh
+
+Package and publish HyperSDK Helm charts to the Helm repository.
+
+**Usage:**
+```bash
+./package-helm-chart.sh [OPTIONS]
+```
+
+**Options:**
+- `-h, --help` - Show help message
+- `-c, --chart PATH` - Path to Helm chart (default: deployments/helm/hypersdk)
+- `-o, --output DIR` - Output directory for packages (default: deployments/helm/packages)
+- `-r, --repo-url URL` - Helm repository URL (default: https://ssahani.github.io/hypersdk/helm-charts)
+- `-s, --sign` - Sign the chart package with GPG
+- `-u, --update-index` - Update Helm repository index
+- `-p, --publish` - Publish to GitHub Pages
+- `-v, --version VERSION` - Override chart version
+- `--skip-lint` - Skip Helm lint before packaging
+- `--skip-test` - Skip chart tests before packaging
+
+**Examples:**
+```bash
+# Package chart
+./package-helm-chart.sh
+
+# Package and sign chart
+./package-helm-chart.sh --sign
+
+# Package, update index, and publish
+./package-helm-chart.sh --publish
+
+# Override chart version
+./package-helm-chart.sh --version 0.3.0 --publish
+
+# Skip tests for faster packaging
+./package-helm-chart.sh --skip-test --publish
+```
+
+**Workflow:**
+1. Validates chart (lint + tests)
+2. Packages chart to `.tgz` file
+3. Updates Helm repository index (if `--update-index`)
+4. Creates GitHub Pages files (if `--publish`)
+5. Provides next steps for git commit/push
+
+**Output:**
+- Package file: `deployments/helm/packages/hypersdk-X.Y.Z.tgz`
+- Repository index: `deployments/helm/packages/index.yaml`
+- GitHub Pages: `docs/helm-charts/*` (if `--publish`)
+
+**Publishing Workflow:**
+```bash
+# Package and publish
+./package-helm-chart.sh --publish
+
+# Commit and push
+git add docs/helm-charts deployments/helm/packages
+git commit -m "helm: Publish chart version X.Y.Z"
+git push origin main
+
+# Enable GitHub Pages in repository settings
+# Settings → Pages → Source: main branch, /docs folder
+```
+
+**CI/CD Integration:**
+This script is used in `.github/workflows/helm-release.yml` for automated chart publishing on version tags.
+
+**See Also:**
+- [Publishing Guide](../helm/PUBLISHING.md) - Complete publishing documentation
+- [Helm Chart README](../helm/hypersdk/README.md) - Chart usage documentation
+
 ### health-check.sh
 
 Perform health checks across different deployment environments.
