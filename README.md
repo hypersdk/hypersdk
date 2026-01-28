@@ -1117,6 +1117,89 @@ go mod download
 go mod tidy
 ```
 
+## 🚀 Deployment
+
+HyperSDK supports multiple deployment methods for different use cases:
+
+### Docker / Podman
+
+Quick start with containers:
+
+```bash
+# Build images
+./deployments/scripts/build-images.sh --builder podman
+
+# Start full stack (hypervisord + Redis + Prometheus + Grafana)
+cd deployments/docker
+podman compose up -d
+
+# Access services
+# - API: http://localhost:8080
+# - Dashboard: http://localhost:8080/web/dashboard/
+# - Grafana: http://localhost:3000
+# - Prometheus: http://localhost:9090
+```
+
+See [deployments/docker/README.md](deployments/docker/README.md) for detailed instructions.
+
+### Kubernetes
+
+Deploy to Kubernetes with Kustomize:
+
+```bash
+# Configure secrets
+cp deployments/kubernetes/base/secrets.yaml.example \
+   deployments/kubernetes/overlays/development/secrets.yaml
+vim deployments/kubernetes/overlays/development/secrets.yaml
+
+# Deploy to development
+./deployments/scripts/deploy-k8s.sh development
+
+# Access API
+kubectl port-forward -n hypersdk svc/hypervisord 8080:8080
+```
+
+Production deployment with monitoring:
+
+```bash
+# Deploy to production
+./deployments/scripts/deploy-k8s.sh production
+
+# Apply Prometheus Operator resources
+kubectl apply -f deployments/kubernetes/monitoring/
+```
+
+See [deployments/kubernetes/README.md](deployments/kubernetes/README.md) for detailed instructions.
+
+### Systemd (Native Linux)
+
+For production Linux deployments:
+
+```bash
+# Install RPM package
+sudo dnf install dist/hypersdk-*.rpm
+
+# Configure
+sudo vim /etc/hypersdk/config.yaml
+
+# Start service
+sudo systemctl enable --now hypervisord
+```
+
+See [systemd/README.md](systemd/README.md) for detailed systemd integration.
+
+### Deployment Features
+
+All deployment methods include:
+
+- ✅ **Security**: Non-root containers, RBAC, NetworkPolicy
+- ✅ **Monitoring**: Prometheus metrics, Grafana dashboards
+- ✅ **Health Checks**: Liveness, readiness, and startup probes
+- ✅ **Persistence**: Volume management for data and exports
+- ✅ **Secrets**: Template configurations for all 9 cloud providers
+- ✅ **Environments**: Development, staging, and production configs
+- ✅ **Documentation**: Complete guides for each method
+
 ## 📚 Documentation
 
 ### Getting Started
