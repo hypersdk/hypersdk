@@ -26,6 +26,6 @@ entries:
     - https://github.com/ssahani/hypersdk
     type: application
     urls:
-    - https://ssahani.github.io/hypersdk/hypersdk-0.2.0.tgz
+    - https://ssahani.github.io/hypersdk/helm-charts/hypersdk-0.2.0.tgz
     version: 0.2.0
 generated: "2026-01-30T20:49:22.164233472+05:30"
