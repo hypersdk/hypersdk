@@ -1,0 +1,89 @@
+# Multi-stage Dockerfile for HyperSDK hyperexport CLI tool
+# Standalone VM export tool for interactive and scriptable use
+
+# ==============================================================================
+# Build Stage
+# ==============================================================================
+FROM golang:1.24-alpine AS builder
+
+# Install build dependencies
+RUN apk add --no-cache \
+    git \
+    make \
+    gcc \
+    musl-dev
+
+WORKDIR /build
+
+# Copy go.mod and go.sum for dependency caching
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Copy source code
+COPY . .
+
+# Build hyperexport with optimizations
+ARG VERSION=dev
+ARG COMMIT_SHA=unknown
+ARG BUILD_DATE
+
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
+    -ldflags="-s -w \
+    -X main.version=${VERSION} \
+    -X main.commitSHA=${COMMIT_SHA} \
+    -X main.buildDate=${BUILD_DATE}" \
+    -o hyperexport \
+    -trimpath \
+    ./cmd/hyperexport
+
+# Verify the binary was built
+RUN ls -lh hyperexport
+
+# ==============================================================================
+# Runtime Stage
+# ==============================================================================
+FROM alpine:3.19
+
+LABEL maintainer="HyperSDK Team"
+LABEL org.opencontainers.image.title="HyperSDK hyperexport"
+LABEL org.opencontainers.image.description="Standalone VM export CLI tool for multi-cloud environments"
+LABEL org.opencontainers.image.source="https://github.com/ssahani/hypersdk"
+
+# Install runtime dependencies
+RUN apk add --no-cache \
+    ca-certificates \
+    tzdata \
+    curl \
+    && update-ca-certificates
+
+# Create non-root user and group
+RUN addgroup -g 1000 hypersdk && \
+    adduser -D -u 1000 -G hypersdk -h /home/hypersdk hypersdk
+
+# Create exports directory
+RUN mkdir -p /exports && \
+    chown -R hypersdk:hypersdk /exports
+
+# Copy binary from builder
+COPY --from=builder --chown=hypersdk:hypersdk /build/hyperexport /usr/local/bin/hyperexport
+RUN chmod +x /usr/local/bin/hyperexport
+
+# Switch to non-root user
+USER hypersdk
+
+# Set working directory
+WORKDIR /exports
+
+# Environment variables with defaults
+ENV LOG_LEVEL=info \
+    DOWNLOAD_WORKERS=3 \
+    RETRY_ATTEMPTS=3
+
+# Volume mount for exports
+VOLUME ["/exports"]
+
+# Entrypoint
+ENTRYPOINT ["/usr/local/bin/hyperexport"]
+
+# Default command - show help
+CMD ["--help"]

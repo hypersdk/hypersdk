@@ -48,3 +48,8 @@ rpmbuild/
 # Export directories
 exports/
 export-*/
+
+# Deployment environment files
+deployments/docker/.env
+deployments/docker/config/
+deployments/docker/exports/

@@ -1,0 +1,40 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Development environment overlay
+namespace: hypersdk
+
+# Base configuration
+bases:
+- ../../base
+
+# Common labels for development
+commonLabels:
+  environment: development
+  app.kubernetes.io/environment: development
+
+# Patches for development environment
+patchesStrategicMerge:
+- resources-patch.yaml
+
+# Images (use development tag)
+images:
+- name: hypersdk/hypervisord
+  newName: hypersdk/hypervisord
+  newTag: dev
+
+# ConfigMap generator for development-specific config
+configMapGenerator:
+- name: hypervisord-config
+  behavior: merge
+  literals:
+  - log_level=debug
+  - download_workers=2
+
+# Name prefix for resources (optional)
+# namePrefix: dev-
+
+# Common annotations
+commonAnnotations:
+  environment: development
+  managed-by: kustomize

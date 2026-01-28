@@ -1,0 +1,118 @@
+# Multi-stage Dockerfile for HyperSDK hypervisord daemon
+# Optimized for production use with security hardening
+
+# ==============================================================================
+# Build Stage
+# ==============================================================================
+FROM golang:1.24-alpine AS builder
+
+# Install build dependencies
+RUN apk add --no-cache \
+    git \
+    make \
+    gcc \
+    musl-dev \
+    sqlite-dev
+
+WORKDIR /build
+
+# Copy go.mod and go.sum for dependency caching
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Copy source code
+COPY . .
+
+# Build hypervisord with optimizations
+# CGO_ENABLED=1 is required for SQLite support
+ARG VERSION=dev
+ARG COMMIT_SHA=unknown
+ARG BUILD_DATE
+
+RUN CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build \
+    -ldflags="-s -w \
+    -X main.version=${VERSION} \
+    -X main.commitSHA=${COMMIT_SHA} \
+    -X main.buildDate=${BUILD_DATE}" \
+    -o hypervisord \
+    -trimpath \
+    ./cmd/hypervisord
+
+# Verify the binary was built
+RUN ls -lh hypervisord
+
+# ==============================================================================
+# Runtime Stage
+# ==============================================================================
+FROM alpine:3.19
+
+LABEL maintainer="HyperSDK Team"
+LABEL org.opencontainers.image.title="HyperSDK hypervisord"
+LABEL org.opencontainers.image.description="Multi-cloud VM export daemon with REST API"
+LABEL org.opencontainers.image.source="https://github.com/ssahani/hypersdk"
+
+# Install runtime dependencies
+RUN apk add --no-cache \
+    ca-certificates \
+    tzdata \
+    sqlite \
+    curl \
+    && update-ca-certificates
+
+# Create non-root user and group
+RUN addgroup -g 1000 hypersdk && \
+    adduser -D -u 1000 -G hypersdk -h /home/hypersdk hypersdk
+
+# Create necessary directories with proper permissions
+RUN mkdir -p \
+    /data \
+    /exports \
+    /config \
+    /var/log/hypersdk \
+    && chown -R hypersdk:hypersdk \
+    /data \
+    /exports \
+    /config \
+    /var/log/hypersdk
+
+# Copy binary from builder
+COPY --from=builder --chown=hypersdk:hypersdk /build/hypervisord /usr/local/bin/hypervisord
+RUN chmod +x /usr/local/bin/hypervisord
+
+# Copy default config (optional)
+COPY --chown=hypersdk:hypersdk config.example.yaml /config/config.yaml.example
+
+# Switch to non-root user
+USER hypersdk
+
+# Set working directory
+WORKDIR /data
+
+# Expose ports
+# 8080: REST API
+# 8081: Prometheus metrics
+EXPOSE 8080 8081
+
+# Health check
+HEALTHCHECK --interval=30s \
+    --timeout=5s \
+    --start-period=10s \
+    --retries=3 \
+    CMD curl -f http://localhost:8080/health || exit 1
+
+# Environment variables with defaults
+ENV DAEMON_ADDR=0.0.0.0:8080 \
+    LOG_LEVEL=info \
+    DATABASE_PATH=/data/hypersdk.db \
+    DOWNLOAD_WORKERS=3 \
+    CHUNK_SIZE=33554432 \
+    RETRY_ATTEMPTS=3
+
+# Volume mounts
+VOLUME ["/data", "/exports", "/config"]
+
+# Entrypoint
+ENTRYPOINT ["/usr/local/bin/hypervisord"]
+
+# Default command - can be overridden
+CMD ["--config", "/config/config.yaml"]

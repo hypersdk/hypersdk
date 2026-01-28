@@ -1,0 +1,81 @@
+# Multi-stage Dockerfile for HyperSDK hyperctl management CLI
+# Interactive TUI migration commander and daemon control tool
+
+# ==============================================================================
+# Build Stage
+# ==============================================================================
+FROM golang:1.24-alpine AS builder
+
+# Install build dependencies
+RUN apk add --no-cache \
+    git \
+    make \
+    gcc \
+    musl-dev
+
+WORKDIR /build
+
+# Copy go.mod and go.sum for dependency caching
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Copy source code
+COPY . .
+
+# Build hyperctl with optimizations
+ARG VERSION=dev
+ARG COMMIT_SHA=unknown
+ARG BUILD_DATE
+
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
+    -ldflags="-s -w \
+    -X main.version=${VERSION} \
+    -X main.commitSHA=${COMMIT_SHA} \
+    -X main.buildDate=${BUILD_DATE}" \
+    -o hyperctl \
+    -trimpath \
+    ./cmd/hyperctl
+
+# Verify the binary was built
+RUN ls -lh hyperctl
+
+# ==============================================================================
+# Runtime Stage
+# ==============================================================================
+FROM alpine:3.19
+
+LABEL maintainer="HyperSDK Team"
+LABEL org.opencontainers.image.title="HyperSDK hyperctl"
+LABEL org.opencontainers.image.description="Management CLI for hypervisord daemon control and monitoring"
+LABEL org.opencontainers.image.source="https://github.com/ssahani/hypersdk"
+
+# Install runtime dependencies
+RUN apk add --no-cache \
+    ca-certificates \
+    tzdata \
+    curl \
+    && update-ca-certificates
+
+# Create non-root user and group
+RUN addgroup -g 1000 hypersdk && \
+    adduser -D -u 1000 -G hypersdk -h /home/hypersdk hypersdk
+
+# Copy binary from builder
+COPY --from=builder --chown=hypersdk:hypersdk /build/hyperctl /usr/local/bin/hyperctl
+RUN chmod +x /usr/local/bin/hyperctl
+
+# Switch to non-root user
+USER hypersdk
+
+# Set working directory
+WORKDIR /home/hypersdk
+
+# Environment variables with defaults
+ENV DAEMON_URL=http://hypervisord:8080 \
+    LOG_LEVEL=info
+
+# Entrypoint
+ENTRYPOINT ["/usr/local/bin/hyperctl"]
+
+# Default command - show help
+CMD ["--help"]
