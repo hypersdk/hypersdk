@@ -243,6 +243,45 @@ func main() {
 	carbonDuration := carbonCmd.Float64("hours", 2.0, "Duration in hours (for estimate)")
 	carbonJSON := carbonCmd.Bool("json", false, "JSON output")
 
+	// Kubernetes Commands
+	k8sCmd := flag.NewFlagSet("k8s", flag.ExitOnError)
+	k8sOperation := k8sCmd.String("op", "status", "Operation: backup-list, backup-get, backup-create, backup-delete, schedule-list, schedule-create, restore-list, restore-create, vm-create, vm-list, vm-get, vm-delete, vm-start, vm-stop, vm-clone, vm-snapshot-create, template-list, status")
+	k8sKubeconfig := k8sCmd.String("kubeconfig", "", "Path to kubeconfig file")
+	k8sNamespace := k8sCmd.String("namespace", "default", "Kubernetes namespace")
+	k8sName := k8sCmd.String("name", "", "Resource name")
+	k8sAllNamespaces := k8sCmd.Bool("all-namespaces", false, "List resources across all namespaces")
+	k8sJSON := k8sCmd.Bool("json", false, "JSON output")
+	k8sVMName := k8sCmd.String("vm", "", "VM name")
+	k8sProvider := k8sCmd.String("provider", "kubevirt", "Provider (kubevirt, vsphere, aws, azure, gcp)")
+	k8sDestType := k8sCmd.String("dest-type", "s3", "Destination type (s3, azure, gcs, local, nfs)")
+	k8sBucket := k8sCmd.String("bucket", "", "Destination bucket")
+	k8sCarbonAware := k8sCmd.Bool("carbon-aware", false, "Enable carbon-aware scheduling")
+	k8sForce := k8sCmd.Bool("force", false, "Force operation without confirmation")
+	k8sSchedule := k8sCmd.String("schedule", "", "Cron schedule (e.g., '0 2 * * *')")
+	k8sBackupName := k8sCmd.String("backup", "", "BackupJob name (for restore)")
+	k8sPowerOn := k8sCmd.Bool("power-on", false, "Power on after restore")
+	// VM-specific flags
+	k8sCPUs := k8sCmd.Int("cpus", 2, "Number of CPUs")
+	k8sMemory := k8sCmd.String("memory", "4Gi", "Memory size (e.g., 4Gi, 8Gi)")
+	k8sImage := k8sCmd.String("image", "", "VM image source")
+	k8sTemplate := k8sCmd.String("template", "", "VM template name")
+	k8sTargetVM := k8sCmd.String("target", "", "Target VM name (for clone)")
+	k8sTargetNode := k8sCmd.String("target-node", "", "Target node (for migrate)")
+	k8sSnapshotName := k8sCmd.String("snapshot", "", "Snapshot name")
+	k8sIncludeMemory := k8sCmd.Bool("include-memory", false, "Include memory in snapshot")
+	k8sOutput := k8sCmd.String("output", "yaml", "Output format (yaml, json)")
+	k8sWatch := k8sCmd.Bool("watch", false, "Watch for changes in real-time")
+	// Filtering options
+	k8sFilterStatus := k8sCmd.String("status", "", "Filter by status (running, stopped, failed)")
+	k8sFilterNode := k8sCmd.String("node", "", "Filter by node name")
+	k8sFilterLabels := k8sCmd.String("selector", "", "Label selector (e.g., app=web)")
+	k8sFilterMinCPUs := k8sCmd.Int("min-cpus", 0, "Minimum CPUs")
+	k8sFilterMinMemory := k8sCmd.String("min-memory", "", "Minimum memory (e.g., 4Gi)")
+	// Progress and wait options
+	k8sWait := k8sCmd.Bool("wait", false, "Wait for operation to complete")
+	k8sShowProgress := k8sCmd.Bool("show-progress", false, "Show progress bar (requires --wait)")
+	k8sTimeout := k8sCmd.Int("timeout", 300, "Operation timeout in seconds (default: 300)")
+
 	// Parse global flags
 	flag.Parse()
 
@@ -485,6 +524,192 @@ func main() {
 			os.Exit(1)
 		}
 
+	case "k8s":
+		k8sCmd.Parse(os.Args[2:])
+		switch *k8sOperation {
+		case "backup-list":
+			handleK8sBackupList(*k8sKubeconfig, *k8sNamespace, *k8sAllNamespaces, *k8sJSON)
+		case "backup-get":
+			if *k8sName == "" {
+				pterm.Error.Println("BackupJob name required (-name)")
+				os.Exit(1)
+			}
+			handleK8sBackupGet(*k8sKubeconfig, *k8sNamespace, *k8sName, *k8sJSON)
+		case "backup-create":
+			if *k8sVMName == "" || *k8sBucket == "" {
+				pterm.Error.Println("VM name and bucket required (-vm, -bucket)")
+				pterm.Info.Println("Example: hyperctl k8s -op backup-create -vm ubuntu-vm-1 -bucket my-backups -carbon-aware")
+				os.Exit(1)
+			}
+			handleK8sBackupCreate(*k8sKubeconfig, *k8sNamespace, *k8sVMName, *k8sProvider, *k8sDestType, *k8sBucket, *k8sCarbonAware, *k8sJSON)
+		case "backup-delete":
+			if *k8sName == "" {
+				pterm.Error.Println("BackupJob name required (-name)")
+				os.Exit(1)
+			}
+			handleK8sBackupDelete(*k8sKubeconfig, *k8sNamespace, *k8sName, *k8sForce)
+		case "schedule-list":
+			handleK8sScheduleList(*k8sKubeconfig, *k8sNamespace, *k8sAllNamespaces, *k8sJSON)
+		case "schedule-create":
+			if *k8sName == "" || *k8sSchedule == "" || *k8sVMName == "" || *k8sBucket == "" {
+				pterm.Error.Println("Name, schedule, VM name, and bucket required (-name, -schedule, -vm, -bucket)")
+				pterm.Info.Println("Example: hyperctl k8s -op schedule-create -name nightly -schedule '0 2 * * *' -vm my-vm -bucket backups")
+				os.Exit(1)
+			}
+			handleK8sScheduleCreate(*k8sKubeconfig, *k8sNamespace, *k8sName, *k8sSchedule, *k8sVMName, *k8sProvider, *k8sDestType, *k8sBucket, *k8sJSON)
+		case "restore-list":
+			handleK8sRestoreList(*k8sKubeconfig, *k8sNamespace, *k8sAllNamespaces, *k8sJSON)
+		case "restore-create":
+			if *k8sBackupName == "" || *k8sVMName == "" {
+				pterm.Error.Println("Backup name and VM name required (-backup, -vm)")
+				pterm.Info.Println("Example: hyperctl k8s -op restore-create -backup my-vm-backup -vm my-vm-restored -power-on")
+				os.Exit(1)
+			}
+			handleK8sRestoreCreate(*k8sKubeconfig, *k8sNamespace, *k8sBackupName, *k8sVMName, *k8sProvider, *k8sPowerOn, *k8sJSON)
+		case "status":
+			handleK8sStatus(*k8sKubeconfig, *k8sNamespace, *k8sJSON)
+
+		// VM Management Operations
+		case "vm-create":
+			if *k8sVMName == "" {
+				pterm.Error.Println("VM name required (-vm)")
+				pterm.Info.Println("Example: hyperctl k8s -op vm-create -vm my-vm -cpus 4 -memory 8Gi -image ubuntu:22.04")
+				os.Exit(1)
+			}
+			handleVMCreate(*k8sKubeconfig, *k8sNamespace, *k8sVMName, *k8sCPUs, *k8sMemory, *k8sImage, *k8sTemplate, *k8sOutput)
+		case "vm-list":
+			handleVMList(*k8sKubeconfig, *k8sNamespace, *k8sAllNamespaces, *k8sOutput, *k8sWatch,
+				*k8sFilterStatus, *k8sFilterNode, *k8sFilterLabels, *k8sFilterMinCPUs, *k8sFilterMinMemory)
+		case "vm-get":
+			if *k8sVMName == "" {
+				pterm.Error.Println("VM name required (-vm)")
+				os.Exit(1)
+			}
+			handleVMGet(*k8sKubeconfig, *k8sNamespace, *k8sVMName, *k8sOutput, *k8sWatch)
+		case "vm-delete":
+			if *k8sVMName == "" {
+				pterm.Error.Println("VM name required (-vm)")
+				os.Exit(1)
+			}
+			handleVMDelete(*k8sKubeconfig, *k8sNamespace, *k8sVMName, *k8sForce)
+		case "vm-describe":
+			if *k8sVMName == "" {
+				pterm.Error.Println("VM name required (-vm)")
+				os.Exit(1)
+			}
+			handleVMDescribe(*k8sKubeconfig, *k8sNamespace, *k8sVMName)
+		case "vm-start":
+			if *k8sVMName == "" {
+				pterm.Error.Println("VM name required (-vm)")
+				os.Exit(1)
+			}
+			handleVMStart(*k8sKubeconfig, *k8sNamespace, *k8sVMName, *k8sOutput)
+		case "vm-stop":
+			if *k8sVMName == "" {
+				pterm.Error.Println("VM name required (-vm)")
+				os.Exit(1)
+			}
+			handleVMStop(*k8sKubeconfig, *k8sNamespace, *k8sVMName, *k8sOutput)
+		case "vm-restart":
+			if *k8sVMName == "" {
+				pterm.Error.Println("VM name required (-vm)")
+				os.Exit(1)
+			}
+			handleVMRestart(*k8sKubeconfig, *k8sNamespace, *k8sVMName, *k8sOutput)
+		case "vm-clone":
+			if *k8sVMName == "" || *k8sTargetVM == "" {
+				pterm.Error.Println("Source VM and target VM names required (-vm, -target)")
+				pterm.Info.Println("Example: hyperctl k8s -op vm-clone -vm my-vm -target my-vm-clone --wait --show-progress")
+				os.Exit(1)
+			}
+			handleVMClone(*k8sKubeconfig, *k8sNamespace, *k8sVMName, *k8sTargetVM, *k8sOutput, *k8sWait, *k8sShowProgress, *k8sTimeout)
+		case "vm-migrate":
+			if *k8sVMName == "" || *k8sTargetNode == "" {
+				pterm.Error.Println("VM name and target node required (-vm, -target-node)")
+				pterm.Info.Println("Example: hyperctl k8s -op vm-migrate -vm my-vm -target-node node-2 --wait --show-progress")
+				os.Exit(1)
+			}
+			handleVMMigrate(*k8sKubeconfig, *k8sNamespace, *k8sVMName, *k8sTargetNode, *k8sOutput, *k8sWait, *k8sShowProgress, *k8sTimeout)
+		case "vm-resize":
+			if *k8sVMName == "" {
+				pterm.Error.Println("VM name required (-vm)")
+				pterm.Info.Println("Example: hyperctl k8s -op vm-resize -vm my-vm -cpus 4 -memory 8Gi --wait --show-progress")
+				os.Exit(1)
+			}
+			handleVMResize(*k8sKubeconfig, *k8sNamespace, *k8sVMName, *k8sCPUs, *k8sMemory, *k8sOutput, *k8sWait, *k8sShowProgress, *k8sTimeout)
+		case "vm-snapshot-create":
+			if *k8sVMName == "" || *k8sSnapshotName == "" {
+				pterm.Error.Println("VM name and snapshot name required (-vm, -snapshot)")
+				pterm.Info.Println("Example: hyperctl k8s -op vm-snapshot-create -vm my-vm -snapshot snap1 -include-memory --wait --show-progress")
+				os.Exit(1)
+			}
+			handleVMSnapshotCreate(*k8sKubeconfig, *k8sNamespace, *k8sVMName, *k8sSnapshotName, *k8sIncludeMemory, *k8sOutput, *k8sWait, *k8sShowProgress, *k8sTimeout)
+		case "vm-snapshot-list":
+			handleVMSnapshotList(*k8sKubeconfig, *k8sNamespace, *k8sAllNamespaces, *k8sOutput)
+		case "vm-snapshot-delete":
+			if *k8sSnapshotName == "" {
+				pterm.Error.Println("Snapshot name required (-snapshot)")
+				os.Exit(1)
+			}
+			handleVMSnapshotDelete(*k8sKubeconfig, *k8sNamespace, *k8sSnapshotName, *k8sForce)
+		case "template-list":
+			handleTemplateList(*k8sKubeconfig, *k8sNamespace, *k8sAllNamespaces, *k8sOutput)
+		case "template-get":
+			if *k8sTemplate == "" {
+				pterm.Error.Println("Template name required (-template)")
+				os.Exit(1)
+			}
+			handleTemplateGet(*k8sKubeconfig, *k8sNamespace, *k8sTemplate, *k8sOutput)
+
+		default:
+			pterm.Error.Printfln("Unknown k8s operation: %s", *k8sOperation)
+			pterm.Info.Println("Available operations:")
+			pterm.Println("  Backup & Restore:")
+			pterm.Println("    backup-list       - List BackupJobs")
+			pterm.Println("    backup-get        - Get BackupJob details")
+			pterm.Println("    backup-create     - Create BackupJob manifest")
+			pterm.Println("    backup-delete     - Delete BackupJob")
+			pterm.Println("    schedule-list     - List BackupSchedules")
+			pterm.Println("    schedule-create   - Create BackupSchedule manifest")
+			pterm.Println("    restore-list      - List RestoreJobs")
+			pterm.Println("    restore-create    - Create RestoreJob manifest")
+			pterm.Println()
+			pterm.Println("  VM Management:")
+			pterm.Println("    vm-create         - Create VirtualMachine")
+			pterm.Println("    vm-list           - List VirtualMachines")
+			pterm.Println("    vm-get            - Get VirtualMachine details")
+			pterm.Println("    vm-delete         - Delete VirtualMachine")
+			pterm.Println("    vm-describe       - Describe VirtualMachine")
+			pterm.Println("    vm-start          - Start VirtualMachine")
+			pterm.Println("    vm-stop           - Stop VirtualMachine")
+			pterm.Println("    vm-restart        - Restart VirtualMachine")
+			pterm.Println("    vm-clone          - Clone VirtualMachine")
+			pterm.Println("    vm-migrate        - Migrate VirtualMachine")
+			pterm.Println("    vm-resize         - Resize VirtualMachine")
+			pterm.Println()
+			pterm.Println("  Snapshots:")
+			pterm.Println("    vm-snapshot-create  - Create VM snapshot")
+			pterm.Println("    vm-snapshot-list    - List VM snapshots")
+			pterm.Println("    vm-snapshot-delete  - Delete VM snapshot")
+			pterm.Println()
+			pterm.Println("  Templates:")
+			pterm.Println("    template-list     - List VM templates")
+			pterm.Println("    template-get      - Get template details")
+			pterm.Println()
+			pterm.Println("  Other:")
+			pterm.Println("    status            - Show operator status")
+			pterm.Println()
+			pterm.Info.Println("Examples:")
+			pterm.Println("  hyperctl k8s -op status")
+			pterm.Println("  hyperctl k8s -op vm-list -namespace default")
+			pterm.Println("  hyperctl k8s -op vm-create -vm ubuntu-vm-1 -cpus 4 -memory 8Gi -image ubuntu:22.04")
+			pterm.Println("  hyperctl k8s -op vm-start -vm ubuntu-vm-1")
+			pterm.Println("  hyperctl k8s -op vm-clone -vm my-vm -target my-vm-clone")
+			pterm.Println("  hyperctl k8s -op vm-snapshot-create -vm my-vm -snapshot snap1 -include-memory")
+			pterm.Println("  hyperctl k8s -op backup-create -vm ubuntu-vm-1 -bucket my-backups -carbon-aware")
+			os.Exit(1)
+		}
+
 	case "help", "-h", "--help":
 		showUsage()
 
@@ -719,6 +944,53 @@ func showUsage() {
 		WithHeaderRowSeparator("-").
 		WithBoxed().
 		WithData(carbonCommands).
+		Render()
+
+	pterm.Println()
+
+	// Kubernetes Integration
+	pterm.DefaultSection.Println("☸️  Kubernetes Integration (NEW)")
+	k8sCommands := [][]string{
+		{"Command", "Description", "Example"},
+		{"k8s -op status", "Show operator status", "hyperctl k8s -op status"},
+		{"k8s -op backup-list", "List BackupJobs", "hyperctl k8s -op backup-list -namespace default"},
+		{"k8s -op backup-get", "Get BackupJob details", "hyperctl k8s -op backup-get -name my-vm-backup"},
+		{"k8s -op backup-create", "Create BackupJob manifest", "hyperctl k8s -op backup-create -vm ubuntu-vm-1 -bucket my-backups"},
+		{"k8s -op backup-delete", "Delete BackupJob", "hyperctl k8s -op backup-delete -name my-vm-backup"},
+		{"k8s -op schedule-list", "List BackupSchedules", "hyperctl k8s -op schedule-list"},
+		{"k8s -op schedule-create", "Create BackupSchedule", "hyperctl k8s -op schedule-create -name nightly -schedule '0 2 * * *' -vm my-vm -bucket backups"},
+		{"k8s -op restore-list", "List RestoreJobs", "hyperctl k8s -op restore-list"},
+		{"k8s -op restore-create", "Create RestoreJob", "hyperctl k8s -op restore-create -backup my-vm-backup -vm my-vm-restored -power-on"},
+	}
+	pterm.DefaultTable.
+		WithHasHeader().
+		WithHeaderRowSeparator("-").
+		WithBoxed().
+		WithData(k8sCommands).
+		Render()
+
+	pterm.Println()
+
+	// VM Management
+	pterm.DefaultSection.Println("🖥️  VM Management (Kubernetes)")
+	vmMgmtCommands := [][]string{
+		{"Command", "Description", "Example"},
+		{"k8s -op vm-create", "Create VirtualMachine", "hyperctl k8s -op vm-create -vm my-vm -cpus 4 -memory 8Gi"},
+		{"k8s -op vm-list", "List VirtualMachines", "hyperctl k8s -op vm-list -namespace default"},
+		{"k8s -op vm-get", "Get VM details", "hyperctl k8s -op vm-get -vm my-vm"},
+		{"k8s -op vm-delete", "Delete VirtualMachine", "hyperctl k8s -op vm-delete -vm my-vm"},
+		{"k8s -op vm-start", "Start VM", "hyperctl k8s -op vm-start -vm my-vm"},
+		{"k8s -op vm-stop", "Stop VM", "hyperctl k8s -op vm-stop -vm my-vm"},
+		{"k8s -op vm-clone", "Clone VM", "hyperctl k8s -op vm-clone -vm my-vm -target my-vm-2"},
+		{"k8s -op vm-migrate", "Migrate VM to node", "hyperctl k8s -op vm-migrate -vm my-vm -target-node node-2"},
+		{"k8s -op vm-snapshot-create", "Create VM snapshot", "hyperctl k8s -op vm-snapshot-create -vm my-vm -snapshot snap1"},
+		{"k8s -op template-list", "List VM templates", "hyperctl k8s -op template-list"},
+	}
+	pterm.DefaultTable.
+		WithHasHeader().
+		WithHeaderRowSeparator("-").
+		WithBoxed().
+		WithData(vmMgmtCommands).
 		Render()
 
 	pterm.Println()
@@ -1885,21 +2157,6 @@ func displayJobs(jobs []*models.Job) {
 		WithBoxed().
 		WithData(data).
 		Render()
-}
-
-func colorizeStatus(status string) string {
-	switch status {
-	case "running":
-		return pterm.LightCyan(status)
-	case "completed":
-		return pterm.Green(status)
-	case "failed":
-		return pterm.Red(status)
-	case "cancelled":
-		return pterm.Yellow(status)
-	default:
-		return pterm.Gray(status)
-	}
 }
 
 func apiRequest(url, method, contentType string, body []byte) (*http.Response, error) {

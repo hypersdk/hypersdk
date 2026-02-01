@@ -14,6 +14,7 @@ import (
 
 	hypersdk "hypersdk/pkg/apis/hypersdk/v1alpha1"
 	"hypersdk/daemon/jobs"
+	"hypersdk/daemon/models"
 	"hypersdk/logger"
 	"hypersdk/providers"
 )
@@ -155,7 +156,7 @@ func (c *BackupJobController) startBackup(ctx context.Context, backupJob *hypers
 	}
 
 	// Submit job to job manager
-	jobID, err := c.jobManager.SubmitJob(jobDef)
+	jobID, err := c.jobManager.SubmitJob(*jobDef)
 	if err != nil {
 		c.logger.Error("failed to submit backup job", "error", err)
 		backupJob.Status.Phase = hypersdk.BackupPhaseFailed
@@ -190,7 +191,7 @@ func (c *BackupJobController) startBackup(ctx context.Context, backupJob *hypers
 }
 
 // buildJobDefinition converts BackupJob spec to job definition
-func (c *BackupJobController) buildJobDefinition(backupJob *hypersdk.BackupJob) (*jobs.JobDefinition, error) {
+func (c *BackupJobController) buildJobDefinition(backupJob *hypersdk.BackupJob) (*models.JobDefinition, error) {
 	// Build VM path based on provider
 	var vmPath string
 	switch backupJob.Spec.Source.Provider {
@@ -212,7 +213,7 @@ func (c *BackupJobController) buildJobDefinition(backupJob *hypersdk.BackupJob) 
 		outputDir = backupJob.Spec.Destination.Bucket
 	}
 
-	jobDef := &jobs.JobDefinition{
+	jobDef := &models.JobDefinition{
 		VMPath:    vmPath,
 		OutputDir: outputDir,
 		Format:    "ovf",

@@ -1,0 +1,726 @@
+// SPDX-License-Identifier: LGPL-3.0-or-later
+
+package main
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"os"
+	"strings"
+	"text/tabwriter"
+	"time"
+
+	"gopkg.in/yaml.v3"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	hypersdk "hypersdk/pkg/apis/hypersdk/v1alpha1"
+)
+
+// VM command flags
+var (
+	vmName           string
+	vmNamespace      string
+	vmCPUs           int
+	vmMemory         string
+	vmImage          string
+	vmTemplate       string
+	vmRunning        bool
+	vmDiskSize       string
+	vmStorageClass   string
+	vmCarbonAware    bool
+	vmMaxIntensity   int
+	vmNodeSelector   string
+
+	// Operation flags
+	vmOpType         string
+	vmOpTarget       string
+	vmOpTargetNode   string
+	vmOpLinked       bool
+	vmOpHotplug      bool
+	vmOpForce        bool
+	vmOpLive         bool
+
+	// Snapshot flags
+	vmSnapName       string
+	vmSnapMemory     bool
+	vmSnapQuiesce    bool
+	vmSnapKeepDays   int
+
+	// Output flags
+	vmOutputFormat   string  // json, yaml, wide
+	vmAllNamespaces  bool
+)
+
+// handleVMCommand handles VM-related subcommands
+func handleVMCommand(op string) {
+	switch op {
+	case "vm-create":
+		handleVMCreate()
+	case "vm-list":
+		handleVMList()
+	case "vm-get":
+		handleVMGet()
+	case "vm-delete":
+		handleVMDelete()
+	case "vm-describe":
+		handleVMDescribe()
+	case "vm-start":
+		handleVMStart()
+	case "vm-stop":
+		handleVMStop()
+	case "vm-restart":
+		handleVMRestart()
+	case "vm-clone":
+		handleVMClone()
+	case "vm-migrate":
+		handleVMMigrate()
+	case "vm-resize":
+		handleVMResize()
+	case "vm-snapshot-create":
+		handleVMSnapshotCreate()
+	case "vm-snapshot-list":
+		handleVMSnapshotList()
+	case "vm-snapshot-restore":
+		handleVMSnapshotRestore()
+	case "vm-snapshot-delete":
+		handleVMSnapshotDelete()
+	case "template-list":
+		handleTemplateList()
+	case "template-get":
+		handleTemplateGet()
+	case "template-create":
+		handleTemplateCreate()
+	default:
+		fmt.Printf("Unknown VM operation: %s\n", op)
+		os.Exit(1)
+	}
+}
+
+// handleVMCreate creates a new VM
+func handleVMCreate(kubeconfig, namespace, name string, cpus int, memory, image, template, output string) {
+	if name == "" {
+		fmt.Println("Error: VM name is required (-vm)")
+		os.Exit(1)
+	}
+
+	if namespace == "" {
+		namespace = "default"
+	}
+
+	// Build VM spec
+	vm := &hypersdk.VirtualMachine{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "hypersdk.io/v1alpha1",
+			Kind:       "VirtualMachine",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+		},
+		Spec: hypersdk.VirtualMachineSpec{
+			CPUs:    int32(cpus),
+			Memory:  memory,
+			Running: true,
+		},
+	}
+
+	// Add image or template
+	if template != "" {
+		vm.Spec.Image = &hypersdk.VMImage{
+			TemplateRef: &hypersdk.TemplateRef{
+				Name: template,
+			},
+		}
+	} else if image != "" {
+		vm.Spec.Image = &hypersdk.VMImage{
+			Source: image,
+		}
+	}
+
+	// Add default disk
+	bootOrder := int32(1)
+	vm.Spec.Disks = []hypersdk.VMDisk{
+		{
+			Name:         "root",
+			Size:         "20Gi",
+			StorageClass: "standard",
+			BootOrder:    &bootOrder,
+		},
+	}
+
+	// Add default network
+	vm.Spec.Networks = []hypersdk.VMNetwork{
+		{
+			Name: "default",
+			Type: "pod-network",
+		},
+	}
+
+	// Output VM manifest
+	outputResource(vm, output)
+}
+
+// handleVMList lists VMs
+func handleVMList(kubeconfig, namespace string, allNamespaces bool, output string) {
+	fmt.Println("VM list functionality - coming soon")
+	fmt.Printf("Use: kubectl get virtualmachines -n %s\n", namespace)
+	fmt.Println()
+	fmt.Println("Example:")
+	if allNamespaces {
+		fmt.Println("  kubectl get virtualmachines --all-namespaces")
+	} else {
+		fmt.Printf("  kubectl get virtualmachines -n %s\n", namespace)
+	}
+
+	vms, err := client.HyperSDK().V1alpha1().VirtualMachines(namespace).List(ctx, metav1.ListOptions{})
+	if err != nil {
+		fmt.Printf("Error: Failed to list VMs: %v\n", err)
+		os.Exit(1)
+	}
+
+	if vmOutputFormat == "json" {
+		data, _ := json.MarshalIndent(vms, "", "  ")
+		fmt.Println(string(data))
+		return
+	} else if vmOutputFormat == "yaml" {
+		data, _ := yaml.Marshal(vms)
+		fmt.Println(string(data))
+		return
+	}
+
+	// Table output
+	w := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
+	if vmAllNamespaces {
+		fmt.Fprintln(w, "NAMESPACE\tNAME\tSTATUS\tCPUs\tMEMORY\tNODE\tIPs\tAGE")
+	} else {
+		fmt.Fprintln(w, "NAME\tSTATUS\tCPUs\tMEMORY\tNODE\tIPs\tAGE")
+	}
+
+	for _, vm := range vms.Items {
+		age := time.Since(vm.CreationTimestamp.Time).Round(time.Second)
+		ips := strings.Join(vm.Status.IPAddresses, ",")
+		if ips == "" {
+			ips = "<none>"
+		}
+
+		if vmAllNamespaces {
+			fmt.Fprintf(w, "%s\t%s\t%s\t%d\t%s\t%s\t%s\t%s\n",
+				vm.Namespace, vm.Name, vm.Status.Phase,
+				vm.Spec.CPUs, vm.Spec.Memory, vm.Status.NodeName,
+				ips, formatDuration(age))
+		} else {
+			fmt.Fprintf(w, "%s\t%s\t%d\t%s\t%s\t%s\t%s\n",
+				vm.Name, vm.Status.Phase,
+				vm.Spec.CPUs, vm.Spec.Memory, vm.Status.NodeName,
+				ips, formatDuration(age))
+		}
+	}
+	w.Flush()
+}
+
+// handleVMGet gets a specific VM
+func handleVMGet() {
+	if vmName == "" {
+		fmt.Println("Error: VM name is required (-name)")
+		os.Exit(1)
+	}
+
+	ctx := context.Background()
+	client, err := getK8sClient()
+	if err != nil {
+		fmt.Printf("Error: Failed to create Kubernetes client: %v\n", err)
+		os.Exit(1)
+	}
+
+	namespace := vmNamespace
+	if namespace == "" {
+		namespace = "default"
+	}
+
+	vm, err := client.HyperSDK().V1alpha1().VirtualMachines(namespace).Get(ctx, vmName, metav1.GetOptions{})
+	if err != nil {
+		fmt.Printf("Error: Failed to get VM: %v\n", err)
+		os.Exit(1)
+	}
+
+	outputResource(vm, vmOutputFormat)
+}
+
+// handleVMDelete deletes a VM
+func handleVMDelete() {
+	if vmName == "" {
+		fmt.Println("Error: VM name is required (-name)")
+		os.Exit(1)
+	}
+
+	ctx := context.Background()
+	client, err := getK8sClient()
+	if err != nil {
+		fmt.Printf("Error: Failed to create Kubernetes client: %v\n", err)
+		os.Exit(1)
+	}
+
+	namespace := vmNamespace
+	if namespace == "" {
+		namespace = "default"
+	}
+
+	err = client.HyperSDK().V1alpha1().VirtualMachines(namespace).Delete(ctx, vmName, metav1.DeleteOptions{})
+	if err != nil {
+		fmt.Printf("Error: Failed to delete VM: %v\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Printf("VirtualMachine %s/%s deleted\n", namespace, vmName)
+}
+
+// handleVMDescribe describes a VM in detail
+func handleVMDescribe() {
+	if vmName == "" {
+		fmt.Println("Error: VM name is required (-name)")
+		os.Exit(1)
+	}
+
+	ctx := context.Background()
+	client, err := getK8sClient()
+	if err != nil {
+		fmt.Printf("Error: Failed to create Kubernetes client: %v\n", err)
+		os.Exit(1)
+	}
+
+	namespace := vmNamespace
+	if namespace == "" {
+		namespace = "default"
+	}
+
+	vm, err := client.HyperSDK().V1alpha1().VirtualMachines(namespace).Get(ctx, vmName, metav1.GetOptions{})
+	if err != nil {
+		fmt.Printf("Error: Failed to get VM: %v\n", err)
+		os.Exit(1)
+	}
+
+	// Print detailed information
+	fmt.Printf("Name:         %s\n", vm.Name)
+	fmt.Printf("Namespace:    %s\n", vm.Namespace)
+	fmt.Printf("Status:       %s\n", vm.Status.Phase)
+	fmt.Printf("CPUs:         %d\n", vm.Spec.CPUs)
+	fmt.Printf("Memory:       %s\n", vm.Spec.Memory)
+	fmt.Printf("Running:      %t\n", vm.Spec.Running)
+	fmt.Printf("Node:         %s\n", vm.Status.NodeName)
+
+	if len(vm.Status.IPAddresses) > 0 {
+		fmt.Printf("IP Addresses: %s\n", strings.Join(vm.Status.IPAddresses, ", "))
+	}
+
+	if len(vm.Spec.Disks) > 0 {
+		fmt.Println("\nDisks:")
+		for _, disk := range vm.Spec.Disks {
+			fmt.Printf("  - %s: %s (%s)\n", disk.Name, disk.Size, disk.StorageClass)
+		}
+	}
+
+	if len(vm.Spec.Networks) > 0 {
+		fmt.Println("\nNetworks:")
+		for _, net := range vm.Spec.Networks {
+			fmt.Printf("  - %s (%s)\n", net.Name, net.Type)
+		}
+	}
+
+	if vm.Spec.CarbonAware != nil && vm.Spec.CarbonAware.Enabled {
+		fmt.Println("\nCarbon-Aware Scheduling:")
+		fmt.Printf("  Max Intensity: %d gCO2/kWh\n", vm.Spec.CarbonAware.MaxIntensity)
+		fmt.Printf("  Prefer Green Energy: %t\n", vm.Spec.CarbonAware.PreferGreenEnergy)
+	}
+
+	if len(vm.Status.Conditions) > 0 {
+		fmt.Println("\nConditions:")
+		for _, cond := range vm.Status.Conditions {
+			fmt.Printf("  %s: %s (%s) - %s\n", cond.Type, cond.Status, cond.Reason, cond.Message)
+		}
+	}
+
+	fmt.Printf("\nCreated: %s\n", vm.CreationTimestamp.Format(time.RFC3339))
+}
+
+// handleVMStart starts a VM
+func handleVMStart() {
+	createVMOperation(hypersdk.VMOpStart, nil)
+}
+
+// handleVMStop stops a VM
+func handleVMStop() {
+	createVMOperation(hypersdk.VMOpStop, nil)
+}
+
+// handleVMRestart restarts a VM
+func handleVMRestart() {
+	createVMOperation(hypersdk.VMOpRestart, nil)
+}
+
+// handleVMClone clones a VM
+func handleVMClone() {
+	if vmOpTarget == "" {
+		fmt.Println("Error: Target VM name is required (-target)")
+		os.Exit(1)
+	}
+
+	cloneSpec := map[string]interface{}{
+		"cloneSpec": map[string]interface{}{
+			"targetName":      vmOpTarget,
+			"linkedClone":     vmOpLinked,
+			"startAfterClone": vmRunning,
+		},
+	}
+
+	createVMOperation(hypersdk.VMOpClone, cloneSpec)
+}
+
+// handleVMMigrate migrates a VM
+func handleVMMigrate() {
+	if vmOpTargetNode == "" {
+		fmt.Println("Error: Target node is required (-node)")
+		os.Exit(1)
+	}
+
+	migrateSpec := map[string]interface{}{
+		"migrateSpec": map[string]interface{}{
+			"targetNode": vmOpTargetNode,
+			"live":       vmOpLive,
+			"bandwidth":  "100Mbps",
+		},
+	}
+
+	createVMOperation(hypersdk.VMOpMigrate, migrateSpec)
+}
+
+// handleVMResize resizes a VM
+func handleVMResize() {
+	if vmCPUs == 0 && vmMemory == "" {
+		fmt.Println("Error: At least one of -cpus or -memory is required")
+		os.Exit(1)
+	}
+
+	resizeSpec := map[string]interface{}{
+		"resizeSpec": map[string]interface{}{
+			"hotplug": vmOpHotplug,
+		},
+	}
+
+	if vmCPUs > 0 {
+		resizeSpec["resizeSpec"].(map[string]interface{})["cpus"] = vmCPUs
+	}
+	if vmMemory != "" {
+		resizeSpec["resizeSpec"].(map[string]interface{})["memory"] = vmMemory
+	}
+
+	createVMOperation(hypersdk.VMOpResize, resizeSpec)
+}
+
+// createVMOperation creates a VMOperation resource
+func createVMOperation(opType hypersdk.VMOperationType, extraSpec map[string]interface{}) {
+	if vmName == "" {
+		fmt.Println("Error: VM name is required (-name)")
+		os.Exit(1)
+	}
+
+	if vmNamespace == "" {
+		vmNamespace = "default"
+	}
+
+	// Build operation
+	op := map[string]interface{}{
+		"apiVersion": "hypersdk.io/v1alpha1",
+		"kind":       "VMOperation",
+		"metadata": map[string]interface{}{
+			"name":      fmt.Sprintf("%s-%s-%d", vmName, opType, time.Now().Unix()),
+			"namespace": vmNamespace,
+		},
+		"spec": map[string]interface{}{
+			"vmRef": map[string]interface{}{
+				"name":      vmName,
+				"namespace": vmNamespace,
+			},
+			"operation": string(opType),
+			"force":     vmOpForce,
+		},
+	}
+
+	// Merge extra spec
+	if extraSpec != nil {
+		for k, v := range extraSpec {
+			op["spec"].(map[string]interface{})[k] = v
+		}
+	}
+
+	outputResourceMap(op, vmOutputFormat)
+}
+
+// handleVMSnapshotCreate creates a VM snapshot
+func handleVMSnapshotCreate() {
+	if vmName == "" {
+		fmt.Println("Error: VM name is required (-name)")
+		os.Exit(1)
+	}
+
+	if vmSnapName == "" {
+		vmSnapName = fmt.Sprintf("%s-snapshot-%d", vmName, time.Now().Unix())
+	}
+
+	if vmNamespace == "" {
+		vmNamespace = "default"
+	}
+
+	snapshot := map[string]interface{}{
+		"apiVersion": "hypersdk.io/v1alpha1",
+		"kind":       "VMSnapshot",
+		"metadata": map[string]interface{}{
+			"name":      vmSnapName,
+			"namespace": vmNamespace,
+		},
+		"spec": map[string]interface{}{
+			"vmRef": map[string]interface{}{
+				"name":      vmName,
+				"namespace": vmNamespace,
+			},
+			"includeMemory": vmSnapMemory,
+			"quiesce":       vmSnapQuiesce,
+		},
+	}
+
+	// Add retention policy
+	if vmSnapKeepDays > 0 {
+		snapshot["spec"].(map[string]interface{})["retention"] = map[string]interface{}{
+			"keepDays":   vmSnapKeepDays,
+			"autoDelete": true,
+		}
+	}
+
+	outputResourceMap(snapshot, vmOutputFormat)
+}
+
+// handleVMSnapshotList lists VM snapshots
+func handleVMSnapshotList() {
+	ctx := context.Background()
+	client, err := getK8sClient()
+	if err != nil {
+		fmt.Printf("Error: Failed to create Kubernetes client: %v\n", err)
+		os.Exit(1)
+	}
+
+	namespace := vmNamespace
+	if namespace == "" {
+		namespace = "default"
+	}
+
+	snapshots, err := client.HyperSDK().V1alpha1().VMSnapshots(namespace).List(ctx, metav1.ListOptions{})
+	if err != nil {
+		fmt.Printf("Error: Failed to list snapshots: %v\n", err)
+		os.Exit(1)
+	}
+
+	// Filter by VM if specified
+	var filtered []hypersdk.VMSnapshot
+	if vmName != "" {
+		for _, snap := range snapshots.Items {
+			if snap.Spec.VMRef.Name == vmName {
+				filtered = append(filtered, snap)
+			}
+		}
+	} else {
+		filtered = snapshots.Items
+	}
+
+	if vmOutputFormat == "json" {
+		data, _ := json.MarshalIndent(filtered, "", "  ")
+		fmt.Println(string(data))
+		return
+	}
+
+	// Table output
+	w := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
+	fmt.Fprintln(w, "NAME\tVM\tSTATUS\tSIZE\tMEMORY\tREADY\tAGE")
+
+	for _, snap := range filtered {
+		age := time.Since(snap.CreationTimestamp.Time).Round(time.Second)
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%t\t%t\t%s\n",
+			snap.Name, snap.Spec.VMRef.Name, snap.Status.Phase,
+			snap.Status.Size, snap.Spec.IncludeMemory,
+			snap.Status.ReadyToRestore, formatDuration(age))
+	}
+	w.Flush()
+}
+
+// handleVMSnapshotRestore restores a VM from snapshot
+func handleVMSnapshotRestore() {
+	fmt.Println("VM snapshot restore functionality to be implemented")
+	fmt.Println("This will restore a VM from a snapshot")
+}
+
+// handleVMSnapshotDelete deletes a VM snapshot
+func handleVMSnapshotDelete() {
+	if vmSnapName == "" {
+		fmt.Println("Error: Snapshot name is required (-snapshot)")
+		os.Exit(1)
+	}
+
+	ctx := context.Background()
+	client, err := getK8sClient()
+	if err != nil {
+		fmt.Printf("Error: Failed to create Kubernetes client: %v\n", err)
+		os.Exit(1)
+	}
+
+	namespace := vmNamespace
+	if namespace == "" {
+		namespace = "default"
+	}
+
+	err = client.HyperSDK().V1alpha1().VMSnapshots(namespace).Delete(ctx, vmSnapName, metav1.DeleteOptions{})
+	if err != nil {
+		fmt.Printf("Error: Failed to delete snapshot: %v\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Printf("VMSnapshot %s/%s deleted\n", namespace, vmSnapName)
+}
+
+// handleTemplateList lists VM templates
+func handleTemplateList() {
+	ctx := context.Background()
+	client, err := getK8sClient()
+	if err != nil {
+		fmt.Printf("Error: Failed to create Kubernetes client: %v\n", err)
+		os.Exit(1)
+	}
+
+	namespace := vmNamespace
+	if vmAllNamespaces {
+		namespace = ""
+	} else if namespace == "" {
+		namespace = "default"
+	}
+
+	templates, err := client.HyperSDK().V1alpha1().VMTemplates(namespace).List(ctx, metav1.ListOptions{})
+	if err != nil {
+		fmt.Printf("Error: Failed to list templates: %v\n", err)
+		os.Exit(1)
+	}
+
+	if vmOutputFormat == "json" {
+		data, _ := json.MarshalIndent(templates, "", "  ")
+		fmt.Println(string(data))
+		return
+	}
+
+	// Table output
+	w := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
+	if vmAllNamespaces {
+		fmt.Fprintln(w, "NAMESPACE\tNAME\tDISPLAY NAME\tOS\tVERSION\tREADY\tUSAGE\tAGE")
+	} else {
+		fmt.Fprintln(w, "NAME\tDISPLAY NAME\tOS\tVERSION\tREADY\tUSAGE\tAGE")
+	}
+
+	for _, tmpl := range templates.Items {
+		age := time.Since(tmpl.CreationTimestamp.Time).Round(time.Second)
+		os := ""
+		if tmpl.Spec.OSInfo != nil {
+			os = tmpl.Spec.OSInfo.Distribution
+		}
+
+		ready := "False"
+		if tmpl.Status.Ready {
+			ready = "True"
+		}
+
+		if vmAllNamespaces {
+			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%d\t%s\n",
+				tmpl.Namespace, tmpl.Name, tmpl.Spec.DisplayName,
+				os, tmpl.Spec.Version, ready,
+				tmpl.Status.UsageCount, formatDuration(age))
+		} else {
+			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%d\t%s\n",
+				tmpl.Name, tmpl.Spec.DisplayName,
+				os, tmpl.Spec.Version, ready,
+				tmpl.Status.UsageCount, formatDuration(age))
+		}
+	}
+	w.Flush()
+}
+
+// handleTemplateGet gets a specific template
+func handleTemplateGet() {
+	if vmTemplate == "" && vmName == "" {
+		fmt.Println("Error: Template name is required (-template or -name)")
+		os.Exit(1)
+	}
+
+	templateName := vmTemplate
+	if templateName == "" {
+		templateName = vmName
+	}
+
+	ctx := context.Background()
+	client, err := getK8sClient()
+	if err != nil {
+		fmt.Printf("Error: Failed to create Kubernetes client: %v\n", err)
+		os.Exit(1)
+	}
+
+	namespace := vmNamespace
+	if namespace == "" {
+		namespace = "default"
+	}
+
+	tmpl, err := client.HyperSDK().V1alpha1().VMTemplates(namespace).Get(ctx, templateName, metav1.GetOptions{})
+	if err != nil {
+		fmt.Printf("Error: Failed to get template: %v\n", err)
+		os.Exit(1)
+	}
+
+	outputResource(tmpl, vmOutputFormat)
+}
+
+// handleTemplateCreate creates a VM template
+func handleTemplateCreate() {
+	fmt.Println("VM template creation functionality to be implemented")
+	fmt.Println("This will create a template from an existing VM or image")
+}
+
+// Helper functions
+
+func outputResource(resource interface{}, format string) {
+	if format == "json" {
+		data, err := json.MarshalIndent(resource, "", "  ")
+		if err != nil {
+			fmt.Printf("Error: Failed to marshal to JSON: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Println(string(data))
+	} else {
+		data, err := yaml.Marshal(resource)
+		if err != nil {
+			fmt.Printf("Error: Failed to marshal to YAML: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Println(string(data))
+	}
+}
+
+func outputResourceMap(resource map[string]interface{}, format string) {
+	if format == "json" {
+		data, err := json.MarshalIndent(resource, "", "  ")
+		if err != nil {
+			fmt.Printf("Error: Failed to marshal to JSON: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Println(string(data))
+	} else {
+		data, err := yaml.Marshal(resource)
+		if err != nil {
+			fmt.Printf("Error: Failed to marshal to YAML: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Println(string(data))
+	}
+}

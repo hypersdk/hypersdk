@@ -14,6 +14,7 @@ import (
 
 	hypersdk "hypersdk/pkg/apis/hypersdk/v1alpha1"
 	"hypersdk/daemon/jobs"
+	"hypersdk/daemon/models"
 	"hypersdk/logger"
 	"hypersdk/providers"
 )
@@ -244,7 +245,7 @@ func (c *RestoreJobController) resolveSourcePath(ctx context.Context, restoreJob
 }
 
 // buildRestoreJobDefinition builds a job definition for restore
-func (c *RestoreJobController) buildRestoreJobDefinition(restoreJob *hypersdk.RestoreJob, sourcePath string) (*jobs.JobDefinition, error) {
+func (c *RestoreJobController) buildRestoreJobDefinition(restoreJob *hypersdk.RestoreJob, sourcePath string) (*models.JobDefinition, error) {
 	dest := restoreJob.Spec.Destination
 
 	// Build VM name
@@ -253,7 +254,7 @@ func (c *RestoreJobController) buildRestoreJobDefinition(restoreJob *hypersdk.Re
 		vmName = restoreJob.Spec.Options.RenameVM
 	}
 
-	jobDef := &jobs.JobDefinition{
+	jobDef := &models.JobDefinition{
 		VMPath:    sourcePath,
 		OutputDir: "/tmp/restores", // Temporary
 		Format:    "ovf",

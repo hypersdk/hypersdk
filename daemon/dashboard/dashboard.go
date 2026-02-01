@@ -54,6 +54,7 @@ type Dashboard struct {
 	broadcast chan []byte
 	metrics   *Metrics
 	metricsMu sync.RWMutex
+	k8sDash   *K8sDashboard
 }
 
 // Metrics holds dashboard metrics
@@ -145,14 +146,25 @@ func (d *Dashboard) Start(ctx context.Context) error {
 	// Start metrics update goroutine
 	go d.updateMetrics(ctx)
 
+	// Try to initialize Kubernetes dashboard (optional)
+	k8sDash, err := NewK8sDashboard(d, "", "")
+	if err == nil {
+		d.k8sDash = k8sDash
+		// Start K8s metrics collection
+		go d.k8sDash.Start(ctx)
+	}
+
 	// Setup HTTP handlers
 	mux := http.NewServeMux()
 
 	// Serve embedded static files
 	mux.Handle("/static/", http.FileServer(http.FS(embeddedFS)))
 
-	// Dashboard page
+	// Dashboard pages
 	mux.HandleFunc("/", d.handleIndex)
+	mux.HandleFunc("/k8s", d.handleK8s)
+	mux.HandleFunc("/k8s/charts", d.handleK8sCharts)
+	mux.HandleFunc("/k8s/vms", d.handleK8sVMs)
 
 	// API endpoints
 	mux.HandleFunc("/api/metrics", d.handleMetrics)
@@ -161,6 +173,11 @@ func (d *Dashboard) Start(ctx context.Context) error {
 
 	// WebSocket endpoint
 	mux.HandleFunc("/ws", d.handleWebSocket)
+
+	// Register Kubernetes dashboard handlers if available
+	if d.k8sDash != nil {
+		d.k8sDash.RegisterHandlers(mux)
+	}
 
 	addr := fmt.Sprintf(":%d", d.config.Port)
 	server := &http.Server{
@@ -188,6 +205,27 @@ func (d *Dashboard) handleIndex(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := d.templates.ExecuteTemplate(w, "index.html", nil); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
+// handleK8s serves the Kubernetes dashboard page
+func (d *Dashboard) handleK8s(w http.ResponseWriter, r *http.Request) {
+	if err := d.templates.ExecuteTemplate(w, "k8s.html", nil); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
+// handleK8sCharts serves the Kubernetes charts and analytics page
+func (d *Dashboard) handleK8sCharts(w http.ResponseWriter, r *http.Request) {
+	if err := d.templates.ExecuteTemplate(w, "k8s-charts.html", nil); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
+// handleK8sVMs serves the Kubernetes VM management page
+func (d *Dashboard) handleK8sVMs(w http.ResponseWriter, r *http.Request) {
+	if err := d.templates.ExecuteTemplate(w, "k8s-vms.html", nil); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 }

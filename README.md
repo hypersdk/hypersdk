@@ -7,7 +7,7 @@
 [![Production Ready](https://img.shields.io/badge/status-production%20ready-green)](https://github.com/ssahani/hypersdk)
 [![Test Coverage](https://img.shields.io/badge/test%20coverage-584+%20tests-brightgreen)](https://github.com/ssahani/hypersdk)
 [![API Coverage](https://img.shields.io/badge/API%20handlers-100%25%20coverage-success)](https://github.com/ssahani/hypersdk)
-[![Version](https://img.shields.io/badge/version-2.0.0-blue)](https://github.com/ssahani/hypersdk/releases/tag/v2.0.0)
+[![Version](https://img.shields.io/badge/version-2.2.0-blue)](https://github.com/ssahani/hypersdk/releases/tag/v2.2.0)
 
 ## 🎯 Overview
 
@@ -15,6 +15,7 @@
 
 ### Supported Providers
 
+- ✅ **Kubernetes** (VM Management with CRDs) - Production Ready ⭐ **NEW in v2.2.0**
 - ✅ **vSphere** (VMware vCenter/ESXi) - Production Ready
 - ✅ **AWS** (Amazon EC2) - Production Ready
 - ✅ **Azure** (Microsoft Azure VMs) - Production Ready
@@ -70,8 +71,9 @@ graph TB
 ### Core Capabilities
 
 **Enterprise-Grade Features:**
-- **🌍 Carbon-Aware Scheduling** ⭐ NEW **INDUSTRY FIRST** - 30-50% carbon reduction through intelligent backup timing, real-time grid monitoring (12 zones), ESG reporting
-- **Multi-Cloud Support** - 9 cloud providers: vSphere, AWS, Azure, GCP, Hyper-V, OCI, OpenStack, Alibaba Cloud, Proxmox VE
+- **☸️ Kubernetes VM Management** ⭐ NEW **v2.2.0** - Full VM lifecycle on K8s with 4 CRDs, real-time dashboard, 14 CLI commands, carbon-aware scheduling
+- **🌍 Carbon-Aware Scheduling** ⭐ **INDUSTRY FIRST** - 30-50% carbon reduction through intelligent backup timing, real-time grid monitoring (12 zones), ESG reporting
+- **Multi-Cloud Support** - 10 platforms: Kubernetes, vSphere, AWS, Azure, GCP, Hyper-V, OCI, OpenStack, Alibaba Cloud, Proxmox VE
 - **Multi-Language SDKs** ⭐ NEW - Python, TypeScript, and OpenAPI 3.0 specification (50+ methods each)
 - **Incremental Export** ⭐ NEW - Changed Block Tracking (CBT) for 95% faster backups, 90% storage savings
 - **Advanced Scheduling** ⭐ NEW - Job dependencies, retry policies (3 strategies), time windows, priority queue
@@ -139,6 +141,47 @@ graph TB
 - **WebSocket Connections** - Real-time client tracking
 - **Responsive Design** - Works on desktop and mobile devices
 - **📦 Manifest Converter Tab** - One-shot export and conversion to KVM format
+
+### 🆕 New in v2.2.0 - Kubernetes VM Management
+
+**Complete Kubernetes Integration with VM Lifecycle Management:**
+
+1. **☸️ Kubernetes Virtual Machine Management** ⭐⭐⭐ **PRODUCTION READY**
+   - **Full VM lifecycle management** on Kubernetes clusters
+   - **4 Custom Resource Definitions (CRDs)**: VirtualMachine, VMOperation, VMTemplate, VMSnapshot
+   - **4 production-ready controllers** with full reconciliation loops
+   - **Real-time web dashboard** with 12 interactive charts
+   - **14 CLI commands** for complete VM control
+   - **Carbon-aware VM scheduling** with optimal node placement
+   - **High availability support** with auto-restart
+   - **Live migration** between cluster nodes
+   - See [Quick Start Guide](QUICKSTART.md) and [VM Management Guide](docs/VM_MANAGEMENT.md)
+
+**Dashboard Features:**
+- **VM Management Page** (`/k8s/vms`) - Real-time VM monitoring with auto-refresh
+  - Running VMs, Stopped VMs, Templates, and Snapshots tabs
+  - Quick actions: start, stop, restart, clone, snapshot, migrate, delete
+  - Resource statistics: total VMs, vCPUs, memory allocation
+  - WebSocket live updates every 5 seconds
+- **Charts & Analytics Page** (`/k8s/charts`) - 12 interactive visualizations
+  - VM trend, status distribution, VMs by node
+  - Resource allocation, carbon intensity, storage distribution
+  - Backup trends, provider distribution, and more
+
+**CLI Commands:**
+- VM lifecycle: `vm-create`, `vm-start`, `vm-stop`, `vm-restart`, `vm-delete`
+- VM operations: `vm-clone`, `vm-migrate`, `vm-resize`
+- Snapshots: `vm-snapshot-create`, `vm-snapshot-list`
+- Templates: `template-list`, `template-get`
+- YAML/JSON output, kubectl integration
+
+**Deployment:**
+- Helm chart with 60+ configuration parameters
+- Complete CRD definitions with OpenAPI validation
+- RBAC and security best practices
+- Production-ready examples and testing suite
+
+---
 
 ### 🆕 New in v2.0.0 - Major Release
 
