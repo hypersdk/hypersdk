@@ -582,6 +582,137 @@ class HyperSDK:
             data["description"] = description
         self._request("POST", "/libvirt/snapshot/create", json=data)
 
+    # Advanced Scheduling
+
+    def create_advanced_schedule(
+        self,
+        name: str,
+        schedule: str,
+        job_template: Dict[str, Any],
+        description: str = "",
+        advanced_config: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """Create a schedule with advanced features (dependencies, retry, time windows).
+
+        Args:
+            name: Schedule name
+            schedule: Cron expression (e.g., "0 2 * * *")
+            job_template: Job definition template
+            description: Optional description
+            advanced_config: Advanced configuration including:
+                - depends_on: List of job dependencies
+                - retry_policy: Retry configuration
+                - time_windows: Time window restrictions
+                - priority: Job priority (0-100)
+                - conditions: Execution conditions
+                - max_concurrent: Max concurrent runs
+                - skip_if_running: Skip if already running
+                - notify_on_*: Notification settings
+
+        Returns:
+            Created schedule with ID
+        """
+        return self._request(
+            "POST",
+            "/schedules/advanced/create",
+            json={
+                "name": name,
+                "description": description,
+                "schedule": schedule,
+                "job_template": job_template,
+                "advanced_config": advanced_config,
+            },
+        )
+
+    def get_dependency_status(self, job_id: str) -> Dict[str, Any]:
+        """Get dependency status for a scheduled job.
+
+        Args:
+            job_id: Job ID
+
+        Returns:
+            Dependency status including:
+                - satisfied: Whether dependencies are satisfied
+                - reason: Reason if not satisfied
+                - dependencies: List of dependency info
+                - waiting_jobs: Jobs waiting on this one
+        """
+        return self._request("GET", "/schedules/dependencies", params={"job_id": job_id})
+
+    def get_retry_status(self, job_id: str) -> Dict[str, Any]:
+        """Get retry status for a scheduled job.
+
+        Args:
+            job_id: Job ID
+
+        Returns:
+            Retry status including:
+                - attempt: Current retry attempt
+                - max_attempts: Maximum attempts
+                - last_error: Last error message
+                - next_retry: Next retry timestamp
+                - history: Retry history
+        """
+        return self._request("GET", "/schedules/retry", params={"job_id": job_id})
+
+    def get_timewindow_status(self, job_id: str) -> Dict[str, Any]:
+        """Get time window status for a scheduled job.
+
+        Args:
+            job_id: Job ID
+
+        Returns:
+            Time window status including:
+                - in_window: Whether currently in window
+                - message: Status message
+                - next_window_start: Next window start time
+                - windows: List of window statuses
+        """
+        return self._request("GET", "/schedules/timewindow", params={"job_id": job_id})
+
+    def get_job_queue_status(self) -> Dict[str, Any]:
+        """Get status of the job execution queue.
+
+        Returns:
+            Queue status including:
+                - queue_size: Number of queued jobs
+                - running_jobs: Number of running jobs
+                - max_slots: Maximum concurrent slots
+                - queued_jobs: List of queued job info
+        """
+        return self._request("GET", "/schedules/queue")
+
+    def validate_schedule(
+        self,
+        name: str,
+        schedule: str,
+        job_template: Dict[str, Any],
+        advanced_config: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """Validate a schedule configuration without creating it.
+
+        Args:
+            name: Schedule name
+            schedule: Cron expression
+            job_template: Job definition
+            advanced_config: Advanced configuration
+
+        Returns:
+            Validation result with:
+                - valid: Whether configuration is valid
+                - errors: List of validation errors (if any)
+        """
+        return self._request(
+            "POST",
+            "/schedules/validate",
+            json={
+                "name": name,
+                "schedule": schedule,
+                "job_template": job_template,
+                "advanced_config": advanced_config,
+            },
+        )
+
     # Incremental Export & Changed Block Tracking
 
     def enable_cbt(self, vm_path: str) -> Dict[str, Any]:

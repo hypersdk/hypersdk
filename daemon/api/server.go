@@ -222,6 +222,14 @@ func NewServer(manager *jobs.Manager, detector *capabilities.Detector, log logge
 	mux.HandleFunc("/cbt/status", s.handleCBTStatus)
 	mux.HandleFunc("/incremental/analyze", s.handleIncrementalAnalysis)
 
+	// Advanced Scheduling
+	mux.HandleFunc("/schedules/advanced/create", s.handleCreateAdvancedSchedule)
+	mux.HandleFunc("/schedules/dependencies", s.handleGetDependencyStatus)
+	mux.HandleFunc("/schedules/retry", s.handleGetRetryStatus)
+	mux.HandleFunc("/schedules/timewindow", s.handleGetTimeWindowStatus)
+	mux.HandleFunc("/schedules/queue", s.handleGetJobQueueStatus)
+	mux.HandleFunc("/schedules/validate", s.handleValidateSchedule)
+
 	// Console & Display
 	mux.HandleFunc("/console/info", s.handleGetConsoleInfo)
 	mux.HandleFunc("/console/vnc", s.handleVNCProxy)

@@ -71,10 +71,11 @@ graph TB
 - **Multi-Cloud Support** - 9 cloud providers: vSphere, AWS, Azure, GCP, Hyper-V, OCI, OpenStack, Alibaba Cloud, Proxmox VE
 - **Direct SDK Integration** - Native Go SDK clients (no external binaries)
 - **Beautiful Terminal UI** - Modern pterm-based interface with animations
-- **REST JSON API** - 51+ endpoints for complete automation
+- **REST JSON API** - 57+ endpoints for complete automation
 - **React Dashboard** - Modern real-time monitoring with WebSocket updates
 - **Libvirt Integration** - Full KVM/libvirt management capabilities
 - **Incremental Export** - Changed Block Tracking (CBT) for 95% faster backups
+- **Advanced Scheduling** - Job dependencies, retry policies, time windows, priorities
 - **Connection Pooling** - Efficient connection reuse (30-40% faster)
 - **Webhook Integration** - Real-time job notifications
 - **Schedule Persistence** - SQLite-based job scheduling

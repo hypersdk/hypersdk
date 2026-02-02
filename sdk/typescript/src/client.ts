@@ -384,6 +384,126 @@ export class HyperSDK {
     });
   }
 
+  // Advanced Scheduling
+
+  async createAdvancedSchedule(params: {
+    name: string;
+    schedule: string;
+    jobTemplate: any;
+    description?: string;
+    advancedConfig?: {
+      depends_on?: Array<{
+        job_id: string;
+        required_state: string;
+        timeout?: number;
+      }>;
+      retry_policy?: {
+        max_attempts: number;
+        initial_delay: number;
+        max_delay: number;
+        backoff_strategy: string;
+        retry_on_errors?: string[];
+      };
+      time_windows?: Array<{
+        start_time: string;
+        end_time: string;
+        days: string[];
+        timezone: string;
+      }>;
+      priority?: number;
+      conditions?: any[];
+      max_concurrent?: number;
+      skip_if_running?: boolean;
+      notify_on_start?: boolean;
+      notify_on_success?: boolean;
+      notify_on_failure?: boolean;
+      notify_on_retry?: boolean;
+    };
+  }): Promise<{
+    success: boolean;
+    message: string;
+    schedule: any;
+  }> {
+    return this.request('POST', '/schedules/advanced/create', {
+      body: {
+        name: params.name,
+        description: params.description || '',
+        schedule: params.schedule,
+        job_template: params.jobTemplate,
+        advanced_config: params.advancedConfig,
+      },
+    });
+  }
+
+  async getDependencyStatus(jobId: string): Promise<{
+    job_id: string;
+    job_name: string;
+    satisfied: boolean;
+    reason?: string;
+    dependencies: any[];
+    waiting_jobs?: string[];
+  }> {
+    return this.request('GET', '/schedules/dependencies', {
+      params: { job_id: jobId },
+    });
+  }
+
+  async getRetryStatus(jobId: string): Promise<{
+    job_id: string;
+    job_name: string;
+    attempt: number;
+    max_attempts: number;
+    last_error?: string;
+    next_retry?: string;
+    history?: any[];
+  }> {
+    return this.request('GET', '/schedules/retry', {
+      params: { job_id: jobId },
+    });
+  }
+
+  async getTimeWindowStatus(jobId: string): Promise<{
+    job_id: string;
+    job_name: string;
+    in_window: boolean;
+    message: string;
+    next_window_start?: string;
+    windows?: any[];
+  }> {
+    return this.request('GET', '/schedules/timewindow', {
+      params: { job_id: jobId },
+    });
+  }
+
+  async getJobQueueStatus(): Promise<{
+    queue_size: number;
+    running_jobs: number;
+    max_slots: number;
+    queued_jobs: any[];
+  }> {
+    return this.request('GET', '/schedules/queue');
+  }
+
+  async validateSchedule(params: {
+    name: string;
+    schedule: string;
+    jobTemplate: any;
+    advancedConfig?: any;
+  }): Promise<{
+    valid: boolean;
+    errors?: string[];
+    message?: string;
+  }> {
+    return this.request('POST', '/schedules/validate', {
+      body: {
+        name: params.name,
+        schedule: params.schedule,
+        job_template: params.jobTemplate,
+        advanced_config: params.advancedConfig,
+      },
+    });
+  }
+
   // Incremental Export & Changed Block Tracking
 
   async enableCBT(vmPath: string): Promise<{ success: boolean; message: string; error?: string }> {
