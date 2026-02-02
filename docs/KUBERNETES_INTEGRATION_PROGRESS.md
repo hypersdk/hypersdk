@@ -154,25 +154,55 @@ kubectl get restorejobs
 
 ---
 
-## 🚧 Pending Phases
+### Phase 3: Helm Charts (~2-3 days) - **COMPLETED**
 
-### Phase 3: Helm Charts (~2-3 days) - **NOT STARTED**
+**Commit**: `ef13d32` - feat(helm): Add Helm chart for HyperSDK Kubernetes Operator
 
-**Estimated Lines**: ~400 lines
+**Status**: Complete (Helm chart with 60+ configuration parameters)
 
-#### Planned Deliverables
+#### Deliverables
 
-- [ ] Helm chart structure (`deploy/helm/hypersdk-operator/`)
-- [ ] Chart.yaml with version and dependencies
-- [ ] values.yaml with configuration options
-- [ ] Templates for operator deployment
-- [ ] RBAC templates
-- [ ] CRD templates
-- [ ] Service account templates
-- [ ] ConfigMap templates
-- [ ] README for Helm chart
+✅ **Helm Chart Structure** (~950 lines total)
+- `deploy/helm/hypersdk-operator/Chart.yaml` - Chart metadata
+- `deploy/helm/hypersdk-operator/values.yaml` - 60+ configuration parameters (~250 lines)
+- `deploy/helm/hypersdk-operator/README.md` - Complete documentation (~400 lines)
+
+✅ **Templates** (~300 lines)
+- `templates/_helpers.tpl` - Template helper functions
+- `templates/namespace.yaml` - Namespace creation
+- `templates/serviceaccount.yaml` - ServiceAccount
+- `templates/rbac.yaml` - ClusterRole and ClusterRoleBinding
+- `templates/deployment.yaml` - Operator deployment
+- `templates/service.yaml` - Service for health checks
+- `templates/configmap.yaml` - Configuration defaults
+- `templates/NOTES.txt` - Post-install instructions
+
+✅ **Features**:
+- 60+ configurable parameters
+- Carbon-aware defaults
+- Secure security context
+- Resource limits
+- Health probes
+- Multi-replica support with leader election
+- Provider toggles
+- Feature gates
+- Comprehensive documentation
+
+✅ **Validation**:
+- `helm lint`: Passed ✅
+- `helm template`: Valid YAML ✅
+
+#### Installation
+
+```bash
+helm install hypersdk-operator ./deploy/helm/hypersdk-operator \
+  --namespace hypersdk-system \
+  --create-namespace
+```
 
 ---
+
+## 🚧 Pending Phases
 
 ### Phase 4: CLI Enhancements (~2-3 days) - **NOT STARTED**
 
@@ -224,24 +254,24 @@ kubectl get restorejobs
 | Install Scripts | ~150 | 2 | ✅ Complete |
 | Example Manifests | ~150 | 3 | ✅ Complete |
 | Deployment Docs | ~400 | 1 | ✅ Complete |
-| **Total Completed** | **~4,510** | **21** | **~51% of planned** |
+| Helm Chart | ~950 | 12 | ✅ Complete |
+| **Total Completed** | **~5,460** | **33** | **~59% of planned** |
 
 ### Remaining Work
 
 | Component | Estimated Lines | Status |
 |-----------|-----------------|--------|
-| Helm Charts | ~400 | Pending |
 | CLI Enhancements | ~800 | Pending |
 | Dashboard | ~2,000 | Pending |
 | Tests | ~1,000 | Pending |
 | Controller Runtime Integration | ~500 | Pending |
-| **Total Remaining** | **~4,700** | **~49% of planned** |
+| **Total Remaining** | **~4,300** | **~41% of planned** |
 
 ### Overall Progress
 
-- **Total Planned**: ~9,210 lines + 5,000 lines docs = 14,210 total
-- **Completed**: ~4,510 lines (31.7% of code, 51% including docs)
-- **Remaining**: ~4,700 lines (33.1% of code, 49% including docs)
+- **Total Planned**: ~9,760 lines + 5,000 lines docs = 14,760 total
+- **Completed**: ~5,460 lines (56% of code) + ~5,000 lines docs (59% overall)
+- **Remaining**: ~4,300 lines (44% of code, 41% overall)
 
 ---
 
@@ -391,7 +421,7 @@ EOF
 |-------|----------|------------|-----------------|--------|
 | Phase 1: KubeVirt Provider | 1 week | 2026-02-04 | 2026-02-04 | ✅ Complete (MVP) |
 | Phase 2: Kubernetes Operator | 1 week | 2026-02-04 | 2026-02-04 | ✅ Complete |
-| Phase 3: Helm Charts | 2-3 days | TBD | TBD | ⏳ Pending |
+| Phase 3: Helm Charts | 2-3 days | 2026-02-04 | 2026-02-04 | ✅ Complete |
 | Phase 4: CLI Enhancements | 2-3 days | TBD | TBD | ⏳ Pending |
 | Phase 5: Dashboard | 3-4 days | TBD | TBD | ⏳ Pending |
 
@@ -407,30 +437,39 @@ EOF
 
 ## 🎉 Latest Updates (2026-02-04)
 
+### Phase 3 Complete - Helm Chart
+
+**Commit**: `ef13d32` - feat(helm): Add Helm chart for HyperSDK Kubernetes Operator
+
+**Delivered**:
+- ✅ Complete Helm chart (~950 lines)
+- ✅ 60+ configurable parameters
+- ✅ 8 resource templates
+- ✅ Comprehensive documentation (~400 lines)
+- ✅ Validated and tested
+
+**Key Features**:
+- One-command installation
+- Carbon-aware by default
+- Secure defaults (non-root, read-only filesystem)
+- Resource limits and health checks
+- Multi-replica support
+- ConfigMap for defaults
+- Post-install guidance
+
+**Installation**:
+```bash
+helm install hypersdk-operator ./deploy/helm/hypersdk-operator \
+  --namespace hypersdk-system \
+  --create-namespace
+```
+
+**Progress**: 59% of total planned work complete (including documentation)
+
+---
+
 ### Phase 2 Complete - Kubernetes Operator
 
 **Commit**: `00ba0db` - feat(k8s): Implement Kubernetes Operator controllers and deployment manifests
 
-**Delivered**:
-- ✅ 3 operator controllers (~900 lines)
-- ✅ Operator main binary (~180 lines)
-- ✅ RBAC and deployment manifests (~300 lines)
-- ✅ Installation/uninstallation scripts (~150 lines)
-- ✅ 3 example manifests (~150 lines)
-- ✅ Complete deployment documentation (~400 lines)
-
-**Key Features**:
-- BackupJob reconciliation with carbon-aware support
-- BackupSchedule with cron and timezone support
-- RestoreJob with VM customization
-- Kubernetes-native management
-- kubectl integration
-- Event recording
-
-**Installation**:
-```bash
-cd deploy
-./install.sh
-```
-
-**Progress**: 51% of total planned work complete (including documentation)
+Delivered 3 controllers, operator binary, deployment manifests, scripts, and examples.
