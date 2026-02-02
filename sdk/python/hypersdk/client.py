@@ -12,6 +12,11 @@ from .models import (
     ScheduledJob,
     Webhook,
     DaemonStatus,
+    CarbonStatus,
+    CarbonForecast,
+    CarbonReport,
+    CarbonZone,
+    CarbonEstimate,
 )
 from .exceptions import (
     HyperSDKError,
@@ -929,6 +934,173 @@ class HyperSDK:
         return self._request(
             "GET", "/convert/status", params={"conversion_id": conversion_id}
         )
+
+    # Carbon-Aware Scheduling
+
+    def get_carbon_status(
+        self,
+        zone: str = "US-CAL-CISO",
+        threshold: float = 200.0
+    ) -> CarbonStatus:
+        """Get current grid carbon status for a zone.
+
+        Args:
+            zone: Carbon zone ID (default: US-CAL-CISO)
+            threshold: Carbon intensity threshold in gCO2/kWh (default: 200.0)
+
+        Returns:
+            Carbon status with current intensity, forecast, and recommendations
+
+        Example:
+            >>> status = client.get_carbon_status(zone="US-CAL-CISO", threshold=200)
+            >>> print(f"Current intensity: {status.current_intensity} gCO2/kWh")
+            >>> print(f"Quality: {status.quality}")
+            >>> print(f"Optimal for backup: {status.optimal_for_backup}")
+        """
+        data = self._request(
+            "POST",
+            "/carbon/status",
+            json={"zone": zone, "threshold": threshold}
+        )
+        return CarbonStatus.from_dict(data)
+
+    def get_carbon_report(
+        self,
+        job_id: str,
+        start_time: datetime,
+        end_time: datetime,
+        data_size_gb: float,
+        zone: str = "US-CAL-CISO"
+    ) -> CarbonReport:
+        """Generate carbon footprint report for a completed job.
+
+        Args:
+            job_id: Job ID
+            start_time: Job start time
+            end_time: Job end time
+            data_size_gb: Data size in GB
+            zone: Carbon zone ID (default: US-CAL-CISO)
+
+        Returns:
+            Carbon report with emissions, energy usage, and savings
+
+        Example:
+            >>> from datetime import datetime
+            >>> report = client.get_carbon_report(
+            ...     job_id="job-123",
+            ...     start_time=datetime(2026, 2, 4, 10, 0),
+            ...     end_time=datetime(2026, 2, 4, 12, 0),
+            ...     data_size_gb=500.0,
+            ...     zone="US-CAL-CISO"
+            ... )
+            >>> print(f"Emissions: {report.carbon_emissions_kg_co2} kg CO2")
+            >>> print(f"Savings: {report.savings_vs_worst_kg_co2} kg CO2")
+        """
+        data = self._request(
+            "POST",
+            "/carbon/report",
+            json={
+                "job_id": job_id,
+                "start_time": start_time.isoformat(),
+                "end_time": end_time.isoformat(),
+                "data_size_gb": data_size_gb,
+                "zone": zone
+            }
+        )
+        return CarbonReport.from_dict(data)
+
+    def list_carbon_zones(self) -> List[CarbonZone]:
+        """List all available carbon zones.
+
+        Returns:
+            List of carbon zones with metadata
+
+        Example:
+            >>> zones = client.list_carbon_zones()
+            >>> for zone in zones:
+            ...     print(f"{zone.id}: {zone.name} ({zone.typical_intensity} gCO2/kWh)")
+        """
+        data = self._request("GET", "/carbon/zones")
+        return [CarbonZone.from_dict(z) for z in data["zones"]]
+
+    def estimate_carbon_savings(
+        self,
+        zone: str,
+        data_size_gb: float,
+        duration_hours: float = 2.0
+    ) -> CarbonEstimate:
+        """Estimate carbon savings from delaying a backup.
+
+        Args:
+            zone: Carbon zone ID
+            data_size_gb: Data size in GB
+            duration_hours: Estimated duration in hours (default: 2.0)
+
+        Returns:
+            Carbon savings estimate with run now vs run later comparison
+
+        Example:
+            >>> estimate = client.estimate_carbon_savings(
+            ...     zone="US-CAL-CISO",
+            ...     data_size_gb=500.0,
+            ...     duration_hours=2.0
+            ... )
+            >>> print(f"Savings: {estimate.savings_kg_co2} kg CO2 ({estimate.savings_percent}%)")
+            >>> print(f"Recommendation: {estimate.recommendation}")
+        """
+        data = self._request(
+            "POST",
+            "/carbon/estimate",
+            json={
+                "zone": zone,
+                "data_size_gb": data_size_gb,
+                "duration_hours": duration_hours
+            }
+        )
+        return CarbonEstimate.from_dict(data)
+
+    def submit_carbon_aware_job(
+        self,
+        job_def: JobDefinition,
+        carbon_zone: str = "US-CAL-CISO",
+        max_intensity: float = 200.0,
+        max_delay_hours: float = 4.0
+    ) -> str:
+        """Submit a carbon-aware job that will be delayed if grid is dirty.
+
+        Args:
+            job_def: Job definition
+            carbon_zone: Carbon zone ID (default: US-CAL-CISO)
+            max_intensity: Maximum carbon intensity threshold (default: 200.0 gCO2/kWh)
+            max_delay_hours: Maximum delay in hours (default: 4.0)
+
+        Returns:
+            Job ID or schedule ID if delayed
+
+        Example:
+            >>> job_def = JobDefinition(vm_path="/datacenter/vm/prod", output_dir="/backups")
+            >>> job_id = client.submit_carbon_aware_job(
+            ...     job_def,
+            ...     carbon_zone="US-CAL-CISO",
+            ...     max_intensity=150.0,  # More aggressive threshold
+            ...     max_delay_hours=2.0   # Shorter max delay
+            ... )
+        """
+        # Add carbon metadata to job
+        job_dict = job_def.to_dict()
+        if "metadata" not in job_dict:
+            job_dict["metadata"] = {}
+
+        job_dict["metadata"]["carbon_aware"] = True
+        job_dict["metadata"]["carbon_zone"] = carbon_zone
+        job_dict["metadata"]["carbon_max_intensity"] = max_intensity
+        job_dict["metadata"]["carbon_max_delay"] = int(max_delay_hours * 3600 * 1_000_000_000)  # Convert to nanoseconds
+
+        response = self._request("POST", "/jobs/submit", json=job_dict)
+        if response["accepted"] == 0:
+            errors = response.get("errors", ["Unknown error"])
+            raise APIError(f"Job submission failed: {errors[0]}")
+        return response["job_ids"][0]
 
     def close(self) -> None:
         """Close the client session."""

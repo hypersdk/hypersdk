@@ -318,3 +318,142 @@ class DaemonStatus:
             cancelled_jobs=data["cancelled_jobs"],
             timestamp=datetime.fromisoformat(data["timestamp"].replace("Z", "+00:00")),
         )
+
+
+# Carbon-Aware Models
+
+
+@dataclass
+class CarbonForecast:
+    """Carbon intensity forecast."""
+    time: datetime
+    intensity_gco2_kwh: float
+    quality: str
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "CarbonForecast":
+        return cls(
+            time=datetime.fromisoformat(data["time"].replace("Z", "+00:00")),
+            intensity_gco2_kwh=data["intensity_gco2_kwh"],
+            quality=data["quality"],
+        )
+
+
+@dataclass
+class CarbonStatus:
+    """Grid carbon status."""
+    zone: str
+    current_intensity: float
+    renewable_percent: float
+    optimal_for_backup: bool
+    next_optimal_time: Optional[datetime]
+    forecast: List[CarbonForecast]
+    reasoning: str
+    quality: str
+    timestamp: datetime
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "CarbonStatus":
+        forecast = [CarbonForecast.from_dict(f) for f in data.get("forecast_next_4h", [])]
+        next_optimal = None
+        if data.get("next_optimal_time"):
+            next_optimal = datetime.fromisoformat(data["next_optimal_time"].replace("Z", "+00:00"))
+
+        return cls(
+            zone=data["zone"],
+            current_intensity=data["current_intensity"],
+            renewable_percent=data["renewable_percent"],
+            optimal_for_backup=data["optimal_for_backup"],
+            next_optimal_time=next_optimal,
+            forecast=forecast,
+            reasoning=data["reasoning"],
+            quality=data["quality"],
+            timestamp=datetime.fromisoformat(data["timestamp"].replace("Z", "+00:00")),
+        )
+
+
+@dataclass
+class CarbonReport:
+    """Carbon footprint report."""
+    operation_id: str
+    start_time: datetime
+    end_time: datetime
+    duration_hours: float
+    data_size_gb: float
+    energy_kwh: float
+    carbon_intensity_gco2_kwh: float
+    carbon_emissions_kg_co2: float
+    savings_vs_worst_kg_co2: float
+    renewable_percent: float
+    equivalent: str
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "CarbonReport":
+        return cls(
+            operation_id=data["operation_id"],
+            start_time=datetime.fromisoformat(data["start_time"].replace("Z", "+00:00")),
+            end_time=datetime.fromisoformat(data["end_time"].replace("Z", "+00:00")),
+            duration_hours=data["duration_hours"],
+            data_size_gb=data["data_size_gb"],
+            energy_kwh=data["energy_kwh"],
+            carbon_intensity_gco2_kwh=data["carbon_intensity_gco2_kwh"],
+            carbon_emissions_kg_co2=data["carbon_emissions_kg_co2"],
+            savings_vs_worst_kg_co2=data["savings_vs_worst_kg_co2"],
+            renewable_percent=data["renewable_percent"],
+            equivalent=data["equivalent"],
+        )
+
+
+@dataclass
+class CarbonZone:
+    """Carbon zone information."""
+    id: str
+    name: str
+    region: str
+    description: str
+    typical_intensity: float
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "CarbonZone":
+        return cls(
+            id=data["id"],
+            name=data["name"],
+            region=data["region"],
+            description=data["description"],
+            typical_intensity=data["typical_intensity"],
+        )
+
+
+@dataclass
+class CarbonEstimate:
+    """Carbon savings estimate."""
+    current_intensity_gco2_kwh: float
+    current_emissions_kg_co2: float
+    best_intensity_gco2_kwh: float
+    best_emissions_kg_co2: float
+    best_time: Optional[datetime]
+    savings_kg_co2: float
+    savings_percent: float
+    recommendation: str
+    delay_minutes: Optional[float]
+    forecast: List[CarbonForecast]
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "CarbonEstimate":
+        forecast = [CarbonForecast.from_dict(f) for f in data.get("forecast", [])]
+        best_time = None
+        if data.get("best_time"):
+            best_time = datetime.fromisoformat(data["best_time"].replace("Z", "+00:00"))
+
+        return cls(
+            current_intensity_gco2_kwh=data["current_intensity_gco2_kwh"],
+            current_emissions_kg_co2=data["current_emissions_kg_co2"],
+            best_intensity_gco2_kwh=data["best_intensity_gco2_kwh"],
+            best_emissions_kg_co2=data["best_emissions_kg_co2"],
+            best_time=best_time,
+            savings_kg_co2=data["savings_kg_co2"],
+            savings_percent=data["savings_percent"],
+            recommendation=data["recommendation"],
+            delay_minutes=data.get("delay_minutes"),
+            forecast=forecast,
+        )

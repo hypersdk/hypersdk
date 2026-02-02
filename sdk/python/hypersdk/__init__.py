@@ -15,6 +15,11 @@ from .models import (
     ExportOptions,
     ScheduledJob,
     Webhook,
+    CarbonStatus,
+    CarbonForecast,
+    CarbonReport,
+    CarbonZone,
+    CarbonEstimate,
 )
 from .exceptions import (
     HyperSDKError,
@@ -23,7 +28,7 @@ from .exceptions import (
     APIError,
 )
 
-__version__ = "1.0.0"
+__version__ = "2.0.0"
 __all__ = [
     "HyperSDK",
     "AsyncHyperSDK",
@@ -36,6 +41,11 @@ __all__ = [
     "ExportOptions",
     "ScheduledJob",
     "Webhook",
+    "CarbonStatus",
+    "CarbonForecast",
+    "CarbonReport",
+    "CarbonZone",
+    "CarbonEstimate",
     "HyperSDKError",
     "AuthenticationError",
     "JobNotFoundError",

@@ -15,6 +15,7 @@ Python client library for the HyperSDK VM migration and export platform.
   - Webhook configuration
   - Libvirt integration
   - Hyper2KVM conversion
+  - **Carbon-aware scheduling** (NEW in v2.0)
 
 ## Installation
 
@@ -224,6 +225,143 @@ status = client.get_conversion_status(conversion_id)
 print(f"Conversion status: {status}")
 ```
 
+### Carbon-Aware Scheduling (NEW in v2.0) 🌿
+
+Reduce carbon emissions from VM backups by 30-50% through intelligent scheduling based on grid carbon intensity.
+
+#### Check Grid Carbon Status
+
+```python
+# Check current grid status
+status = client.get_carbon_status(zone="US-CAL-CISO", threshold=200)
+
+print(f"Carbon Intensity: {status.current_intensity:.0f} gCO2/kWh")
+print(f"Quality: {status.quality}")  # excellent, good, moderate, poor, very poor
+print(f"Optimal for Backup: {status.optimal_for_backup}")
+print(f"Renewable Energy: {status.renewable_percent:.1f}%")
+print(f"Reasoning: {status.reasoning}")
+
+# View 4-hour forecast
+for forecast in status.forecast:
+    print(f"{forecast.time.strftime('%H:%M')}: {forecast.intensity_gco2_kwh:.0f} gCO2/kWh ({forecast.quality})")
+
+# Next optimal time
+if status.next_optimal_time:
+    print(f"Next clean period: {status.next_optimal_time.strftime('%H:%M')}")
+```
+
+#### List Available Carbon Zones
+
+```python
+# List all zones (12 global zones: US, EU, APAC)
+zones = client.list_carbon_zones()
+
+for zone in zones:
+    print(f"{zone.id}: {zone.name} ({zone.region})")
+    print(f"  Typical Intensity: {zone.typical_intensity:.0f} gCO2/kWh")
+```
+
+#### Estimate Carbon Savings
+
+```python
+# Estimate savings from delaying backup
+estimate = client.estimate_carbon_savings(
+    zone="US-CAL-CISO",
+    data_size_gb=500.0,
+    duration_hours=2.0
+)
+
+print(f"Run Now: {estimate.current_emissions_kg_co2:.3f} kg CO2")
+print(f"Run Later: {estimate.best_emissions_kg_co2:.3f} kg CO2")
+print(f"Savings: {estimate.savings_kg_co2:.3f} kg CO2 ({estimate.savings_percent:.1f}%)")
+print(f"Delay: {estimate.delay_minutes:.0f} minutes")
+print(f"Recommendation: {estimate.recommendation}")
+```
+
+#### Submit Carbon-Aware Job
+
+```python
+from hypersdk import JobDefinition
+
+job_def = JobDefinition(
+    vm_path="/datacenter/vm/prod-db",
+    output_dir="/backups"
+)
+
+# Submit with carbon-awareness
+# Job will be delayed if grid is dirty
+job_id = client.submit_carbon_aware_job(
+    job_def,
+    carbon_zone="US-CAL-CISO",
+    max_intensity=200.0,  # gCO2/kWh threshold
+    max_delay_hours=4.0   # Maximum delay allowed
+)
+
+print(f"Job ID: {job_id}")
+# If grid is dirty, job will automatically be delayed for cleaner period
+```
+
+#### Generate Carbon Report
+
+```python
+from datetime import datetime, timedelta
+
+# Get carbon footprint report for completed job
+report = client.get_carbon_report(
+    job_id="job-123",
+    start_time=datetime.now() - timedelta(hours=2),
+    end_time=datetime.now(),
+    data_size_gb=500.0,
+    zone="US-CAL-CISO"
+)
+
+print(f"Energy Used: {report.energy_kwh:.3f} kWh")
+print(f"Carbon Emissions: {report.carbon_emissions_kg_co2:.3f} kg CO2")
+print(f"Renewable Energy: {report.renewable_percent:.1f}%")
+print(f"Savings vs Worst: {report.savings_vs_worst_kg_co2:.3f} kg CO2")
+print(f"Equivalent: {report.equivalent}")
+# Example: "0.1 km of driving"
+```
+
+#### Complete Workflow Example
+
+```python
+from hypersdk import HyperSDK, JobDefinition
+
+client = HyperSDK("http://localhost:8080")
+
+# 1. Check grid status
+status = client.get_carbon_status(zone="US-CAL-CISO")
+
+# 2. Estimate savings
+estimate = client.estimate_carbon_savings(
+    zone="US-CAL-CISO",
+    data_size_gb=500,
+    duration_hours=2
+)
+
+# 3. Make decision
+job_def = JobDefinition(
+    vm_path="/datacenter/vm/prod",
+    output_dir="/backups"
+)
+
+if status.optimal_for_backup:
+    print("✅ Grid is clean - running backup now")
+    job_id = client.submit_job(job_def)
+elif estimate.savings_percent > 30:
+    print(f"⏰ Grid is dirty - delaying for {estimate.delay_minutes:.0f} min")
+    print(f"   Expected savings: {estimate.savings_percent:.1f}%")
+    job_id = client.submit_carbon_aware_job(job_def, max_delay_hours=4)
+else:
+    print("⚠️  Running now despite dirty grid (savings < 30%)")
+    job_id = client.submit_job(job_def)
+
+print(f"Job ID: {job_id}")
+```
+
+**See `examples/carbon_aware_backup.py` for a complete example with all features!**
+
 ### Context Manager
 
 ```python
@@ -367,6 +505,13 @@ except APIError as e:
 #### Hyper2KVM Integration
 - `convert_vm(source_path, output_path)` - Convert VM
 - `get_conversion_status(conversion_id)` - Get conversion status
+
+#### Carbon-Aware Scheduling (NEW in v2.0)
+- `get_carbon_status(zone, threshold)` - Get grid carbon status
+- `list_carbon_zones()` - List available carbon zones
+- `estimate_carbon_savings(zone, data_size_gb, duration_hours)` - Estimate carbon savings
+- `get_carbon_report(job_id, start_time, end_time, data_size_gb, zone)` - Generate carbon report
+- `submit_carbon_aware_job(job_def, carbon_zone, max_intensity, max_delay_hours)` - Submit carbon-aware job
 
 ## Development
 
