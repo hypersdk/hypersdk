@@ -544,18 +544,32 @@ config.FallbackOnError = false // Block if API fails (strict)
 
 ---
 
-## 📝 Next Steps
+## 📝 Implementation Status
 
-### Phase 4: CLI & SDKs (Remaining)
+### ✅ Phase 4: CLI & SDKs - COMPLETE
 
-**CLI Commands** (1-2 days):
+**CLI Commands** (IMPLEMENTED):
 ```bash
-# hyperctl carbon commands
-hyperctl carbon status --zone US-CAL-CISO
-hyperctl carbon report --job job-123
-hyperctl carbon estimate --data 500 --hours 2
-hyperctl carbon zones
+# hyperctl carbon commands - ALL WORKING!
+hyperctl carbon -op status -zone US-CAL-CISO -threshold 200
+hyperctl carbon -op report -job job-123 -data 500 -start 2026-02-04T10:00:00Z -end 2026-02-04T12:00:00Z
+hyperctl carbon -op estimate -zone US-CAL-CISO -data 500 -hours 2
+hyperctl carbon -op zones
 ```
+
+**Files Added**:
+- `cmd/hyperctl/carbon_commands.go` (600 lines) - All 4 carbon operations
+- `docs/CLI_CARBON_GUIDE.md` (540+ lines) - Complete CLI documentation
+
+**Features**:
+- ✅ Beautiful terminal output with color-coded quality levels
+- ✅ 4-hour forecast visualization
+- ✅ Human-readable duration formatting
+- ✅ JSON output mode for scripting
+- ✅ Comprehensive error handling and validation
+- ✅ 40+ usage examples and integration patterns
+
+### 🔜 Phase 4: SDKs (Remaining)
 
 **Python SDK** (1 day):
 ```python
