@@ -16,6 +16,7 @@ TypeScript/JavaScript client library for the HyperSDK VM migration and export pl
   - Webhook configuration
   - Libvirt integration
   - Hyper2KVM conversion
+  - **Carbon-aware scheduling** (NEW in v2.0)
 
 ## Installation
 
@@ -268,6 +269,142 @@ const conversionStatus = await client.getConversionStatus(conversionId);
 console.log('Conversion status:', conversionStatus);
 ```
 
+### Carbon-Aware Scheduling (NEW in v2.0) 🌿
+
+Reduce carbon emissions from VM backups by 30-50% through intelligent scheduling based on grid carbon intensity.
+
+#### Check Grid Carbon Status
+
+```typescript
+// Check current grid status
+const status = await client.getCarbonStatus('US-CAL-CISO', 200);
+
+console.log(`Carbon Intensity: ${status.current_intensity.toFixed(0)} gCO2/kWh`);
+console.log(`Quality: ${status.quality}`); // excellent, good, moderate, poor, very poor
+console.log(`Optimal for Backup: ${status.optimal_for_backup}`);
+console.log(`Renewable Energy: ${status.renewable_percent.toFixed(1)}%`);
+console.log(`Reasoning: ${status.reasoning}`);
+
+// View 4-hour forecast
+for (const forecast of status.forecast_next_4h) {
+  const time = new Date(forecast.time).toLocaleTimeString();
+  console.log(
+    `${time}: ${forecast.intensity_gco2_kwh.toFixed(0)} gCO2/kWh (${forecast.quality})`
+  );
+}
+
+// Next optimal time
+if (status.next_optimal_time) {
+  const nextOptimal = new Date(status.next_optimal_time);
+  console.log(`Next clean period: ${nextOptimal.toLocaleTimeString()}`);
+}
+```
+
+#### List Available Carbon Zones
+
+```typescript
+// List all zones (12 global zones: US, EU, APAC)
+const zones = await client.listCarbonZones();
+
+for (const zone of zones) {
+  console.log(`${zone.id}: ${zone.name} (${zone.region})`);
+  console.log(`  Typical Intensity: ${zone.typical_intensity.toFixed(0)} gCO2/kWh`);
+}
+```
+
+#### Estimate Carbon Savings
+
+```typescript
+// Estimate savings from delaying backup
+const estimate = await client.estimateCarbonSavings('US-CAL-CISO', 500.0, 2.0);
+
+console.log(`Run Now: ${estimate.current_emissions_kg_co2.toFixed(3)} kg CO2`);
+console.log(`Run Later: ${estimate.best_emissions_kg_co2.toFixed(3)} kg CO2`);
+console.log(
+  `Savings: ${estimate.savings_kg_co2.toFixed(3)} kg CO2 (${estimate.savings_percent.toFixed(1)}%)`
+);
+console.log(`Delay: ${estimate.delay_minutes?.toFixed(0)} minutes`);
+console.log(`Recommendation: ${estimate.recommendation}`);
+```
+
+#### Submit Carbon-Aware Job
+
+```typescript
+const jobDef: JobDefinition = {
+  vm_path: '/datacenter/vm/prod-db',
+  output_dir: '/backups',
+};
+
+// Submit with carbon-awareness
+// Job will be delayed if grid is dirty
+const jobId = await client.submitCarbonAwareJob(
+  jobDef,
+  'US-CAL-CISO', // zone
+  200.0, // max intensity (gCO2/kWh)
+  4.0 // max delay hours
+);
+
+console.log(`Job ID: ${jobId}`);
+// If grid is dirty, job will automatically be delayed for cleaner period
+```
+
+#### Generate Carbon Report
+
+```typescript
+// Get carbon footprint report for completed job
+const report = await client.getCarbonReport(
+  'job-123',
+  '2026-02-04T10:00:00Z', // start time
+  '2026-02-04T12:00:00Z', // end time
+  500.0, // data size in GB
+  'US-CAL-CISO' // zone
+);
+
+console.log(`Energy Used: ${report.energy_kwh.toFixed(3)} kWh`);
+console.log(`Carbon Emissions: ${report.carbon_emissions_kg_co2.toFixed(3)} kg CO2`);
+console.log(`Renewable Energy: ${report.renewable_percent.toFixed(1)}%`);
+console.log(`Savings vs Worst: ${report.savings_vs_worst_kg_co2.toFixed(3)} kg CO2`);
+console.log(`Equivalent: ${report.equivalent}`);
+// Example: "0.1 km of driving"
+```
+
+#### Complete Workflow Example
+
+```typescript
+import { HyperSDK, JobDefinition } from '@hypersdk/client';
+
+const client = new HyperSDK('http://localhost:8080');
+
+// 1. Check grid status
+const status = await client.getCarbonStatus('US-CAL-CISO');
+
+// 2. Estimate savings
+const estimate = await client.estimateCarbonSavings('US-CAL-CISO', 500, 2);
+
+// 3. Make decision
+const jobDef: JobDefinition = {
+  vm_path: '/datacenter/vm/prod',
+  output_dir: '/backups',
+};
+
+let jobId: string;
+if (status.optimal_for_backup) {
+  console.log('✅ Grid is clean - running backup now');
+  jobId = await client.submitJob(jobDef);
+} else if (estimate.savings_percent > 30) {
+  console.log(`⏰ Grid is dirty - delaying for ${estimate.delay_minutes?.toFixed(0)} min`);
+  console.log(`   Expected savings: ${estimate.savings_percent.toFixed(1)}%`);
+  jobId = await client.submitCarbonAwareJob(jobDef, 'US-CAL-CISO', 200, 4);
+} else {
+  console.log('⚠️  Running now despite dirty grid (savings < 30%)');
+  jobId = await client.submitJob(jobDef);
+}
+
+console.log(`Job ID: ${jobId}`);
+```
+
+**See `examples/carbon-aware-backup.ts` for a complete example with all features!**
+
 ## Advanced Usage
 
 ### Custom Configuration
@@ -443,6 +580,13 @@ async function monitorJob(jobId: string): Promise<void> {
 #### Hyper2KVM Integration
 - `convertVM(sourcePath, outputPath)` - Convert VM
 - `getConversionStatus(conversionId)` - Get conversion status
+
+#### Carbon-Aware Scheduling (NEW in v2.0)
+- `getCarbonStatus(zone?, threshold?)` - Get grid carbon status
+- `listCarbonZones()` - List available carbon zones
+- `estimateCarbonSavings(zone, dataSizeGB, durationHours?)` - Estimate carbon savings
+- `getCarbonReport(jobId, startTime, endTime, dataSizeGB, zone?)` - Generate carbon report
+- `submitCarbonAwareJob(jobDef, carbonZone?, maxIntensity?, maxDelayHours?)` - Submit carbon-aware job
 
 ## Development
 
