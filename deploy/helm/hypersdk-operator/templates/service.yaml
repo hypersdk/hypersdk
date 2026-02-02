@@ -1,0 +1,21 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "hypersdk-operator.fullname" . }}
+  namespace: {{ include "hypersdk-operator.namespace" . }}
+  labels:
+    {{- include "hypersdk-operator.labels" . | nindent 4 }}
+    app.kubernetes.io/component: operator
+  {{- with .Values.service.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ .Values.service.type }}
+  selector:
+    {{- include "hypersdk-operator.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ .Values.service.port }}
+      targetPort: 8081
+      protocol: TCP

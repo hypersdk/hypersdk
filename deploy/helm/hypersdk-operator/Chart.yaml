@@ -1,0 +1,32 @@
+apiVersion: v2
+name: hypersdk-operator
+description: A Helm chart for HyperSDK Kubernetes Operator - Declarative VM backup and restore
+type: application
+version: 2.1.0
+appVersion: "2.1.0"
+
+keywords:
+  - hypersdk
+  - backup
+  - vm
+  - kubevirt
+  - vsphere
+  - multi-cloud
+  - carbon-aware
+
+home: https://github.com/ssahani/hypersdk
+sources:
+  - https://github.com/ssahani/hypersdk
+
+maintainers:
+  - name: Susant Sahani
+    email: ssahani@gmail.com
+
+icon: https://raw.githubusercontent.com/ssahani/hypersdk/main/docs/assets/logo.png
+
+# Dependencies (none for now, but could include monitoring, storage, etc.)
+# dependencies: []
+
+annotations:
+  category: Backup
+  licenses: LGPL-3.0
