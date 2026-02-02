@@ -189,3 +189,58 @@ export interface CapabilitiesResponse {
   default_method: string;
   timestamp: string;
 }
+
+// Carbon-Aware Scheduling Models
+
+export interface CarbonForecast {
+  time: string;
+  intensity_gco2_kwh: number;
+  quality: string;
+}
+
+export interface CarbonStatus {
+  zone: string;
+  current_intensity: number;
+  renewable_percent: number;
+  optimal_for_backup: boolean;
+  next_optimal_time?: string;
+  forecast_next_4h: CarbonForecast[];
+  reasoning: string;
+  quality: string;
+  timestamp: string;
+}
+
+export interface CarbonReport {
+  operation_id: string;
+  start_time: string;
+  end_time: string;
+  duration_hours: number;
+  data_size_gb: number;
+  energy_kwh: number;
+  carbon_intensity_gco2_kwh: number;
+  carbon_emissions_kg_co2: number;
+  savings_vs_worst_kg_co2: number;
+  renewable_percent: number;
+  equivalent: string;
+}
+
+export interface CarbonZone {
+  id: string;
+  name: string;
+  region: string;
+  description: string;
+  typical_intensity: number;
+}
+
+export interface CarbonEstimate {
+  current_intensity_gco2_kwh: number;
+  current_emissions_kg_co2: number;
+  best_intensity_gco2_kwh: number;
+  best_emissions_kg_co2: number;
+  best_time?: string;
+  savings_kg_co2: number;
+  savings_percent: number;
+  recommendation: string;
+  delay_minutes?: number;
+  forecast: CarbonForecast[];
+}

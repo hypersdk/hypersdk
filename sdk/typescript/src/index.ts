@@ -27,6 +27,11 @@ export {
   ErrorResponse,
   HealthResponse,
   CapabilitiesResponse,
+  CarbonStatus,
+  CarbonForecast,
+  CarbonReport,
+  CarbonZone,
+  CarbonEstimate,
 } from './models';
 
 export {

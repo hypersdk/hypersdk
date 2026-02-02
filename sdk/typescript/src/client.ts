@@ -17,6 +17,11 @@ import {
   Webhook,
   HealthResponse,
   CapabilitiesResponse,
+  CarbonStatus,
+  CarbonForecast,
+  CarbonReport,
+  CarbonZone,
+  CarbonEstimate,
 } from './models';
 
 import {
@@ -635,6 +640,184 @@ export class HyperSDK {
     return this.request<any>('GET', '/convert/status', {
       params: { conversion_id: conversionId },
     });
+  }
+
+  // Carbon-Aware Scheduling
+
+  /**
+   * Get current grid carbon status for a zone.
+   *
+   * @param zone - Carbon zone ID (default: "US-CAL-CISO")
+   * @param threshold - Carbon intensity threshold in gCO2/kWh (default: 200.0)
+   * @returns Current carbon status with forecast
+   *
+   * @example
+   * ```typescript
+   * const status = await client.getCarbonStatus('US-CAL-CISO', 200);
+   * console.log(`Intensity: ${status.current_intensity} gCO2/kWh`);
+   * console.log(`Quality: ${status.quality}`);
+   * console.log(`Optimal: ${status.optimal_for_backup}`);
+   * ```
+   */
+  async getCarbonStatus(
+    zone: string = 'US-CAL-CISO',
+    threshold: number = 200.0
+  ): Promise<CarbonStatus> {
+    return this.request<CarbonStatus>('POST', '/carbon/status', {
+      body: { zone, threshold },
+    });
+  }
+
+  /**
+   * List all available carbon zones.
+   *
+   * @returns Array of available carbon zones (12 global zones)
+   *
+   * @example
+   * ```typescript
+   * const zones = await client.listCarbonZones();
+   * for (const zone of zones) {
+   *   console.log(`${zone.id}: ${zone.name} (${zone.typical_intensity} gCO2/kWh)`);
+   * }
+   * ```
+   */
+  async listCarbonZones(): Promise<CarbonZone[]> {
+    const response = await this.request<{ zones: CarbonZone[] }>(
+      'GET',
+      '/carbon/zones'
+    );
+    return response.zones;
+  }
+
+  /**
+   * Estimate carbon savings from delaying a backup.
+   *
+   * @param zone - Carbon zone ID
+   * @param dataSizeGB - Data size in GB
+   * @param durationHours - Estimated duration in hours (default: 2.0)
+   * @returns Carbon savings estimate with run now vs run later comparison
+   *
+   * @example
+   * ```typescript
+   * const estimate = await client.estimateCarbonSavings('US-CAL-CISO', 500, 2);
+   * console.log(`Run Now: ${estimate.current_emissions_kg_co2} kg CO2`);
+   * console.log(`Run Later: ${estimate.best_emissions_kg_co2} kg CO2`);
+   * console.log(`Savings: ${estimate.savings_percent}%`);
+   * ```
+   */
+  async estimateCarbonSavings(
+    zone: string,
+    dataSizeGB: number,
+    durationHours: number = 2.0
+  ): Promise<CarbonEstimate> {
+    return this.request<CarbonEstimate>('POST', '/carbon/estimate', {
+      body: {
+        zone,
+        data_size_gb: dataSizeGB,
+        duration_hours: durationHours,
+      },
+    });
+  }
+
+  /**
+   * Generate carbon footprint report for a completed job.
+   *
+   * @param jobId - Job ID
+   * @param startTime - Job start time (ISO 8601 format)
+   * @param endTime - Job end time (ISO 8601 format)
+   * @param dataSizeGB - Data size in GB
+   * @param zone - Carbon zone ID (default: "US-CAL-CISO")
+   * @returns Carbon footprint report with emissions and savings
+   *
+   * @example
+   * ```typescript
+   * const report = await client.getCarbonReport(
+   *   'job-123',
+   *   '2026-02-04T10:00:00Z',
+   *   '2026-02-04T12:00:00Z',
+   *   500,
+   *   'US-CAL-CISO'
+   * );
+   * console.log(`Energy: ${report.energy_kwh} kWh`);
+   * console.log(`Emissions: ${report.carbon_emissions_kg_co2} kg CO2`);
+   * ```
+   */
+  async getCarbonReport(
+    jobId: string,
+    startTime: string,
+    endTime: string,
+    dataSizeGB: number,
+    zone: string = 'US-CAL-CISO'
+  ): Promise<CarbonReport> {
+    return this.request<CarbonReport>('POST', '/carbon/report', {
+      body: {
+        job_id: jobId,
+        start_time: startTime,
+        end_time: endTime,
+        data_size_gb: dataSizeGB,
+        zone,
+      },
+    });
+  }
+
+  /**
+   * Submit a carbon-aware job that will be delayed if grid is dirty.
+   *
+   * @param jobDef - Job definition
+   * @param carbonZone - Carbon zone ID (default: "US-CAL-CISO")
+   * @param maxIntensity - Maximum carbon intensity threshold in gCO2/kWh (default: 200.0)
+   * @param maxDelayHours - Maximum delay allowed in hours (default: 4.0)
+   * @returns Job ID
+   *
+   * @example
+   * ```typescript
+   * const jobDef = {
+   *   vm_path: '/datacenter/vm/prod-db',
+   *   output_dir: '/backups'
+   * };
+   *
+   * const jobId = await client.submitCarbonAwareJob(
+   *   jobDef,
+   *   'US-CAL-CISO',
+   *   200,
+   *   4
+   * );
+   * console.log(`Job ID: ${jobId}`);
+   * // If grid is dirty, job will be automatically delayed
+   * ```
+   */
+  async submitCarbonAwareJob(
+    jobDef: JobDefinition,
+    carbonZone: string = 'US-CAL-CISO',
+    maxIntensity: number = 200.0,
+    maxDelayHours: number = 4.0
+  ): Promise<string> {
+    // Add carbon-aware metadata to job definition
+    const carbonAwareJobDef = {
+      ...jobDef,
+      metadata: {
+        ...(jobDef as any).metadata,
+        carbon_aware: true,
+        carbon_zone: carbonZone,
+        carbon_max_intensity: maxIntensity,
+        carbon_max_delay: maxDelayHours * 3600 * 1_000_000_000, // Convert to nanoseconds
+      },
+    };
+
+    const response = await this.request<SubmitResponse>(
+      'POST',
+      '/jobs/submit',
+      {
+        body: carbonAwareJobDef,
+      }
+    );
+
+    if (response.accepted === 0) {
+      const error = response.errors?.[0] || 'Unknown error';
+      throw new APIError(`Job submission failed: ${error}`);
+    }
+
+    return response.job_ids[0];
   }
 }
 

@@ -1,7 +1,7 @@
 {
   "name": "@hypersdk/client",
-  "version": "1.0.0",
-  "description": "TypeScript client library for HyperSDK VM migration platform",
+  "version": "2.0.0",
+  "description": "TypeScript client library for HyperSDK VM migration platform with carbon-aware scheduling",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
@@ -26,7 +26,11 @@
     "hypervisor",
     "kvm",
     "libvirt",
-    "hyper2kvm"
+    "hyper2kvm",
+    "carbon-aware",
+    "sustainability",
+    "green-computing",
+    "carbon-emissions"
   ],
   "author": "HyperSDK Contributors",
   "license": "LGPL-3.0-or-later",
