@@ -582,6 +582,134 @@ class HyperSDK:
             data["description"] = description
         self._request("POST", "/libvirt/snapshot/create", json=data)
 
+    # Cost Estimation
+
+    def estimate_cost(
+        self,
+        provider: str,
+        region: str,
+        storage_class: str,
+        storage_gb: float,
+        transfer_gb: float = 0,
+        requests: int = 0,
+        duration_days: int = 30,
+    ) -> Dict[str, Any]:
+        """Estimate cloud storage costs.
+
+        Args:
+            provider: Cloud provider (s3, azure_blob, gcs)
+            region: Cloud region
+            storage_class: Storage class (s3_standard, azure_hot, gcs_standard, etc.)
+            storage_gb: Amount of data in GB
+            transfer_gb: Data transfer out in GB
+            requests: Number of API requests
+            duration_days: Duration in days
+
+        Returns:
+            Cost estimate with breakdown
+        """
+        return self._request(
+            "POST",
+            "/cost/estimate",
+            json={
+                "provider": provider,
+                "region": region,
+                "storage_class": storage_class,
+                "storage_gb": storage_gb,
+                "transfer_gb": transfer_gb,
+                "requests": requests,
+                "duration_days": duration_days,
+            },
+        )
+
+    def compare_providers(
+        self,
+        storage_gb: float,
+        transfer_gb: float = 0,
+        requests: int = 0,
+        duration_days: int = 30,
+    ) -> Dict[str, Any]:
+        """Compare costs across multiple cloud providers.
+
+        Args:
+            storage_gb: Amount of data in GB
+            transfer_gb: Data transfer out in GB
+            requests: Number of API requests
+            duration_days: Duration in days
+
+        Returns:
+            Cost comparison across S3, Azure Blob, and GCS
+        """
+        return self._request(
+            "POST",
+            "/cost/compare",
+            json={
+                "storage_gb": storage_gb,
+                "transfer_gb": transfer_gb,
+                "requests": requests,
+                "duration_days": duration_days,
+            },
+        )
+
+    def project_yearly_cost(
+        self,
+        provider: str,
+        storage_class: str,
+        storage_gb: float,
+        transfer_gb: float = 0,
+        requests: int = 0,
+    ) -> Dict[str, Any]:
+        """Project yearly costs for cloud storage.
+
+        Args:
+            provider: Cloud provider
+            storage_class: Storage class
+            storage_gb: Amount of data in GB
+            transfer_gb: Monthly data transfer in GB
+            requests: Monthly API requests
+
+        Returns:
+            Yearly cost projection with monthly breakdown
+        """
+        return self._request(
+            "POST",
+            "/cost/project",
+            json={
+                "provider": provider,
+                "storage_class": storage_class,
+                "storage_gb": storage_gb,
+                "transfer_gb": transfer_gb,
+                "requests": requests,
+                "duration_days": 30,
+            },
+        )
+
+    def estimate_export_size(
+        self,
+        disk_size_gb: float,
+        format: str = "ova",
+        include_snapshots: bool = False,
+    ) -> Dict[str, Any]:
+        """Estimate the size of a VM export.
+
+        Args:
+            disk_size_gb: Total disk size in GB
+            format: Export format (ova, qcow2, raw)
+            include_snapshots: Include snapshots in export
+
+        Returns:
+            Export size estimate with compression ratio
+        """
+        return self._request(
+            "POST",
+            "/cost/estimate-size",
+            json={
+                "disk_size_gb": disk_size_gb,
+                "format": format,
+                "include_snapshots": include_snapshots,
+            },
+        )
+
     # Advanced Scheduling
 
     def create_advanced_schedule(

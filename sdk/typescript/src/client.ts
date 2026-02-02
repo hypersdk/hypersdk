@@ -384,6 +384,79 @@ export class HyperSDK {
     });
   }
 
+  // Cost Estimation
+
+  async estimateCost(params: {
+    provider: string;
+    region: string;
+    storageClass: string;
+    storageGB: number;
+    transferGB?: number;
+    requests?: number;
+    durationDays?: number;
+  }): Promise<any> {
+    return this.request('POST', '/cost/estimate', {
+      body: {
+        provider: params.provider,
+        region: params.region,
+        storage_class: params.storageClass,
+        storage_gb: params.storageGB,
+        transfer_gb: params.transferGB || 0,
+        requests: params.requests || 0,
+        duration_days: params.durationDays || 30,
+      },
+    });
+  }
+
+  async compareProviders(params: {
+    storageGB: number;
+    transferGB?: number;
+    requests?: number;
+    durationDays?: number;
+  }): Promise<any> {
+    return this.request('POST', '/cost/compare', {
+      body: {
+        storage_gb: params.storageGB,
+        transfer_gb: params.transferGB || 0,
+        requests: params.requests || 0,
+        duration_days: params.durationDays || 30,
+      },
+    });
+  }
+
+  async projectYearlyCost(params: {
+    provider: string;
+    storageClass: string;
+    storageGB: number;
+    transferGB?: number;
+    requests?: number;
+  }): Promise<any> {
+    return this.request('POST', '/cost/project', {
+      body: {
+        provider: params.provider,
+        storage_class: params.storageClass,
+        storage_gb: params.storageGB,
+        transfer_gb: params.transferGB || 0,
+        requests: params.requests || 0,
+        duration_days: 30,
+      },
+    });
+  }
+
+  async estimateExportSize(params: {
+    diskSizeGB: number;
+    format?: string;
+    includeSnapshots?: boolean;
+  }): Promise<any> {
+    return this.request('POST', '/cost/estimate-size', {
+      body: {
+        disk_size_gb: params.diskSizeGB,
+        format: params.format || 'ova',
+        include_snapshots: params.includeSnapshots || false,
+      },
+    });
+  }
+
   // Advanced Scheduling
 
   async createAdvancedSchedule(params: {

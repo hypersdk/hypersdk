@@ -76,6 +76,7 @@ graph TB
 - **Libvirt Integration** - Full KVM/libvirt management capabilities
 - **Incremental Export** - Changed Block Tracking (CBT) for 95% faster backups
 - **Advanced Scheduling** - Job dependencies, retry policies, time windows, priorities
+- **Cost Estimation** - Pre-export cost analysis for AWS S3, Azure Blob, and GCS
 - **Connection Pooling** - Efficient connection reuse (30-40% faster)
 - **Webhook Integration** - Real-time job notifications
 - **Schedule Persistence** - SQLite-based job scheduling

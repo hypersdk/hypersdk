@@ -230,6 +230,12 @@ func NewServer(manager *jobs.Manager, detector *capabilities.Detector, log logge
 	mux.HandleFunc("/schedules/queue", s.handleGetJobQueueStatus)
 	mux.HandleFunc("/schedules/validate", s.handleValidateSchedule)
 
+	// Cost Estimation
+	mux.HandleFunc("/cost/estimate", s.handleEstimateCost)
+	mux.HandleFunc("/cost/compare", s.handleCompareProviders)
+	mux.HandleFunc("/cost/project", s.handleProjectYearlyCost)
+	mux.HandleFunc("/cost/estimate-size", s.handleEstimateExportSize)
+
 	// Console & Display
 	mux.HandleFunc("/console/info", s.handleGetConsoleInfo)
 	mux.HandleFunc("/console/vnc", s.handleVNCProxy)
