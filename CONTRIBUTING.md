@@ -124,23 +124,39 @@ We welcome various types of contributions:
 
 1. **Bug Fixes** - Fix issues and improve reliability
 2. **New Features** - Add new cloud providers, API endpoints, or functionality
-3. **Tests** - Improve test coverage (currently 584+ tests, target 100%)
-4. **Documentation** - Improve docs, add examples, write tutorials
-5. **Performance** - Optimize code, reduce memory usage, improve speed
-6. **Refactoring** - Clean up code, improve maintainability
-7. **Security** - Fix vulnerabilities, improve security practices
+3. **Tests** - Improve test coverage (currently 584+ tests with 100% API coverage)
+4. **Documentation** - Improve docs, add examples, write tutorials (60+ docs, 60,000+ words)
+5. **SDK Development** - Enhance Python/TypeScript SDKs or add new language bindings
+6. **Performance** - Optimize code, reduce memory usage, improve speed
+7. **Refactoring** - Clean up code, improve maintainability
+8. **Security** - Fix vulnerabilities, improve security practices
+9. **Examples** - Add ready-to-run examples for Python, TypeScript, Bash, or integrations
 
 ### Finding Work
 
 - **Good First Issues** - Check issues labeled `good first issue`
 - **Help Wanted** - Look for `help wanted` label
-- **Test Coverage** - Areas with <80% coverage need tests
-- **Documentation** - Undocumented features need docs
-- **Provider Support** - Add new cloud providers
+- **Test Coverage** - Maintain 100% API coverage, enhance edge case testing
+- **Documentation** - Improve existing docs, add more examples
+- **Provider Support** - Add new cloud providers or enhance existing ones
+- **SDK Enhancement** - Add features to Python/TypeScript SDKs
+- **Integration Examples** - Create examples for CI/CD tools (Jenkins, GitLab, GitHub Actions)
+- **Feature Development** - See [Feature Timeline](docs/FEATURE_TIMELINE.md) for roadmap
 
 ---
 
 ## Coding Guidelines
+
+### Multi-Language Development
+
+HyperSDK includes code in multiple languages:
+
+- **Go** - Core daemon, API server, providers (primary language)
+- **Python** - SDK client library (`sdk/python/`)
+- **TypeScript** - SDK client library (`sdk/typescript/`)
+- **Bash** - Examples and scripts
+
+Follow language-specific conventions for each.
 
 ### Go Code Standards
 
@@ -266,6 +282,89 @@ package/
 └── README.md           # Package documentation
 ```
 
+### Python Code Standards (SDK)
+
+Follow PEP 8 for Python SDK contributions:
+
+```python
+# Good: Type hints, docstrings, proper error handling
+from typing import Dict, Any, Optional
+
+class HyperSDK:
+    """Client for HyperSDK REST API.
+
+    Args:
+        base_url: Base URL of the HyperSDK daemon (e.g., "http://localhost:8080")
+        timeout: Request timeout in seconds (default: 30)
+
+    Example:
+        >>> client = HyperSDK("http://localhost:8080")
+        >>> result = client.export_vm("/datacenter/vm/my-vm", "/exports")
+    """
+
+    def export_vm(self, vm_path: str, output_path: str,
+                  format: str = "ova") -> Dict[str, Any]:
+        """Export a virtual machine.
+
+        Args:
+            vm_path: Full path to the VM in vCenter
+            output_path: Directory to save the export
+            format: Export format (ova, ovf, or vmdk)
+
+        Returns:
+            Dict containing job_id and status
+
+        Raises:
+            HyperSDKError: If the API request fails
+        """
+        # Implementation
+```
+
+### TypeScript Code Standards (SDK)
+
+Follow standard TypeScript conventions:
+
+```typescript
+// Good: Interfaces, type safety, JSDoc comments
+export interface ExportOptions {
+  vm_path: string;
+  output_path: string;
+  format?: 'ova' | 'ovf' | 'vmdk';
+  compression?: boolean;
+}
+
+export interface ExportResult {
+  job_id: string;
+  status: string;
+  timestamp: string;
+}
+
+/**
+ * Client for HyperSDK REST API
+ *
+ * @example
+ * ```typescript
+ * const client = new HyperSDK('http://localhost:8080');
+ * const result = await client.exportVM({
+ *   vm_path: '/datacenter/vm/my-vm',
+ *   output_path: '/exports'
+ * });
+ * ```
+ */
+export class HyperSDK {
+  /**
+   * Export a virtual machine
+   *
+   * @param options - Export configuration options
+   * @returns Promise resolving to export result
+   * @throws {HyperSDKError} If the API request fails
+   */
+  async exportVM(options: ExportOptions): Promise<ExportResult> {
+    // Implementation
+  }
+}
+```
+
 ---
 
 ## Testing Requirements
@@ -274,7 +373,8 @@ package/
 
 - **Minimum:** 70% coverage for new code
 - **Target:** 80%+ coverage for all packages
-- **Critical handlers:** 100% coverage (authentication, security, user management)
+- **Current Status:** 584+ tests with 100% API coverage
+- **Critical handlers:** 100% coverage (authentication, security, user management, cost estimation, scheduling)
 
 ### Required Tests for New Code
 
@@ -400,7 +500,7 @@ func TestMultipleScenarios(t *testing.T) {
 ### Running Tests
 
 ```bash
-# Run tests before submitting PR
+# Run all Go tests before submitting PR
 go test ./...
 
 # Check coverage
@@ -409,9 +509,20 @@ go tool cover -func=coverage.out
 
 # Run specific tests
 go test -v ./daemon/api -run TestHandleListUsers
+go test -v ./providers/cost -run TestCostEstimation
 
 # Run with race detector
 go test -race ./...
+
+# Python SDK tests (if contributing to SDK)
+cd sdk/python
+pytest tests/ -v
+pytest --cov=hypersdk tests/
+
+# TypeScript SDK tests (if contributing to SDK)
+cd sdk/typescript
+npm test
+npm run test:coverage
 ```
 
 ---
@@ -580,6 +691,7 @@ including coverage statistics and test execution examples.
 
 3. **API Documentation**
    - Document new endpoints in `docs/API_ENDPOINTS.md`
+   - Update OpenAPI specification in `api/openapi.yaml`
    - Include request/response examples
    - Document error codes
 
@@ -587,6 +699,17 @@ including coverage statistics and test execution examples.
    - Add README.md for new packages
    - Explain package purpose
    - Provide usage examples
+
+5. **SDK Documentation**
+   - Update SDK README files for new methods
+   - Add docstrings/JSDoc comments
+   - Include usage examples
+   - Update type definitions
+
+6. **User Guides**
+   - Add feature-specific guides in `docs/features/`
+   - Update `docs/QUICK_START.md` for new features
+   - Add practical examples to `examples/`
 
 ### Documentation Example
 
@@ -656,23 +779,43 @@ When requesting features:
 
 ```
 hypersdk/
-├── cmd/                    # Command-line applications
-│   ├── hyperexport/       # Standalone export tool
-│   ├── hypervisord/       # Background daemon
-│   └── hyperctl/          # Control CLI
-├── daemon/                # Daemon components
-│   ├── api/              # REST API handlers
-│   ├── auth/             # Authentication
-│   ├── jobs/             # Job management
+├── cmd/                      # Command-line applications
+│   ├── hyperexport/         # Standalone export tool
+│   ├── hypervisord/         # Background daemon
+│   └── hyperctl/            # Control CLI
+├── daemon/                  # Daemon components
+│   ├── api/                # REST API handlers (67+ endpoints)
+│   ├── auth/               # Authentication
+│   ├── jobs/               # Job management
+│   ├── scheduler/          # Advanced scheduling, dependencies, retries
 │   └── ...
-├── providers/             # Cloud provider implementations
-│   ├── vsphere/          # VMware vSphere
-│   ├── aws/              # Amazon EC2
+├── providers/               # Cloud provider implementations (9 providers)
+│   ├── vsphere/            # VMware vSphere
+│   ├── aws/                # Amazon EC2
+│   ├── azure/              # Microsoft Azure
+│   ├── gcp/                # Google Cloud Platform
+│   ├── cost/               # Cost estimation and pricing
+│   ├── format/             # Format converters (VMDK→QCOW2/VHD/etc)
 │   └── ...
-├── logger/                # Structured logging
-├── docs/                  # Documentation
-├── .github/               # GitHub workflows
-└── tests/                 # Integration tests
+├── sdk/                     # Multi-language SDKs
+│   ├── python/             # Python SDK (pip installable)
+│   ├── typescript/         # TypeScript SDK (npm installable)
+│   └── openapi.yaml        # OpenAPI 3.0 specification
+├── examples/                # Ready-to-run examples
+│   ├── python/             # Python SDK examples
+│   ├── typescript/         # TypeScript SDK examples
+│   ├── bash/               # Shell script examples
+│   └── integrations/       # CI/CD integration examples
+├── docs/                    # Documentation (60+ files, 60,000+ words)
+│   ├── features/           # Feature-specific guides
+│   ├── QUICK_START.md      # Getting started guide
+│   ├── FEATURES_OVERVIEW.md # Complete feature catalog
+│   ├── FAQ.md              # 50+ Q&A
+│   ├── TROUBLESHOOTING.md  # 50+ solutions
+│   └── ...
+├── logger/                  # Structured logging
+├── .github/                 # GitHub workflows
+└── tests/                   # Integration tests
 ```
 
 ---
@@ -765,5 +908,33 @@ Thank you for contributing to HyperSDK! Your efforts help make VM migration easi
 
 ---
 
-*Last Updated: 2026-01-27*
+## Additional Resources
+
+### Documentation
+
+- [Quick Start Guide](docs/QUICK_START.md) - Get started in 5 minutes
+- [Features Overview](docs/FEATURES_OVERVIEW.md) - Complete feature catalog
+- [API Reference](docs/API_ENDPOINTS.md) - All 67+ API endpoints
+- [FAQ](docs/FAQ.md) - 50+ frequently asked questions
+- [Troubleshooting](docs/TROUBLESHOOTING.md) - 50+ common solutions
+- [Integration Guide](docs/INTEGRATION_GUIDE.md) - CI/CD integration examples
+- [Feature Timeline](docs/FEATURE_TIMELINE.md) - Development roadmap
+
+### Examples
+
+- [Python Examples](examples/python/) - SDK usage examples
+- [TypeScript Examples](examples/typescript/) - SDK usage examples
+- [Bash Examples](examples/bash/) - Shell script examples
+- [Examples Index](examples/EXAMPLES_INDEX.md) - Complete catalog
+
+### Community
+
+- **Issues**: https://github.com/ssahani/hypersdk/issues
+- **Discussions**: https://github.com/ssahani/hypersdk/discussions
+- **Releases**: https://github.com/ssahani/hypersdk/releases
+
+---
+
+*Last Updated: 2026-02-04 (v2.0.0)*
 *Maintainer: Susant Sahani <ssahani@gmail.com>*
+*Contributors: Community + Claude Sonnet 4.5*
