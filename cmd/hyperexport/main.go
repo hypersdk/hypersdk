@@ -671,6 +671,14 @@ func run(ctx context.Context, cfg *config.Config, log logger.Logger) error {
 		return showVMInfoCmd(ctx, client, *vmName, *quiet, log)
 	}
 
+	// Display incremental export analysis if requested
+	if *showIncrementalInfo {
+		if *vmName == "" {
+			return fmt.Errorf("VM name required for --incremental-info (use -vm flag)")
+		}
+		return showIncrementalInfo(ctx, client, *vmName, log)
+	}
+
 	// Show connection info panel (skip in quiet mode)
 	if !*quiet {
 		pterm.DefaultBox.WithTitle("Connection Info").
@@ -1319,6 +1327,11 @@ func run(ctx context.Context, cfg *config.Config, log logger.Logger) error {
 		if err := history.RecordExport(historyEntry); err != nil {
 			log.Warn("failed to record export in history", "error", err)
 		}
+	}
+
+	// Record incremental export metadata
+	if err := recordIncrementalExport(ctx, selectedVM, result, log); err != nil {
+		log.Warn("failed to record incremental export metadata", "error", err)
 	}
 
 	// Phase 6: Record migration completion

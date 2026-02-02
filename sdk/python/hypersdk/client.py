@@ -582,6 +582,63 @@ class HyperSDK:
             data["description"] = description
         self._request("POST", "/libvirt/snapshot/create", json=data)
 
+    # Incremental Export & Changed Block Tracking
+
+    def enable_cbt(self, vm_path: str) -> Dict[str, Any]:
+        """Enable Changed Block Tracking (CBT) on a VM.
+
+        Args:
+            vm_path: VM path
+
+        Returns:
+            Response with success status and message
+        """
+        return self._request("POST", "/cbt/enable", json={"vm_path": vm_path})
+
+    def disable_cbt(self, vm_path: str) -> Dict[str, Any]:
+        """Disable Changed Block Tracking (CBT) on a VM.
+
+        Args:
+            vm_path: VM path
+
+        Returns:
+            Response with success status and message
+        """
+        return self._request("POST", "/cbt/disable", json={"vm_path": vm_path})
+
+    def get_cbt_status(self, vm_path: str) -> Dict[str, Any]:
+        """Get CBT status and incremental export information for a VM.
+
+        Args:
+            vm_path: VM path
+
+        Returns:
+            CBT status including:
+                - cbt_enabled: Whether CBT is enabled
+                - disks: List of disk metadata
+                - last_export: Last export metadata (if any)
+                - can_incremental: Whether incremental export is possible
+                - reason: Reason why incremental is/isn't possible
+        """
+        return self._request("POST", "/cbt/status", json={"vm_path": vm_path})
+
+    def analyze_incremental_export(self, vm_path: str) -> Dict[str, Any]:
+        """Analyze incremental export potential for a VM.
+
+        Args:
+            vm_path: VM path
+
+        Returns:
+            Analysis including:
+                - can_incremental: Whether incremental export is possible
+                - reason: Reason why incremental is/isn't possible
+                - last_export: Last export metadata (if any)
+                - current_disks: Current disk metadata
+                - estimated_savings_bytes: Estimated savings from incremental export
+                - estimated_duration: Estimated duration
+        """
+        return self._request("POST", "/incremental/analyze", json={"vm_path": vm_path})
+
     # Hyper2KVM Integration
 
     def convert_vm(self, source_path: str, output_path: str) -> str:

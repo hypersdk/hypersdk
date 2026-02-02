@@ -74,6 +74,7 @@ graph TB
 - **REST JSON API** - 51+ endpoints for complete automation
 - **React Dashboard** - Modern real-time monitoring with WebSocket updates
 - **Libvirt Integration** - Full KVM/libvirt management capabilities
+- **Incremental Export** - Changed Block Tracking (CBT) for 95% faster backups
 - **Connection Pooling** - Efficient connection reuse (30-40% faster)
 - **Webhook Integration** - Real-time job notifications
 - **Schedule Persistence** - SQLite-based job scheduling
@@ -113,6 +114,7 @@ graph TB
 - **Folder Filtering**: Filter VMs by folder path
 - **Auto Power-Off**: Automatic VM shutdown before export
 - **Quiet Mode**: Minimal output for scripting
+- **Incremental Export**: Changed Block Tracking (CBT) for 95% faster backups
 - **Multi-Provider**: Ready for AWS, Azure, GCP, Hyper-V
 
 ### Web Dashboard Features

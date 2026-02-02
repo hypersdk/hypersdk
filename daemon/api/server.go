@@ -216,6 +216,12 @@ func NewServer(manager *jobs.Manager, detector *capabilities.Detector, log logge
 	mux.HandleFunc("/api/workflow/manifest/submit", s.ManifestSubmitHandler)
 	mux.HandleFunc("/api/workflow/manifest/validate", s.ManifestValidateHandler)
 
+	// Incremental Export & Changed Block Tracking
+	mux.HandleFunc("/cbt/enable", s.handleEnableCBT)
+	mux.HandleFunc("/cbt/disable", s.handleDisableCBT)
+	mux.HandleFunc("/cbt/status", s.handleCBTStatus)
+	mux.HandleFunc("/incremental/analyze", s.handleIncrementalAnalysis)
+
 	// Console & Display
 	mux.HandleFunc("/console/info", s.handleGetConsoleInfo)
 	mux.HandleFunc("/console/vnc", s.handleVNCProxy)

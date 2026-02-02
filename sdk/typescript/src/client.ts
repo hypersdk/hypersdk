@@ -384,6 +384,47 @@ export class HyperSDK {
     });
   }
 
+  // Incremental Export & Changed Block Tracking
+
+  async enableCBT(vmPath: string): Promise<{ success: boolean; message: string; error?: string }> {
+    return this.request('POST', '/cbt/enable', {
+      body: { vm_path: vmPath },
+    });
+  }
+
+  async disableCBT(vmPath: string): Promise<{ success: boolean; message: string; error?: string }> {
+    return this.request('POST', '/cbt/disable', {
+      body: { vm_path: vmPath },
+    });
+  }
+
+  async getCBTStatus(vmPath: string): Promise<{
+    vm_path: string;
+    cbt_enabled: boolean;
+    disks: any[];
+    last_export?: any;
+    can_incremental: boolean;
+    reason?: string;
+  }> {
+    return this.request('POST', '/cbt/status', {
+      body: { vm_path: vmPath },
+    });
+  }
+
+  async analyzeIncrementalExport(vmPath: string): Promise<{
+    vm_path: string;
+    can_incremental: boolean;
+    reason: string;
+    last_export?: any;
+    current_disks: any[];
+    estimated_savings_bytes: number;
+    estimated_duration: string;
+  }> {
+    return this.request('POST', '/incremental/analyze', {
+      body: { vm_path: vmPath },
+    });
+  }
+
   // Hyper2KVM Integration
 
   async convertVM(sourcePath: string, outputPath: string): Promise<string> {
