@@ -224,17 +224,7 @@ func (rm *RetryManager) calculateBackoff(policy *models.RetryPolicy, attempt int
 	return delay
 }
 
-// fibonacci calculates the nth Fibonacci number
-func fibonacci(n int) int {
-	if n <= 1 {
-		return n
-	}
-	a, b := 0, 1
-	for i := 2; i <= n; i++ {
-		a, b = b, a+b
-	}
-	return b
-}
+// fibonacci is defined in advanced.go to avoid duplication
 
 // GetRetryAttempt returns the retry attempt for a job
 func (rm *RetryManager) GetRetryAttempt(jobID string) (*RetryAttempt, bool) {
