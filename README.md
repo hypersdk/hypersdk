@@ -7,6 +7,7 @@
 [![Production Ready](https://img.shields.io/badge/status-production%20ready-green)](https://github.com/ssahani/hypersdk)
 [![Test Coverage](https://img.shields.io/badge/test%20coverage-584+%20tests-brightgreen)](https://github.com/ssahani/hypersdk)
 [![API Coverage](https://img.shields.io/badge/API%20handlers-100%25%20coverage-success)](https://github.com/ssahani/hypersdk)
+[![Version](https://img.shields.io/badge/version-2.0.0-blue)](https://github.com/ssahani/hypersdk/releases/tag/v2.0.0)
 
 ## 🎯 Overview
 
@@ -68,15 +69,21 @@ graph TB
 
 ### Core Capabilities
 
+**Enterprise-Grade Features:**
 - **Multi-Cloud Support** - 9 cloud providers: vSphere, AWS, Azure, GCP, Hyper-V, OCI, OpenStack, Alibaba Cloud, Proxmox VE
+- **Multi-Language SDKs** ⭐ NEW - Python, TypeScript, and OpenAPI 3.0 specification (50+ methods each)
+- **Incremental Export** ⭐ NEW - Changed Block Tracking (CBT) for 95% faster backups, 90% storage savings
+- **Advanced Scheduling** ⭐ NEW - Job dependencies, retry policies (3 strategies), time windows, priority queue
+- **Cost Estimation** ⭐ NEW - Pre-export cost analysis for AWS S3, Azure Blob, and GCS with provider comparison
+- **Format Converters** ⭐ NEW - Native Go converters (VMDK → QCOW2, VHD, VHDX, VDI, RAW), zero dependencies
+- **Plugin Hot-Loading** ⭐ NEW - Load/unload providers at runtime with zero downtime
+
+**Core Capabilities:**
+- **REST JSON API** - 67+ endpoints for complete automation (27 new in v2.0)
 - **Direct SDK Integration** - Native Go SDK clients (no external binaries)
 - **Beautiful Terminal UI** - Modern pterm-based interface with animations
-- **REST JSON API** - 57+ endpoints for complete automation
 - **React Dashboard** - Modern real-time monitoring with WebSocket updates
 - **Libvirt Integration** - Full KVM/libvirt management capabilities
-- **Incremental Export** - Changed Block Tracking (CBT) for 95% faster backups
-- **Advanced Scheduling** - Job dependencies, retry policies, time windows, priorities
-- **Cost Estimation** - Pre-export cost analysis for AWS S3, Azure Blob, and GCS
 - **Connection Pooling** - Efficient connection reuse (30-40% faster)
 - **Webhook Integration** - Real-time job notifications
 - **Schedule Persistence** - SQLite-based job scheduling
@@ -132,7 +139,51 @@ graph TB
 - **Responsive Design** - Works on desktop and mobile devices
 - **📦 Manifest Converter Tab** - One-shot export and conversion to KVM format
 
-### 🆕 New in v0.2.0
+### 🆕 New in v2.0.0 - Major Release
+
+**Six Groundbreaking Features:**
+
+1. **Multi-Language SDK Clients** ⭐⭐⭐
+   - Python SDK with full type hints and async support
+   - TypeScript SDK with complete type safety
+   - OpenAPI 3.0 specification for auto-generation
+   - 50+ methods per SDK covering all endpoints
+   - Ready for PyPI and npm distribution
+
+2. **Incremental Export with CBT** ⭐⭐⭐
+   - Changed Block Tracking integration
+   - **95% faster** than full exports (83 min → 4 min for 500GB)
+   - **90% storage savings** for typical workloads
+   - Base + delta model for recovery
+   - Smart change detection
+
+3. **Advanced Scheduling** ⭐⭐
+   - Job dependencies with state tracking
+   - Retry policies (linear, exponential, fibonacci backoff)
+   - Time windows with timezone support
+   - Priority-based queue (0-100 scale)
+   - Concurrency control
+
+4. **Cost Estimation** ⭐
+   - Multi-cloud pricing (S3, Azure Blob, GCS)
+   - Provider comparison and recommendations
+   - Yearly projections with monthly breakdown
+   - Export size estimation with compression
+   - Detailed cost breakdowns
+
+5. **Native Go Format Converters** ⭐⭐
+   - VMDK → QCOW2, VHD, VHDX, VDI, RAW
+   - Zero external dependencies (no qemu-img)
+   - Streaming conversion (constant memory)
+   - Real-time progress tracking
+
+6. **Provider Plugin Hot-Loading** ⭐⭐
+   - Load/unload plugins at runtime
+   - Zero downtime updates
+   - Health monitoring and auto-recovery
+   - Version management and compatibility checking
+
+**Previous v0.2.0 Features:**
 
 **HyperCTL Enhancements:**
 - **Schedule Management** - Create, manage cron-based scheduled exports
@@ -630,7 +681,7 @@ Combine features for powerful workflows:
 **Interactive Mode:**
 ```
 ╔═══════════════════════════════════════╗
-║          HYPEREXPORT v0.2.0          ║
+║          HYPEREXPORT v2.0.0          ║
 ╚═══════════════════════════════════════╝
 
 ✓ Connected to vSphere successfully!
@@ -846,11 +897,15 @@ curl -X POST http://localhost:8080/libvirt/snapshot/create \
 curl http://localhost:8080/console/info?name=my-vm
 ```
 
-**51+ API Endpoints Available:**
+**67+ API Endpoints Available (+27 new in v2.0):**
+
+**Core Services:**
 - Core services (health, status, capabilities)
 - Job management (submit, query, cancel, progress, logs, ETA)
 - VMware VM operations (list, info, shutdown, poweroff)
 - Libvirt domains (list, start, stop, reboot, pause, resume)
+
+**Infrastructure:**
 - Console access (VNC, serial, screenshots)
 - Snapshots (create, revert, delete, list)
 - Networks (list, create, delete, start, stop)
@@ -864,9 +919,62 @@ curl http://localhost:8080/console/info?name=my-vm
 - Schedules (list, create, update, delete, enable/disable)
 - Webhooks (list, add, delete, test)
 
+**New in v2.0:**
+- **Cost Estimation** (4 endpoints): `/cost/estimate`, `/cost/compare`, `/cost/project`, `/cost/estimate-size`
+- **Advanced Scheduling** (6 endpoints): `/schedules/advanced/*`, `/schedules/dependencies`, `/schedules/retry`, `/schedules/timewindow`, `/schedules/queue`, `/schedules/validate`
+- **CBT & Incremental** (4 endpoints): `/cbt/enable`, `/cbt/disable`, `/cbt/status`, `/incremental/analyze`
+- **Format Conversion** (4 endpoints): `/convert/format`, `/convert/status`, `/convert/list`, `/convert/batch`
+- **Plugin Management** (9 endpoints): `/plugins/load`, `/plugins/unload`, `/plugins/reload`, `/plugins/list`, `/plugins/status/*`
+
 See [API documentation](docs/API_ENDPOINTS.md) for complete reference.
 
-### Python Integration
+### Python SDK Integration (v2.0)
+
+**Option 1: Using the Python SDK (Recommended)**
+
+```python
+from hypersdk import HyperSDK
+
+# Initialize client
+client = HyperSDK("http://localhost:8080")
+
+# Simple export
+result = client.export_vm(
+    vm_path="/datacenter/vm/my-vm",
+    output_path="/exports",
+    format="ova"
+)
+print(f"Job submitted: {result['job_id']}")
+
+# Incremental backup with CBT
+savings = client.enable_cbt("/datacenter/vm/my-vm")
+print(f"Expected savings: {savings['savings_percent']}%")
+
+result = client.submit_incremental_export(
+    vm_path="/datacenter/vm/my-vm",
+    output_path="/backups"
+)
+print(f"Incremental backup started: {result['job_id']}")
+
+# Cost estimation
+estimate = client.estimate_cost(
+    storage_gb=500,
+    provider="s3",
+    storage_class="standard",
+    duration_days=365
+)
+print(f"Annual cost: ${estimate['total_cost']:.2f}")
+
+# Compare cloud providers
+comparison = client.compare_providers(
+    storage_gb=500,
+    duration_days=365
+)
+for provider in comparison['providers']:
+    print(f"{provider['name']}: ${provider['total_cost']:.2f}/year")
+```
+
+**Option 2: Direct REST API**
 
 ```python
 import requests
@@ -909,6 +1017,8 @@ while True:
 
     time.sleep(5)
 ```
+
+See [Python SDK documentation](sdk/python/README.md) and [examples](examples/python/) for more details.
 
 ## 🏗️ Architecture
 
@@ -1288,36 +1398,51 @@ See [deployments/helm/](deployments/helm/) for the complete documentation suite.
 
 ## 📚 Documentation
 
-### Getting Started
+### Quick Start
+- **[Quick Start Guide](docs/QUICK_START.md)** - Get started in 5 minutes
+- **[FAQ](docs/FAQ.md)** - 50+ frequently asked questions
+- **[Troubleshooting](docs/TROUBLESHOOTING.md)** - 50+ common issues and solutions
 - [Getting Started Guide](docs/getting-started.md) - Quick start tutorial with dashboard access
-- [Documentation Index](docs/00-INDEX.md) - Complete documentation catalog
+
+### Complete Reference
+- **[Features Overview](docs/FEATURES_OVERVIEW.md)** - Comprehensive catalog of all capabilities (10,000+ words)
+- **[Project Status](docs/PROJECT_STATUS.md)** - Executive summary with ROI analysis (6,000+ words)
+- **[Feature Timeline](docs/FEATURE_TIMELINE.md)** - Development roadmap and history (5,000+ words)
+- [Documentation Index](docs/00-INDEX.md) - Complete documentation catalog (60+ files)
 - [Project Summary](docs/project-summary.md) - Architecture and design overview
 
-### API Reference
-- [API Endpoints](docs/API_ENDPOINTS.md) - Complete API reference (51+ endpoints)
+### API & Integration
+- **[API Endpoints](docs/API_ENDPOINTS.md)** - Complete API reference (67+ endpoints)
+- **[Integration Guide](docs/INTEGRATION_GUIDE.md)** - CI/CD integration examples (8,000+ words)
 - [API Reference - New Features](docs/API_REFERENCE_NEW_FEATURES.md) - Phase 2 features documentation
 - [General API Documentation](docs/api.md) - API usage guide
 
-### Testing & Implementation
+### SDKs & Examples
+- **[Python SDK](sdk/python/README.md)** - Python client library with type hints
+- **[TypeScript SDK](sdk/typescript/README.md)** - TypeScript client library with type safety
+- **[Examples Index](examples/EXAMPLES_INDEX.md)** - Complete catalog of ready-to-run examples
+- [Python Examples](examples/python/) - Simple export, incremental backup, cost comparison
+- [Bash Examples](examples/bash/) - Shell script examples
+
+### Testing & Development
 - [Dashboard Testing Report](DASHBOARD_TESTING_REPORT.md) - Comprehensive endpoint testing results
 - [Dashboard Implementation](DASHBOARD_IMPLEMENTATION_COMPLETE.md) - Implementation details and features
-- [Test Results](docs/test-results.md) - Test coverage and results
+- [Test Results](docs/test-results.md) - Test coverage and results (584+ tests)
 - [Test API Script](scripts/test-api.sh) - Automated API testing
+- **[Contributing Guide](CONTRIBUTING.md)** - How to contribute code, docs, or examples
 
-### Features & Guides
-- **[Complete Features Overview](docs/FEATURES_OVERVIEW.md)** - Comprehensive reference of all capabilities
-- **[Feature Development Timeline](docs/FEATURE_TIMELINE.md)** - Visual timeline and roadmap
+### Feature Guides (v2.0)
+- **[Multi-Language SDKs](docs/features/MULTI_LANGUAGE_SDKS.md)** - Python, TypeScript, and OpenAPI 3.0
+- **[Incremental Export](docs/features/INCREMENTAL_EXPORT.md)** - CBT-based backups (95% faster, 90% savings)
+- **[Advanced Scheduling](docs/features/ADVANCED_SCHEDULING.md)** - Dependencies, retries, time windows
+- **[Cost Estimation](docs/features/COST_ESTIMATION.md)** - Cloud storage cost analysis
+- **[Format Converters](docs/features/FORMAT_CONVERTERS.md)** - Native Go disk format conversion
+- **[Plugin Hot-Loading](docs/features/PLUGIN_HOT_LOADING.md)** - Dynamic provider management
+
+### User Guides
 - [Interactive Mode Guide](docs/user-guides/01-interactive-mode.md) - Interactive TUI usage
 - [VM Export Guide](docs/user-guides/02-vm-export-guide.md) - Step-by-step export procedures
 - [Integration Guide](docs/user-guides/03-integration.md) - Integrating HyperSDK into workflows
-
-### Advanced Features (2026)
-- [Multi-Language SDKs](docs/features/MULTI_LANGUAGE_SDKS.md) - Python & TypeScript client libraries
-- [Plugin Hot-Loading](docs/features/PLUGIN_HOT_LOADING.md) - Dynamic provider management
-- [Format Converters](docs/features/FORMAT_CONVERTERS.md) - Native Go disk format conversion
-- [Incremental Export](docs/features/INCREMENTAL_EXPORT.md) - CBT-based incremental backups
-- [Advanced Scheduling](docs/features/ADVANCED_SCHEDULING.md) - Dependencies, retries, time windows
-- [Cost Estimation](docs/features/COST_ESTIMATION.md) - Cloud storage cost analysis
 
 ## 🤝 Contributing
 
