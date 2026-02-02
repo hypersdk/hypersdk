@@ -1305,9 +1305,19 @@ See [deployments/helm/](deployments/helm/) for the complete documentation suite.
 - [Test API Script](scripts/test-api.sh) - Automated API testing
 
 ### Features & Guides
+- **[Complete Features Overview](docs/FEATURES_OVERVIEW.md)** - Comprehensive reference of all capabilities
+- **[Feature Development Timeline](docs/FEATURE_TIMELINE.md)** - Visual timeline and roadmap
 - [Interactive Mode Guide](docs/user-guides/01-interactive-mode.md) - Interactive TUI usage
 - [VM Export Guide](docs/user-guides/02-vm-export-guide.md) - Step-by-step export procedures
 - [Integration Guide](docs/user-guides/03-integration.md) - Integrating HyperSDK into workflows
+
+### Advanced Features (2026)
+- [Multi-Language SDKs](docs/features/MULTI_LANGUAGE_SDKS.md) - Python & TypeScript client libraries
+- [Plugin Hot-Loading](docs/features/PLUGIN_HOT_LOADING.md) - Dynamic provider management
+- [Format Converters](docs/features/FORMAT_CONVERTERS.md) - Native Go disk format conversion
+- [Incremental Export](docs/features/INCREMENTAL_EXPORT.md) - CBT-based incremental backups
+- [Advanced Scheduling](docs/features/ADVANCED_SCHEDULING.md) - Dependencies, retries, time windows
+- [Cost Estimation](docs/features/COST_ESTIMATION.md) - Cloud storage cost analysis
 
 ## 🤝 Contributing
 
