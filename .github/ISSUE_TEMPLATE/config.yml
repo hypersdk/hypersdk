@@ -1,0 +1,17 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 💬 Discussions
+    url: https://github.com/ssahani/hypersdk/discussions
+    about: Ask questions and discuss ideas with the community
+  - name: 📚 Documentation
+    url: https://github.com/ssahani/hypersdk/tree/main/docs
+    about: Read the comprehensive documentation
+  - name: 🚀 Quick Start Guide
+    url: https://github.com/ssahani/hypersdk/blob/main/docs/QUICK_START.md
+    about: Get started with HyperSDK in 5 minutes
+  - name: ❓ FAQ
+    url: https://github.com/ssahani/hypersdk/blob/main/docs/FAQ.md
+    about: Check frequently asked questions (50+ Q&A)
+  - name: 🔧 Troubleshooting
+    url: https://github.com/ssahani/hypersdk/blob/main/docs/TROUBLESHOOTING.md
+    about: Find solutions to common problems
