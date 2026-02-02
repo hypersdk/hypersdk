@@ -11,12 +11,13 @@ import (
 type ProviderType string
 
 const (
-	ProviderVSphere ProviderType = "vsphere"
-	ProviderAWS     ProviderType = "aws"
-	ProviderAzure   ProviderType = "azure"
-	ProviderGCP     ProviderType = "gcp"
-	ProviderHyperV  ProviderType = "hyperv"
-	ProviderProxmox ProviderType = "proxmox"
+	ProviderVSphere  ProviderType = "vsphere"
+	ProviderAWS      ProviderType = "aws"
+	ProviderAzure    ProviderType = "azure"
+	ProviderGCP      ProviderType = "gcp"
+	ProviderHyperV   ProviderType = "hyperv"
+	ProviderProxmox  ProviderType = "proxmox"
+	ProviderKubeVirt ProviderType = "kubevirt"
 )
 
 // Provider defines the unified interface for all virtualization/cloud providers

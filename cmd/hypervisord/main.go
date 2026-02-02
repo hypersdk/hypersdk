@@ -22,6 +22,7 @@ import (
 	"hypersdk/daemon/webhooks"
 	"hypersdk/logger"
 	"hypersdk/providers"
+	"hypersdk/providers/kubevirt"
 	"hypersdk/providers/proxmox"
 	"hypersdk/providers/vsphere"
 )
@@ -180,6 +181,11 @@ func main() {
 	// Register Proxmox provider (Phase 4.5 completion)
 	providerRegistry.Register(providers.ProviderProxmox, func(cfg providers.ProviderConfig) (providers.Provider, error) {
 		return proxmox.NewProvider(cfg, log)
+	})
+
+	// Register KubeVirt provider (Kubernetes integration)
+	providerRegistry.Register(providers.ProviderKubeVirt, func(cfg providers.ProviderConfig) (providers.Provider, error) {
+		return kubevirt.NewProvider(cfg, log)
 	})
 
 	pterm.Success.Printfln("Provider registry initialized (%d providers)", len(providerRegistry.ListProviders()))
