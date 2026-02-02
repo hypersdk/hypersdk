@@ -267,7 +267,7 @@ func (ms *MetadataStore) GetLatestExport(vmID string) (*ExportMetadata, error) {
 	var latestTime time.Time
 
 	for _, entry := range entries {
-		if entry.IsDir() || !filepath.Ext(entry.Name()) == ".json" {
+		if entry.IsDir() || filepath.Ext(entry.Name()) != ".json" {
 			continue
 		}
 

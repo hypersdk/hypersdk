@@ -44,9 +44,10 @@ type JobDefinition struct {
 	Format       string         `json:"format,omitempty" yaml:"format,omitempty"`               // Export format: qcow2, raw, vmdk, ova
 	ExportMethod string         `json:"export_method,omitempty" yaml:"export_method,omitempty"` // ctl, govc, ovftool, web, or "" for auto
 	Method       string         `json:"method,omitempty" yaml:"method,omitempty"`               // Alias for ExportMethod (web API compatibility)
-	Compress     bool           `json:"compress,omitempty" yaml:"compress,omitempty"`
-	Thin         bool           `json:"thin,omitempty" yaml:"thin,omitempty"`
-	CreatedAt    time.Time      `json:"created_at" yaml:"created_at"`
+	Compress     bool                   `json:"compress,omitempty" yaml:"compress,omitempty"`
+	Thin         bool                   `json:"thin,omitempty" yaml:"thin,omitempty"`
+	CreatedAt    time.Time              `json:"created_at" yaml:"created_at"`
+	Metadata     map[string]interface{} `json:"metadata,omitempty" yaml:"metadata,omitempty"` // Additional metadata (e.g., carbon-aware settings)
 }
 
 // Redacted returns a copy of JobDefinition with sensitive fields redacted for logging
