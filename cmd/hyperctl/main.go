@@ -231,6 +231,18 @@ func main() {
 	daemonInstance := daemonCmd.String("instance", "", "Daemon instance name (for status)")
 	daemonJSON := daemonCmd.Bool("json", false, "JSON output")
 
+	// Carbon Commands
+	carbonCmd := flag.NewFlagSet("carbon", flag.ExitOnError)
+	carbonOperation := carbonCmd.String("op", "status", "Operation: status, report, zones, estimate")
+	carbonZone := carbonCmd.String("zone", "US-CAL-CISO", "Carbon zone (e.g., US-CAL-CISO, SE)")
+	carbonThreshold := carbonCmd.Float64("threshold", 200.0, "Carbon intensity threshold (gCO2/kWh)")
+	carbonJobID := carbonCmd.String("job", "", "Job ID (for report)")
+	carbonStartTime := carbonCmd.String("start", "", "Start time (for report, RFC3339 format)")
+	carbonEndTime := carbonCmd.String("end", "", "End time (for report, RFC3339 format)")
+	carbonDataSize := carbonCmd.Float64("data", 0, "Data size in GB (for report/estimate)")
+	carbonDuration := carbonCmd.Float64("hours", 2.0, "Duration in hours (for estimate)")
+	carbonJSON := carbonCmd.Bool("json", false, "JSON output")
+
 	// Parse global flags
 	flag.Parse()
 
@@ -427,6 +439,49 @@ func main() {
 		default:
 			pterm.Error.Printfln("Unknown daemon operation: %s", *daemonOperation)
 			pterm.Info.Println("Available operations: status, list")
+			os.Exit(1)
+		}
+
+	case "carbon":
+		carbonCmd.Parse(os.Args[2:])
+		switch *carbonOperation {
+		case "status":
+			handleCarbonStatus(*daemonURL, *carbonZone, *carbonThreshold, *carbonJSON)
+		case "report":
+			if *carbonJobID == "" || *carbonDataSize == 0 || *carbonStartTime == "" || *carbonEndTime == "" {
+				pterm.Error.Println("For report: -job, -data, -start, and -end are required")
+				pterm.Info.Println("Example: hyperctl carbon -op report -job job-123 -data 500 -start 2026-02-04T10:00:00Z -end 2026-02-04T12:00:00Z -zone US-CAL-CISO")
+				os.Exit(1)
+			}
+			start, err := parseTime(*carbonStartTime)
+			if err != nil {
+				pterm.Error.Printfln("Invalid start time: %v", err)
+				os.Exit(1)
+			}
+			end, err := parseTime(*carbonEndTime)
+			if err != nil {
+				pterm.Error.Printfln("Invalid end time: %v", err)
+				os.Exit(1)
+			}
+			handleCarbonReport(*daemonURL, *carbonJobID, *carbonZone, start, end, *carbonDataSize, *carbonJSON)
+		case "zones":
+			handleCarbonZones(*daemonURL, *carbonJSON)
+		case "estimate":
+			if *carbonDataSize == 0 {
+				pterm.Error.Println("For estimate: -data is required")
+				pterm.Info.Println("Example: hyperctl carbon -op estimate -zone US-CAL-CISO -data 500 -hours 2")
+				os.Exit(1)
+			}
+			handleCarbonEstimate(*daemonURL, *carbonZone, *carbonDataSize, *carbonDuration, *carbonJSON)
+		default:
+			pterm.Error.Printfln("Unknown carbon operation: %s", *carbonOperation)
+			pterm.Info.Println("Available operations: status, report, zones, estimate")
+			pterm.Println()
+			pterm.Info.Println("Examples:")
+			pterm.Println("  hyperctl carbon -op status -zone US-CAL-CISO")
+			pterm.Println("  hyperctl carbon -op zones")
+			pterm.Println("  hyperctl carbon -op estimate -zone US-CAL-CISO -data 500 -hours 2")
+			pterm.Println("  hyperctl carbon -op report -job job-123 -data 500 -start 2026-02-04T10:00:00Z -end 2026-02-04T12:00:00Z -zone US-CAL-CISO")
 			os.Exit(1)
 		}
 
@@ -646,6 +701,24 @@ func showUsage() {
 		WithHeaderRowSeparator("-").
 		WithBoxed().
 		WithData(daemonCommands).
+		Render()
+
+	pterm.Println()
+
+	// Carbon-Aware Scheduling
+	pterm.DefaultSection.Println("🌿 Carbon-Aware Scheduling (NEW)")
+	carbonCommands := [][]string{
+		{"Command", "Description", "Example"},
+		{"carbon -op status", "Check grid carbon status", "hyperctl carbon -op status -zone US-CAL-CISO"},
+		{"carbon -op zones", "List available carbon zones", "hyperctl carbon -op zones"},
+		{"carbon -op estimate", "Estimate carbon savings", "hyperctl carbon -op estimate -zone US-CAL-CISO -data 500 -hours 2"},
+		{"carbon -op report", "Generate carbon report for job", "hyperctl carbon -op report -job job-123 -data 500 -start 2026-02-04T10:00:00Z -end 2026-02-04T12:00:00Z -zone US-CAL-CISO"},
+	}
+	pterm.DefaultTable.
+		WithHasHeader().
+		WithHeaderRowSeparator("-").
+		WithBoxed().
+		WithData(carbonCommands).
 		Render()
 
 	pterm.Println()
