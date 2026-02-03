@@ -419,18 +419,49 @@ GET /api/k8s/aggregated-metrics
 
 ### Priority 4: Additional VM Features ⭐
 
-#### 4.1 GPU Passthrough
-**Estimated Effort**: 8-10 hours
+#### 4.1 GPU Passthrough ✅ **IMPLEMENTED**
+
+**Status**: ✅ **COMPLETE** (2026-02-05)
 
 **Features**:
-- GPU device assignment to VMs
-- GPU resource scheduling
-- Multi-GPU support
-- GPU sharing
+```bash
+# Create VM with 1 NVIDIA GPU
+hyperctl k8s -op vm-create -vm gpu-vm --cpus 8 --memory 32Gi --gpus 1 --gpu-vendor nvidia
+
+# Create VM with 2 AMD GPUs
+hyperctl k8s -op vm-create -vm ml-workload --cpus 16 --memory 64Gi --gpus 2 --gpu-vendor amd --gpu-model "Radeon MI100"
+
+# Interactive mode with GPU prompts
+hyperctl k8s -op vm-create --interactive
+```
+
+**Implementation**:
+- ✅ GPU device assignment to VMs
+- ✅ Multi-GPU support (1-8 GPUs)
+- ✅ GPU vendor selection (NVIDIA, AMD, Intel)
+- ✅ GPU model specification
+- ✅ Full GPU passthrough mode (exclusive access)
+- ✅ Virtual GPU (vGPU) mode support
+- ✅ Kubernetes GPU device plugin integration
+- ✅ CLI flags for GPU configuration
+- ✅ Interactive mode GPU prompts
+- ✅ GPU status monitoring fields (utilization, memory, temp, power)
+
+**Supported Vendors**:
+- NVIDIA (nvidia.com/gpu)
+- AMD (amd.com/gpu)
+- Intel (gpu.intel.com/i915)
 
 **Requirements**:
-- GPU operator
-- Device plugin framework
+- GPU operator (NVIDIA GPU Operator, AMD GPU Operator, etc.)
+- GPU device plugin installed in cluster
+- Nodes with GPU hardware
+
+**Use Cases**:
+- Machine learning training and inference
+- Scientific computing and simulations
+- Video rendering and encoding
+- CAD and 3D modeling
 
 ---
 
@@ -627,6 +658,7 @@ hyperctl k8s -op vm-clone-from-snapshot -snapshot my-snapshot -target new-vm -na
 8. ✅ Multi-cluster support (DONE)
 9. ✅ VNC/Serial console support (DONE)
 10. ✅ VM cloning from snapshots (DONE)
+11. ✅ GPU passthrough support (DONE)
 
 ### Next: v2.2.1 - Testing & Quality
 **Focus: Verification & Testing**
