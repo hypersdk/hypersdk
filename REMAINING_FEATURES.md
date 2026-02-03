@@ -197,19 +197,44 @@ Create VM 'my-vm' with 4 CPUs and 8Gi memory? (Y/n): y
 
 ### Priority 2: Dashboard Enhancements ⭐⭐
 
-#### 2.1 Historical Trend Data
-**Estimated Effort**: 4-5 hours
+#### 2.1 Historical Trend Data ✅ **IMPLEMENTED**
+
+**Status**: ✅ **COMPLETE** (2026-02-05)
 
 **Features**:
-- Store metrics data (30+ days)
-- Historical charts for VM count, resources, carbon intensity
-- Compare trends over time
-- Export historical data
+```bash
+# Get historical data (default: 24h)
+GET /api/k8s/history?timeRange=24h
+
+# Time range options: 1h, 6h, 24h, 7d, 30d
+GET /api/k8s/history?timeRange=30d&format=csv&download=true
+
+# Get aggregated trends
+GET /api/k8s/trends?timeRange=7d
+```
 
 **Implementation**:
-- Add metrics storage backend (SQLite or PostgreSQL)
-- Extend API with time-range queries
-- Update charts to show historical data
+- ✅ SQLite-based metrics storage (./data/metrics_history.db)
+- ✅ 30-day retention with automatic cleanup
+- ✅ Snapshot recording every 5 minutes
+- ✅ Time-range queries (1h to 30d)
+- ✅ Trend analysis with aggregations (avg, min, max)
+- ✅ CSV export for historical data
+- ✅ Custom time range support (RFC3339)
+- ✅ Graceful degradation if DB unavailable
+
+**Data Stored**:
+- VM counts (total, running, stopped, failed)
+- Backup/restore statistics
+- Resource usage (CPUs, memory)
+- Carbon intensity metrics
+- Full raw metrics as JSON
+
+**Trend Analysis**:
+- Average/min/max VMs over period
+- Average resource utilization
+- Carbon trends
+- Total backups/restores in period
 
 ---
 
@@ -508,6 +533,7 @@ GET /api/k8s/vms
 4. ✅ Progress bars for operations (DONE)
 5. ✅ Interactive mode for CLI (DONE)
 6. ✅ Export to CSV/JSON (DONE)
+7. ✅ Historical trend data (DONE)
 
 ### Next: v2.2.1 - Testing & Quality
 **Focus: Verification & Testing**
