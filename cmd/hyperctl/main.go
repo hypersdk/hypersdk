@@ -281,6 +281,8 @@ func main() {
 	k8sWait := k8sCmd.Bool("wait", false, "Wait for operation to complete")
 	k8sShowProgress := k8sCmd.Bool("show-progress", false, "Show progress bar (requires --wait)")
 	k8sTimeout := k8sCmd.Int("timeout", 300, "Operation timeout in seconds (default: 300)")
+	// Interactive mode
+	k8sInteractive := k8sCmd.Bool("interactive", false, "Interactive mode with prompts")
 
 	// Parse global flags
 	flag.Parse()
@@ -571,12 +573,13 @@ func main() {
 
 		// VM Management Operations
 		case "vm-create":
-			if *k8sVMName == "" {
-				pterm.Error.Println("VM name required (-vm)")
+			if !*k8sInteractive && *k8sVMName == "" {
+				pterm.Error.Println("VM name required (-vm) or use --interactive")
 				pterm.Info.Println("Example: hyperctl k8s -op vm-create -vm my-vm -cpus 4 -memory 8Gi -image ubuntu:22.04")
+				pterm.Info.Println("Or:      hyperctl k8s -op vm-create --interactive")
 				os.Exit(1)
 			}
-			handleVMCreate(*k8sKubeconfig, *k8sNamespace, *k8sVMName, *k8sCPUs, *k8sMemory, *k8sImage, *k8sTemplate, *k8sOutput)
+			handleVMCreate(*k8sKubeconfig, *k8sNamespace, *k8sVMName, *k8sCPUs, *k8sMemory, *k8sImage, *k8sTemplate, *k8sOutput, *k8sInteractive)
 		case "vm-list":
 			handleVMList(*k8sKubeconfig, *k8sNamespace, *k8sAllNamespaces, *k8sOutput, *k8sWatch,
 				*k8sFilterStatus, *k8sFilterNode, *k8sFilterLabels, *k8sFilterMinCPUs, *k8sFilterMinMemory)
@@ -702,6 +705,7 @@ func main() {
 			pterm.Info.Println("Examples:")
 			pterm.Println("  hyperctl k8s -op status")
 			pterm.Println("  hyperctl k8s -op vm-list -namespace default")
+			pterm.Println("  hyperctl k8s -op vm-create --interactive")
 			pterm.Println("  hyperctl k8s -op vm-create -vm ubuntu-vm-1 -cpus 4 -memory 8Gi -image ubuntu:22.04")
 			pterm.Println("  hyperctl k8s -op vm-start -vm ubuntu-vm-1")
 			pterm.Println("  hyperctl k8s -op vm-clone -vm my-vm -target my-vm-clone")
@@ -975,6 +979,7 @@ func showUsage() {
 	pterm.DefaultSection.Println("🖥️  VM Management (Kubernetes)")
 	vmMgmtCommands := [][]string{
 		{"Command", "Description", "Example"},
+		{"k8s -op vm-create --interactive", "Create VM (wizard mode)", "hyperctl k8s -op vm-create --interactive"},
 		{"k8s -op vm-create", "Create VirtualMachine", "hyperctl k8s -op vm-create -vm my-vm -cpus 4 -memory 8Gi"},
 		{"k8s -op vm-list", "List VirtualMachines", "hyperctl k8s -op vm-list -namespace default"},
 		{"k8s -op vm-get", "Get VM details", "hyperctl k8s -op vm-get -vm my-vm"},

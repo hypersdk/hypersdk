@@ -8,8 +8,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"time"
 
+	"github.com/AlecAivazis/survey/v2"
 	"github.com/pterm/pterm"
 	"gopkg.in/yaml.v3"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -24,7 +26,110 @@ import (
 )
 
 // handleVMCreate creates a new VM manifest
-func handleVMCreate(kubeconfig, namespace, name string, cpus int, memory, image, template, output string) {
+func handleVMCreate(kubeconfig, namespace, name string, cpus int, memory, image, template, output string, interactive bool) {
+	// If interactive mode, prompt for all parameters
+	if interactive {
+		pterm.DefaultHeader.WithFullWidth().Println("Interactive VM Creation Wizard")
+		pterm.Println()
+
+		// Prompt for VM name
+		if name == "" {
+			namePrompt := &survey.Input{
+				Message: "VM Name:",
+				Help:    "Enter a unique name for your virtual machine",
+			}
+			survey.AskOne(namePrompt, &name, survey.WithValidator(survey.Required))
+		}
+
+		// Prompt for namespace
+		if namespace == "" || namespace == "default" {
+			nsPrompt := &survey.Input{
+				Message: "Namespace:",
+				Default: "default",
+				Help:    "Kubernetes namespace for the VM",
+			}
+			survey.AskOne(nsPrompt, &namespace)
+		}
+
+		// Prompt for CPUs
+		if cpus == 2 {
+			cpuInput := ""
+			cpuPrompt := &survey.Input{
+				Message: "Number of CPUs:",
+				Default: "2",
+				Help:    "Number of virtual CPU cores (e.g., 2, 4, 8)",
+			}
+			survey.AskOne(cpuPrompt, &cpuInput)
+			if cpuInput != "" {
+				if parsed, err := strconv.Atoi(cpuInput); err == nil {
+					cpus = parsed
+				}
+			}
+		}
+
+		// Prompt for memory
+		if memory == "4Gi" {
+			memPrompt := &survey.Input{
+				Message: "Memory:",
+				Default: "4Gi",
+				Help:    "Memory size (e.g., 2Gi, 4Gi, 8Gi, 16Gi)",
+			}
+			survey.AskOne(memPrompt, &memory)
+		}
+
+		// Prompt for image source or template
+		sourceType := ""
+		sourcePrompt := &survey.Select{
+			Message: "VM Source:",
+			Options: []string{"Container Image", "VM Template", "None (blank VM)"},
+			Default: "Container Image",
+			Help:    "Choose how to create the VM",
+		}
+		survey.AskOne(sourcePrompt, &sourceType)
+
+		switch sourceType {
+		case "Container Image":
+			if image == "" {
+				imagePrompt := &survey.Input{
+					Message: "Image Source:",
+					Default: "ubuntu:22.04",
+					Help:    "Container image or disk image URL",
+				}
+				survey.AskOne(imagePrompt, &image)
+			}
+			template = "" // Clear template if set
+		case "VM Template":
+			if template == "" {
+				templatePrompt := &survey.Input{
+					Message: "Template Name:",
+					Help:    "Name of existing VMTemplate resource",
+				}
+				survey.AskOne(templatePrompt, &template)
+			}
+			image = "" // Clear image if set
+		case "None (blank VM)":
+			image = ""
+			template = ""
+		}
+
+		// Confirm before creating
+		confirm := false
+		confirmPrompt := &survey.Confirm{
+			Message: fmt.Sprintf("Create VM '%s' with %d CPUs and %s memory?", name, cpus, memory),
+			Default: true,
+		}
+		survey.AskOne(confirmPrompt, &confirm)
+
+		if !confirm {
+			pterm.Warning.Println("VM creation cancelled")
+			os.Exit(0)
+		}
+
+		pterm.Success.Printf("Creating VM: %s\n", name)
+		pterm.Println()
+	}
+
+	// Validate required parameters
 	if name == "" {
 		fmt.Println("Error: VM name is required (-vm)")
 		os.Exit(1)
