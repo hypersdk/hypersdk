@@ -1,0 +1,389 @@
+// SPDX-License-Identifier: LGPL-3.0-or-later
+
+package dashboard
+
+import (
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
+	"sync"
+	"time"
+)
+
+// CustomDashboard represents a user-defined dashboard layout
+type CustomDashboard struct {
+	ID          string          `json:"id"`
+	Name        string          `json:"name"`
+	Description string          `json:"description,omitempty"`
+	Layout      DashboardLayout `json:"layout"`
+	IsDefault   bool            `json:"isDefault"`
+	CreatedAt   time.Time       `json:"createdAt"`
+	UpdatedAt   time.Time       `json:"updatedAt"`
+	Owner       string          `json:"owner,omitempty"`
+	Shared      bool            `json:"shared"`
+}
+
+// DashboardLayout defines the dashboard grid layout
+type DashboardLayout struct {
+	Columns int             `json:"columns"` // Grid columns (default: 12)
+	Rows    int             `json:"rows"`    // Grid rows
+	Widgets []WidgetConfig  `json:"widgets"`
+}
+
+// WidgetConfig defines a widget position and configuration
+type WidgetConfig struct {
+	ID       string                 `json:"id"`
+	Type     string                 `json:"type"` // chart, table, metric, console, etc.
+	Title    string                 `json:"title"`
+	X        int                    `json:"x"`      // Column position
+	Y        int                    `json:"y"`      // Row position
+	Width    int                    `json:"width"`  // Widget width in columns
+	Height   int                    `json:"height"` // Widget height in rows
+	Config   map[string]interface{} `json:"config,omitempty"` // Widget-specific config
+	Refresh  int                    `json:"refresh,omitempty"` // Auto-refresh interval in seconds
+}
+
+// CustomDashboardManager manages custom dashboards
+type CustomDashboardManager struct {
+	dashboards map[string]*CustomDashboard
+	mu         sync.RWMutex
+	storageDir string
+}
+
+// NewCustomDashboardManager creates a new dashboard manager
+func NewCustomDashboardManager(storageDir string) (*CustomDashboardManager, error) {
+	// Ensure storage directory exists
+	if err := os.MkdirAll(storageDir, 0755); err != nil {
+		return nil, fmt.Errorf("failed to create storage directory: %w", err)
+	}
+
+	manager := &CustomDashboardManager{
+		dashboards: make(map[string]*CustomDashboard),
+		storageDir: storageDir,
+	}
+
+	// Load existing dashboards from disk
+	if err := manager.loadDashboards(); err != nil {
+		return nil, err
+	}
+
+	// Create default dashboard if none exist
+	if len(manager.dashboards) == 0 {
+		manager.createDefaultDashboard()
+	}
+
+	return manager, nil
+}
+
+// loadDashboards loads dashboards from disk
+func (m *CustomDashboardManager) loadDashboards() error {
+	files, err := filepath.Glob(filepath.Join(m.storageDir, "dashboard-*.json"))
+	if err != nil {
+		return err
+	}
+
+	for _, file := range files {
+		data, err := os.ReadFile(file)
+		if err != nil {
+			continue
+		}
+
+		var dashboard CustomDashboard
+		if err := json.Unmarshal(data, &dashboard); err != nil {
+			continue
+		}
+
+		m.dashboards[dashboard.ID] = &dashboard
+	}
+
+	return nil
+}
+
+// saveDashboard saves a dashboard to disk
+func (m *CustomDashboardManager) saveDashboard(dashboard *CustomDashboard) error {
+	data, err := json.MarshalIndent(dashboard, "", "  ")
+	if err != nil {
+		return err
+	}
+
+	filename := filepath.Join(m.storageDir, fmt.Sprintf("dashboard-%s.json", dashboard.ID))
+	return os.WriteFile(filename, data, 0644)
+}
+
+// createDefaultDashboard creates a default dashboard layout
+func (m *CustomDashboardManager) createDefaultDashboard() {
+	defaultDashboard := &CustomDashboard{
+		ID:          "default",
+		Name:        "Default Dashboard",
+		Description: "Default HyperSDK dashboard with all metrics",
+		IsDefault:   true,
+		CreatedAt:   time.Now(),
+		UpdatedAt:   time.Now(),
+		Shared:      true,
+		Layout: DashboardLayout{
+			Columns: 12,
+			Rows:    6,
+			Widgets: []WidgetConfig{
+				{
+					ID:     "vm-overview",
+					Type:   "metric",
+					Title:  "VM Overview",
+					X:      0,
+					Y:      0,
+					Width:  3,
+					Height: 1,
+					Config: map[string]interface{}{
+						"metric": "vm_total",
+					},
+					Refresh: 5,
+				},
+				{
+					ID:     "vm-status-chart",
+					Type:   "chart",
+					Title:  "VM Status Distribution",
+					X:      3,
+					Y:      0,
+					Width:  3,
+					Height: 2,
+					Config: map[string]interface{}{
+						"chartType": "pie",
+						"metric":    "vm_by_status",
+					},
+					Refresh: 10,
+				},
+				{
+					ID:     "resource-usage",
+					Type:   "chart",
+					Title:  "Resource Usage",
+					X:      6,
+					Y:      0,
+					Width:  6,
+					Height: 2,
+					Config: map[string]interface{}{
+						"chartType": "line",
+						"metrics":   []string{"cpu_usage", "memory_usage"},
+					},
+					Refresh: 5,
+				},
+				{
+					ID:     "vm-list",
+					Type:   "table",
+					Title:  "Virtual Machines",
+					X:      0,
+					Y:      2,
+					Width:  12,
+					Height: 4,
+					Config: map[string]interface{}{
+						"columns": []string{"name", "status", "cpus", "memory", "node"},
+					},
+					Refresh: 10,
+				},
+			},
+		},
+	}
+
+	m.mu.Lock()
+	m.dashboards[defaultDashboard.ID] = defaultDashboard
+	m.mu.Unlock()
+
+	m.saveDashboard(defaultDashboard)
+}
+
+// GetDashboard retrieves a dashboard by ID
+func (m *CustomDashboardManager) GetDashboard(id string) (*CustomDashboard, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	dashboard, ok := m.dashboards[id]
+	if !ok {
+		return nil, fmt.Errorf("dashboard not found: %s", id)
+	}
+
+	return dashboard, nil
+}
+
+// ListDashboards lists all dashboards
+func (m *CustomDashboardManager) ListDashboards() []*CustomDashboard {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	dashboards := make([]*CustomDashboard, 0, len(m.dashboards))
+	for _, dashboard := range m.dashboards {
+		dashboards = append(dashboards, dashboard)
+	}
+
+	return dashboards
+}
+
+// CreateDashboard creates a new dashboard
+func (m *CustomDashboardManager) CreateDashboard(dashboard *CustomDashboard) error {
+	if dashboard.ID == "" {
+		dashboard.ID = fmt.Sprintf("dashboard-%d", time.Now().Unix())
+	}
+
+	dashboard.CreatedAt = time.Now()
+	dashboard.UpdatedAt = time.Now()
+
+	m.mu.Lock()
+	m.dashboards[dashboard.ID] = dashboard
+	m.mu.Unlock()
+
+	return m.saveDashboard(dashboard)
+}
+
+// UpdateDashboard updates an existing dashboard
+func (m *CustomDashboardManager) UpdateDashboard(id string, dashboard *CustomDashboard) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	existing, ok := m.dashboards[id]
+	if !ok {
+		return fmt.Errorf("dashboard not found: %s", id)
+	}
+
+	// Preserve creation time and ID
+	dashboard.ID = existing.ID
+	dashboard.CreatedAt = existing.CreatedAt
+	dashboard.UpdatedAt = time.Now()
+
+	m.dashboards[id] = dashboard
+
+	return m.saveDashboard(dashboard)
+}
+
+// DeleteDashboard deletes a dashboard
+func (m *CustomDashboardManager) DeleteDashboard(id string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if _, ok := m.dashboards[id]; !ok {
+		return fmt.Errorf("dashboard not found: %s", id)
+	}
+
+	// Don't allow deleting the default dashboard
+	if id == "default" {
+		return fmt.Errorf("cannot delete default dashboard")
+	}
+
+	delete(m.dashboards, id)
+
+	// Delete from disk
+	filename := filepath.Join(m.storageDir, fmt.Sprintf("dashboard-%s.json", id))
+	return os.Remove(filename)
+}
+
+// RegisterCustomDashboardRoutes registers custom dashboard API routes
+func RegisterCustomDashboardRoutes(mux *http.ServeMux, manager *CustomDashboardManager) {
+	// List all dashboards or handle specific dashboard operations
+	mux.HandleFunc("/api/dashboards", func(w http.ResponseWriter, r *http.Request) {
+		// Parse path to extract dashboard ID if present
+		path := strings.TrimPrefix(r.URL.Path, "/api/dashboards")
+		path = strings.TrimPrefix(path, "/")
+
+		// Handle /api/dashboards (no ID)
+		if path == "" {
+			switch r.Method {
+			case http.MethodGet:
+				// List all dashboards
+				dashboards := manager.ListDashboards()
+				w.Header().Set("Content-Type", "application/json")
+				json.NewEncoder(w).Encode(dashboards)
+
+			case http.MethodPost:
+				// Create new dashboard
+				var dashboard CustomDashboard
+				if err := json.NewDecoder(r.Body).Decode(&dashboard); err != nil {
+					http.Error(w, err.Error(), http.StatusBadRequest)
+					return
+				}
+
+				if err := manager.CreateDashboard(&dashboard); err != nil {
+					http.Error(w, err.Error(), http.StatusInternalServerError)
+					return
+				}
+
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusCreated)
+				json.NewEncoder(w).Encode(dashboard)
+
+			default:
+				http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			}
+			return
+		}
+
+		// Handle /api/dashboards/{id} or /api/dashboards/{id}/clone
+		parts := strings.Split(path, "/")
+		id := parts[0]
+
+		// Check for clone operation
+		if len(parts) > 1 && parts[1] == "clone" && r.Method == http.MethodPost {
+			original, err := manager.GetDashboard(id)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusNotFound)
+				return
+			}
+
+			// Create a copy
+			clone := *original
+			clone.ID = fmt.Sprintf("%s-clone-%d", id, time.Now().Unix())
+			clone.Name = fmt.Sprintf("%s (Copy)", original.Name)
+			clone.IsDefault = false
+
+			if err := manager.CreateDashboard(&clone); err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusCreated)
+			json.NewEncoder(w).Encode(clone)
+			return
+		}
+
+		// Handle specific dashboard operations
+		switch r.Method {
+		case http.MethodGet:
+			// Get specific dashboard
+			dashboard, err := manager.GetDashboard(id)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusNotFound)
+				return
+			}
+
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(dashboard)
+
+		case http.MethodPut:
+			// Update existing dashboard
+			var dashboard CustomDashboard
+			if err := json.NewDecoder(r.Body).Decode(&dashboard); err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+
+			if err := manager.UpdateDashboard(id, &dashboard); err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(dashboard)
+
+		case http.MethodDelete:
+			// Delete dashboard
+			if err := manager.DeleteDashboard(id); err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+
+			w.WriteHeader(http.StatusNoContent)
+
+		default:
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
+	})
+}

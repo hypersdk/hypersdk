@@ -46,15 +46,16 @@ func DefaultConfig() *Config {
 
 // Dashboard provides real-time monitoring
 type Dashboard struct {
-	config    *Config
-	templates *template.Template
-	upgrader  websocket.Upgrader
-	clients   map[*websocket.Conn]bool
-	clientsMu sync.RWMutex
-	broadcast chan []byte
-	metrics   *Metrics
-	metricsMu sync.RWMutex
-	k8sDash   *K8sDashboard
+	config         *Config
+	templates      *template.Template
+	upgrader       websocket.Upgrader
+	clients        map[*websocket.Conn]bool
+	clientsMu      sync.RWMutex
+	broadcast      chan []byte
+	metrics        *Metrics
+	metricsMu      sync.RWMutex
+	k8sDash        *K8sDashboard
+	customDashMgr  *CustomDashboardManager
 }
 
 // Metrics holds dashboard metrics
@@ -112,6 +113,13 @@ func NewDashboard(config *Config) (*Dashboard, error) {
 		return nil, fmt.Errorf("failed to parse templates: %w", err)
 	}
 
+	// Initialize custom dashboard manager
+	customDashMgr, err := NewCustomDashboardManager("./data/dashboards")
+	if err != nil {
+		// Non-fatal error - continue without custom dashboards
+		fmt.Printf("Warning: Failed to initialize custom dashboards: %v\n", err)
+	}
+
 	return &Dashboard{
 		config:    config,
 		templates: tmpl,
@@ -131,6 +139,7 @@ func NewDashboard(config *Config) (*Dashboard, error) {
 			Alerts:        make([]Alert, 0),
 			SystemHealth:  "healthy",
 		},
+		customDashMgr: customDashMgr,
 	}, nil
 }
 
@@ -177,6 +186,11 @@ func (d *Dashboard) Start(ctx context.Context) error {
 	// Register Kubernetes dashboard handlers if available
 	if d.k8sDash != nil {
 		d.k8sDash.RegisterHandlers(mux)
+	}
+
+	// Register custom dashboard handlers if available
+	if d.customDashMgr != nil {
+		RegisterCustomDashboardRoutes(mux, d.customDashMgr)
 	}
 
 	addr := fmt.Sprintf(":%d", d.config.Port)
