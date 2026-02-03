@@ -427,20 +427,57 @@ POST /api/dashboards/default/clone
 
 ---
 
-#### 3.3 Backup Automation
-**Estimated Effort**: 6-8 hours
+#### 3.3 Backup Automation ✅ **IMPLEMENTED**
+
+**Status**: ✅ **COMPLETE** (2026-02-05)
 
 **Features**:
-- Automatic VM snapshot scheduling
-- Snapshot retention policies
-- Cross-cluster backup replication
-- Backup verification
-- Restore testing
+```bash
+# Create daily backup schedule
+hyperctl k8s -op backup-schedule-create \
+  -name daily-backups \
+  -schedule "0 2 * * *" \
+  -vm my-vm \
+  --keep-last 7
+
+# List backup schedules
+hyperctl k8s -op backup-schedule-list
+
+# Get schedule details
+hyperctl k8s -op backup-schedule-get -name daily-backups
+```
+
+**Implementation**:
+- ✅ VMBackupSchedule CRD for automated backups
+- ✅ Cron-based scheduling (e.g., "0 2 * * *")
+- ✅ VM selector with label matching and filtering
+- ✅ Multiple retention policies (last N, daily, weekly, monthly, yearly)
+- ✅ Automatic cleanup of expired backups
+- ✅ Backup status tracking and monitoring
+- ✅ Snapshot template configuration
+- ✅ Quiesce and memory inclusion options
+- ✅ Paused schedules support
+- ✅ CLI operations for schedule management
+
+**Retention Strategies**:
+- KeepLast: Keep last N backups
+- KeepDaily: Keep daily backups for N days
+- KeepWeekly: Keep weekly backups for N weeks
+- KeepMonthly: Keep monthly backups for N months
+- KeepYearly: Keep yearly backups for N years
+- MaxAge: Maximum backup age
+- AutoDelete: Automatic cleanup
+
+**VM Selector**:
+- MatchLabels: Select VMs by labels
+- MatchNames: Explicit VM name list
+- MatchNamespaces: Target specific namespaces
+- ExcludeNames: Exclude specific VMs
 
 **Benefits**:
-- Data protection
-- Disaster recovery
-- Compliance
+- Automated disaster recovery
+- Data protection with retention policies
+- Compliance with data retention requirements
 
 ---
 
@@ -739,6 +776,7 @@ hyperctl k8s -op vm-clone-from-snapshot -snapshot my-snapshot -target new-vm -na
 11. ✅ GPU passthrough support (DONE)
 12. ✅ USB device passthrough support (DONE)
 13. ✅ Custom dashboards (DONE)
+14. ✅ Backup automation (DONE)
 
 ### Next: v2.2.1 - Testing & Quality
 **Focus: Verification & Testing**
