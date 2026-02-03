@@ -213,23 +213,37 @@ Create VM 'my-vm' with 4 CPUs and 8Gi memory? (Y/n): y
 
 ---
 
-#### 2.2 Export to CSV/JSON
-**Estimated Effort**: 2 hours
+#### 2.2 Export to CSV/JSON ✅ **IMPLEMENTED**
+
+**Status**: ✅ **COMPLETE** (2026-02-05)
 
 **Features**:
 ```bash
-# Export VM list
+# Export VM list as CSV
 GET /api/k8s/vms?format=csv
-GET /api/k8s/vms?format=json&download=true
 
-# Export metrics
-GET /api/k8s/vm-metrics?format=csv&timeRange=30d
+# Download CSV file (browser prompt)
+GET /api/k8s/vms?format=csv&download=true
+
+# Export metrics summary as CSV
+GET /api/k8s/metrics?format=csv&download=true
+
+# Default JSON format (backwards compatible)
+GET /api/k8s/vms
 ```
 
+**Implementation**:
+- ✅ CSV export for VM list
+- ✅ CSV export for metrics summary
+- ✅ Query parameter-based format selection
+- ✅ Optional download mode with automatic filenames
+- ✅ Date-stamped CSV files (e.g., vms-2026-02-05.csv)
+- ✅ Backwards compatible (JSON is default)
+
 **Benefits**:
-- Data analysis in spreadsheets
+- Data analysis in spreadsheets (Excel, Google Sheets)
 - Integration with external tools
-- Compliance reporting
+- Compliance and audit reporting
 
 ---
 
@@ -487,12 +501,13 @@ GET /api/k8s/vm-metrics?format=csv&timeRange=30d
 
 ## 🎯 Recommended Next Steps
 
-### Completed in v2.2.1 ✅
+### Completed in v2.2.1 / v2.3.0 ✅
 1. ✅ Fix backup controller dependencies (DONE)
 2. ✅ Implement watch mode (DONE)
 3. ✅ Add advanced filtering (DONE)
 4. ✅ Progress bars for operations (DONE)
 5. ✅ Interactive mode for CLI (DONE)
+6. ✅ Export to CSV/JSON (DONE)
 
 ### Next: v2.2.1 - Testing & Quality
 **Focus: Verification & Testing**
