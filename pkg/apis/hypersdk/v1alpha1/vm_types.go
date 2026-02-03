@@ -603,3 +603,136 @@ type VMBackupScheduleList struct {
 	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []VMBackupSchedule `json:"items"`
 }
+
+// +genclient
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+// VMMigrationPolicy represents automated VM migration policy
+type VMMigrationPolicy struct {
+	metav1.TypeMeta   `json:",inline"`
+	metav1.ObjectMeta `json:"metadata,omitempty"`
+
+	Spec   VMMigrationPolicySpec   `json:"spec"`
+	Status VMMigrationPolicyStatus `json:"status,omitempty"`
+}
+
+// VMMigrationPolicySpec defines the migration policy specification
+type VMMigrationPolicySpec struct {
+	Enabled         bool                    `json:"enabled"`
+	Triggers        []MigrationTrigger      `json:"triggers"`
+	Constraints     MigrationConstraints    `json:"constraints,omitempty"`
+	TargetSelection TargetSelectionStrategy `json:"targetSelection"`
+	DryRun          bool                    `json:"dryRun,omitempty"`
+	Schedule        string                  `json:"schedule,omitempty"` // Cron for scheduled checks
+}
+
+// MigrationTrigger defines conditions that trigger migration
+type MigrationTrigger struct {
+	Type      MigrationTriggerType `json:"type"`
+	Threshold string               `json:"threshold,omitempty"` // e.g., "80%", "high", "200W"
+	Duration  string               `json:"duration,omitempty"`  // e.g., "5m", "1h"
+	Priority  int32                `json:"priority,omitempty"`  // Higher = more important
+}
+
+// MigrationTriggerType represents trigger types
+type MigrationTriggerType string
+
+const (
+	TriggerNodePressure      MigrationTriggerType = "NodePressure"       // High CPU/memory on node
+	TriggerCarbonIntensity   MigrationTriggerType = "CarbonIntensity"    // High carbon intensity
+	TriggerCost              MigrationTriggerType = "Cost"               // Cost optimization
+	TriggerMaintenance       MigrationTriggerType = "Maintenance"        // Planned maintenance
+	TriggerLoadBalancing     MigrationTriggerType = "LoadBalancing"      // Distribute load
+	TriggerNodeDrain         MigrationTriggerType = "NodeDrain"          // Node being drained
+	TriggerPowerUsage        MigrationTriggerType = "PowerUsage"         // High power consumption
+	TriggerTemperature       MigrationTriggerType = "Temperature"        // High temperature
+)
+
+// MigrationConstraints defines migration constraints
+type MigrationConstraints struct {
+	MaxConcurrentMigrations int32             `json:"maxConcurrentMigrations,omitempty"`
+	AllowedTimeWindows      []TimeWindow      `json:"allowedTimeWindows,omitempty"`
+	BlockedTimeWindows      []TimeWindow      `json:"blockedTimeWindows,omitempty"`
+	RequireVMLive           bool              `json:"requireVMLive,omitempty"` // Only live migration
+	MaxMigrationsPerNode    int32             `json:"maxMigrationsPerNode,omitempty"`
+	CooldownPeriod          string            `json:"cooldownPeriod,omitempty"` // e.g., "1h"
+	NodeSelector            map[string]string `json:"nodeSelector,omitempty"`   // Target node labels
+}
+
+// TimeWindow defines a time window for migrations
+type TimeWindow struct {
+	Start    string   `json:"start"`              // HH:MM format
+	End      string   `json:"end"`                // HH:MM format
+	Days     []string `json:"days,omitempty"`     // Mon, Tue, etc.
+	Timezone string   `json:"timezone,omitempty"` // IANA timezone
+}
+
+// TargetSelectionStrategy defines how to select migration targets
+type TargetSelectionStrategy struct {
+	Strategy  TargetStrategy         `json:"strategy"`
+	Weights   map[string]int32       `json:"weights,omitempty"`   // Factor weights for scoring
+	Filters   []TargetFilter         `json:"filters,omitempty"`   // Filter criteria
+	AntiAffinity *AntiAffinityRule   `json:"antiAffinity,omitempty"`
+}
+
+// TargetStrategy represents target selection strategies
+type TargetStrategy string
+
+const (
+	StrategyLeastUtilized   TargetStrategy = "LeastUtilized"   // Node with lowest utilization
+	StrategyMostAvailable   TargetStrategy = "MostAvailable"   // Node with most free resources
+	StrategyLowestCarbon    TargetStrategy = "LowestCarbon"    // Node in lowest carbon zone
+	StrategyLowestCost      TargetStrategy = "LowestCost"      // Cheapest node
+	StrategyRoundRobin      TargetStrategy = "RoundRobin"      // Distribute evenly
+	StrategyBinPacking      TargetStrategy = "BinPacking"      // Pack VMs tightly
+	StrategyWeightedScore   TargetStrategy = "WeightedScore"   // Score based on weights
+)
+
+// TargetFilter represents filtering criteria for target nodes
+type TargetFilter struct {
+	Type     string `json:"type"`     // cpu, memory, carbon, cost, temperature
+	Operator string `json:"operator"` // <, >, <=, >=, ==, !=
+	Value    string `json:"value"`
+}
+
+// AntiAffinityRule defines anti-affinity rules
+type AntiAffinityRule struct {
+	VMLabels map[string]string `json:"vmLabels,omitempty"` // Don't co-locate VMs with these labels
+	Strength string            `json:"strength,omitempty"` // required, preferred
+}
+
+// VMMigrationPolicyStatus represents migration policy status
+type VMMigrationPolicyStatus struct {
+	Active                   bool              `json:"active"`
+	TotalMigrations          int32             `json:"totalMigrations,omitempty"`
+	SuccessfulMigrations     int32             `json:"successfulMigrations,omitempty"`
+	FailedMigrations         int32             `json:"failedMigrations,omitempty"`
+	PendingMigrations        int32             `json:"pendingMigrations,omitempty"`
+	LastMigrationTime        *metav1.Time      `json:"lastMigrationTime,omitempty"`
+	LastEvaluationTime       *metav1.Time      `json:"lastEvaluationTime,omitempty"`
+	TriggeredMigrations      []MigrationRecord `json:"triggeredMigrations,omitempty"`
+	Conditions               []VMCondition     `json:"conditions,omitempty"`
+	RecommendedMigrations    int32             `json:"recommendedMigrations,omitempty"`
+}
+
+// MigrationRecord represents a migration event
+type MigrationRecord struct {
+	VMName       string           `json:"vmName"`
+	FromNode     string           `json:"fromNode"`
+	ToNode       string           `json:"toNode"`
+	TriggerType  MigrationTriggerType `json:"triggerType"`
+	StartTime    metav1.Time      `json:"startTime"`
+	CompletionTime *metav1.Time   `json:"completionTime,omitempty"`
+	Status       string           `json:"status"` // pending, running, succeeded, failed
+	Reason       string           `json:"reason,omitempty"`
+	Duration     string           `json:"duration,omitempty"`
+}
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+// VMMigrationPolicyList contains a list of VMMigrationPolicy
+type VMMigrationPolicyList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitempty"`
+	Items           []VMMigrationPolicy `json:"items"`
+}
