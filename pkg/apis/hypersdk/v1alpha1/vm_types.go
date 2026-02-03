@@ -271,6 +271,8 @@ type CloneSpec struct {
 	TargetNamespace  string `json:"targetNamespace,omitempty"`
 	LinkedClone      bool   `json:"linkedClone,omitempty"`
 	StartAfterClone  bool   `json:"startAfterClone,omitempty"`
+	SnapshotRef      string `json:"snapshotRef,omitempty"`      // Clone from snapshot instead of VM
+	PowerOnAfter     bool   `json:"powerOnAfter,omitempty"`     // Power on after cloning from snapshot
 }
 
 // MigrateSpec for migrate operations

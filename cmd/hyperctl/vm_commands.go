@@ -999,3 +999,48 @@ func matchesPhase(phase, filter string) bool {
 	}
 	return false
 }
+
+// handleVMCloneFromSnapshot clones a VM from a snapshot
+func handleVMCloneFromSnapshot(kubeconfig, namespace, snapshotName, targetVM, output string, wait, showProgress bool, timeout int) {
+	// Create a VMOperation for cloning from snapshot
+	opName := fmt.Sprintf("%s-clone-from-snapshot-%d", targetVM, time.Now().Unix())
+	
+	op := &hypersdk.VMOperation{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "hypersdk.io/v1alpha1",
+			Kind:       "VMOperation",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      opName,
+			Namespace: namespace,
+		},
+		Spec: hypersdk.VMOperationSpec{
+			VMRef: hypersdk.VMReference{
+				Name:      targetVM,
+				Namespace: namespace,
+			},
+			Operation: hypersdk.VMOpClone,
+			CloneSpec: &hypersdk.CloneSpec{
+				TargetName:   targetVM,
+				SnapshotRef:  snapshotName,
+				LinkedClone:  false,
+				PowerOnAfter: true,
+			},
+		},
+	}
+
+	outputResource(op, output)
+
+	if wait {
+		fmt.Println()
+		pterm.Info.Printf("Creating VM from snapshot %s...\n", snapshotName)
+		fmt.Println()
+
+		if err := waitForVMOperation(kubeconfig, namespace, opName, showProgress, timeout); err != nil {
+			pterm.Error.Printf("Failed to wait for operation: %v\n", err)
+			os.Exit(1)
+		}
+
+		pterm.Success.Printf("Successfully created VM %s from snapshot %s\n", targetVM, snapshotName)
+	}
+}

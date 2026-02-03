@@ -245,7 +245,7 @@ func main() {
 
 	// Kubernetes Commands
 	k8sCmd := flag.NewFlagSet("k8s", flag.ExitOnError)
-	k8sOperation := k8sCmd.String("op", "status", "Operation: backup-list, backup-get, backup-create, backup-delete, schedule-list, schedule-create, restore-list, restore-create, vm-create, vm-list, vm-get, vm-delete, vm-start, vm-stop, vm-clone, vm-snapshot-create, template-list, status")
+	k8sOperation := k8sCmd.String("op", "status", "Operation: backup-list, backup-get, backup-create, backup-delete, schedule-list, schedule-create, restore-list, restore-create, vm-create, vm-list, vm-get, vm-delete, vm-start, vm-stop, vm-clone, vm-clone-from-snapshot, vm-snapshot-create, template-list, status")
 	k8sKubeconfig := k8sCmd.String("kubeconfig", "", "Path to kubeconfig file")
 	k8sNamespace := k8sCmd.String("namespace", "default", "Kubernetes namespace")
 	k8sName := k8sCmd.String("name", "", "Resource name")
@@ -626,6 +626,13 @@ func main() {
 				os.Exit(1)
 			}
 			handleVMClone(*k8sKubeconfig, *k8sNamespace, *k8sVMName, *k8sTargetVM, *k8sOutput, *k8sWait, *k8sShowProgress, *k8sTimeout)
+		case "vm-clone-from-snapshot":
+			if *k8sSnapshotName == "" || *k8sTargetVM == "" {
+				pterm.Error.Println("Snapshot name and target VM name required (-snapshot, -target)")
+				pterm.Info.Println("Example: hyperctl k8s -op vm-clone-from-snapshot -snapshot my-snapshot -target new-vm --wait --show-progress")
+				os.Exit(1)
+			}
+			handleVMCloneFromSnapshot(*k8sKubeconfig, *k8sNamespace, *k8sSnapshotName, *k8sTargetVM, *k8sOutput, *k8sWait, *k8sShowProgress, *k8sTimeout)
 		case "vm-migrate":
 			if *k8sVMName == "" || *k8sTargetNode == "" {
 				pterm.Error.Println("VM name and target node required (-vm, -target-node)")

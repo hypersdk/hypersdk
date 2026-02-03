@@ -228,10 +228,53 @@ func (r *VMOperationReconciler) executeClone(ctx context.Context, vmOp *hypersdk
 		return fmt.Errorf("clone spec is required for clone operation")
 	}
 
-	// Get source VM
-	sourceVM := &hypersdk.VirtualMachine{}
-	if err := r.getVM(ctx, vmOp, sourceVM); err != nil {
-		return err
+	var sourceSpec hypersdk.VirtualMachineSpec
+	var sourceLabels map[string]string
+	var sourceName string
+
+	// Check if cloning from snapshot or from VM
+	if vmOp.Spec.CloneSpec.SnapshotRef != "" {
+		// Clone from snapshot
+		vmOp.Status.Message = "Loading snapshot configuration..."
+		if err := r.Status().Update(ctx, vmOp); err != nil {
+			return err
+		}
+
+		snapshot := &hypersdk.VMSnapshot{}
+		if err := r.Get(ctx, client.ObjectKey{
+			Name:      vmOp.Spec.CloneSpec.SnapshotRef,
+			Namespace: vmOp.Namespace,
+		}, snapshot); err != nil {
+			return fmt.Errorf("failed to get snapshot: %w", err)
+		}
+
+		// Get source VM spec from snapshot
+		if snapshot.Spec.VMRef.Name == "" {
+			return fmt.Errorf("snapshot does not reference a VM")
+		}
+
+		sourceVM := &hypersdk.VirtualMachine{}
+		if err := r.Get(ctx, client.ObjectKey{
+			Name:      snapshot.Spec.VMRef.Name,
+			Namespace: snapshot.Spec.VMRef.Namespace,
+		}, sourceVM); err != nil {
+			return fmt.Errorf("failed to get source VM from snapshot: %w", err)
+		}
+
+		sourceSpec = sourceVM.Spec
+		sourceLabels = sourceVM.Labels
+		sourceName = snapshot.Name
+		logger.Info("Cloning from snapshot", "snapshot", snapshot.Name, "sourceVM", sourceVM.Name)
+	} else {
+		// Clone from existing VM
+		sourceVM := &hypersdk.VirtualMachine{}
+		if err := r.getVM(ctx, vmOp, sourceVM); err != nil {
+			return err
+		}
+		sourceSpec = sourceVM.Spec
+		sourceLabels = sourceVM.Labels
+		sourceName = sourceVM.Name
+		logger.Info("Cloning from VM", "source", sourceVM.Name)
 	}
 
 	vmOp.Status.Progress = 30
@@ -243,20 +286,24 @@ func (r *VMOperationReconciler) executeClone(ctx context.Context, vmOp *hypersdk
 	// Create new VM from source
 	targetNamespace := vmOp.Spec.CloneSpec.TargetNamespace
 	if targetNamespace == "" {
-		targetNamespace = sourceVM.Namespace
+		targetNamespace = vmOp.Namespace
 	}
 
 	targetVM := &hypersdk.VirtualMachine{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      vmOp.Spec.CloneSpec.TargetName,
 			Namespace: targetNamespace,
-			Labels:    sourceVM.Labels,
+			Labels:    sourceLabels,
 		},
-		Spec: sourceVM.Spec,
+		Spec: sourceSpec,
 	}
 
 	// Set initial running state
-	targetVM.Spec.Running = vmOp.Spec.CloneSpec.StartAfterClone
+	if vmOp.Spec.CloneSpec.SnapshotRef != "" {
+		targetVM.Spec.Running = vmOp.Spec.CloneSpec.PowerOnAfter
+	} else {
+		targetVM.Spec.Running = vmOp.Spec.CloneSpec.StartAfterClone
+	}
 
 	vmOp.Status.Progress = 60
 	vmOp.Status.Message = "Creating cloned VM..."
@@ -269,12 +316,13 @@ func (r *VMOperationReconciler) executeClone(ctx context.Context, vmOp *hypersdk
 		return fmt.Errorf("failed to create cloned VM: %w", err)
 	}
 
-	logger.Info("VM cloned successfully", "source", sourceVM.Name, "target", targetVM.Name)
+	logger.Info("VM cloned successfully", "source", sourceName, "target", targetVM.Name)
 
 	vmOp.Status.Progress = 100
 	resultData, _ := json.Marshal(map[string]interface{}{
 		"targetVM":        targetVM.Name,
 		"targetNamespace": targetVM.Namespace,
+		"sourceSnapshot":  vmOp.Spec.CloneSpec.SnapshotRef,
 	})
 	vmOp.Status.Result = string(resultData)
 
