@@ -13,6 +13,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
 	"github.com/gorilla/websocket"
 )
 
@@ -163,40 +165,50 @@ func (d *Dashboard) Start(ctx context.Context) error {
 		go d.k8sDash.Start(ctx)
 	}
 
-	// Setup HTTP handlers
-	mux := http.NewServeMux()
+	// Setup chi router
+	r := chi.NewRouter()
+
+	// Add middleware
+	r.Use(middleware.Logger)
+	r.Use(middleware.Recoverer)
+	r.Use(middleware.RequestID)
+	r.Use(middleware.RealIP)
+	r.Use(middleware.Compress(5))
 
 	// Serve embedded static files
-	mux.Handle("/static/", http.FileServer(http.FS(embeddedFS)))
+	r.Handle("/static/*", http.FileServer(http.FS(embeddedFS)))
 
 	// Dashboard pages
-	mux.HandleFunc("/", d.handleIndex)
-	mux.HandleFunc("/k8s", d.handleK8s)
-	mux.HandleFunc("/k8s/charts", d.handleK8sCharts)
-	mux.HandleFunc("/k8s/vms", d.handleK8sVMs)
+	r.Get("/", d.handleIndex)
+	r.Get("/k8s", d.handleK8s)
+	r.Get("/k8s/charts", d.handleK8sCharts)
+	r.Get("/k8s/vms", d.handleK8sVMs)
 
-	// API endpoints
-	mux.HandleFunc("/api/metrics", d.handleMetrics)
-	mux.HandleFunc("/api/jobs", d.handleJobs)
-	mux.HandleFunc("/api/jobs/", d.handleJobDetail)
+	// API routes
+	r.Route("/api", func(r chi.Router) {
+		// Main API endpoints
+		r.Get("/metrics", d.handleMetrics)
+		r.Get("/jobs", d.handleJobs)
+		r.Get("/jobs/{id}", d.handleJobDetail)
+
+		// Kubernetes dashboard handlers if available
+		if d.k8sDash != nil {
+			d.k8sDash.RegisterChiHandlers(r)
+		}
+
+		// Custom dashboard handlers if available
+		if d.customDashMgr != nil {
+			RegisterCustomDashboardChiRoutes(r, d.customDashMgr)
+		}
+	})
 
 	// WebSocket endpoint
-	mux.HandleFunc("/ws", d.handleWebSocket)
-
-	// Register Kubernetes dashboard handlers if available
-	if d.k8sDash != nil {
-		d.k8sDash.RegisterHandlers(mux)
-	}
-
-	// Register custom dashboard handlers if available
-	if d.customDashMgr != nil {
-		RegisterCustomDashboardRoutes(mux, d.customDashMgr)
-	}
+	r.Get("/ws", d.handleWebSocket)
 
 	addr := fmt.Sprintf(":%d", d.config.Port)
 	server := &http.Server{
 		Addr:    addr,
-		Handler: mux,
+		Handler: r,
 	}
 
 	// Start server in goroutine
@@ -266,8 +278,8 @@ func (d *Dashboard) handleJobs(w http.ResponseWriter, r *http.Request) {
 
 // handleJobDetail serves job details
 func (d *Dashboard) handleJobDetail(w http.ResponseWriter, r *http.Request) {
-	// Extract job ID from path
-	jobID := r.URL.Path[len("/api/jobs/"):]
+	// Extract job ID from chi URL params
+	jobID := chi.URLParam(r, "id")
 
 	d.metricsMu.RLock()
 	defer d.metricsMu.RUnlock()

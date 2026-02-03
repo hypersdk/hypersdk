@@ -8,9 +8,10 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"strings"
 	"sync"
 	"time"
+
+	"github.com/go-chi/chi/v5"
 )
 
 // CustomDashboard represents a user-defined dashboard layout
@@ -275,115 +276,102 @@ func (m *CustomDashboardManager) DeleteDashboard(id string) error {
 	return os.Remove(filename)
 }
 
-// RegisterCustomDashboardRoutes registers custom dashboard API routes
-func RegisterCustomDashboardRoutes(mux *http.ServeMux, manager *CustomDashboardManager) {
-	// List all dashboards or handle specific dashboard operations
-	mux.HandleFunc("/api/dashboards", func(w http.ResponseWriter, r *http.Request) {
-		// Parse path to extract dashboard ID if present
-		path := strings.TrimPrefix(r.URL.Path, "/api/dashboards")
-		path = strings.TrimPrefix(path, "/")
-
-		// Handle /api/dashboards (no ID)
-		if path == "" {
-			switch r.Method {
-			case http.MethodGet:
-				// List all dashboards
-				dashboards := manager.ListDashboards()
-				w.Header().Set("Content-Type", "application/json")
-				json.NewEncoder(w).Encode(dashboards)
-
-			case http.MethodPost:
-				// Create new dashboard
-				var dashboard CustomDashboard
-				if err := json.NewDecoder(r.Body).Decode(&dashboard); err != nil {
-					http.Error(w, err.Error(), http.StatusBadRequest)
-					return
-				}
-
-				if err := manager.CreateDashboard(&dashboard); err != nil {
-					http.Error(w, err.Error(), http.StatusInternalServerError)
-					return
-				}
-
-				w.Header().Set("Content-Type", "application/json")
-				w.WriteHeader(http.StatusCreated)
-				json.NewEncoder(w).Encode(dashboard)
-
-			default:
-				http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-			}
-			return
-		}
-
-		// Handle /api/dashboards/{id} or /api/dashboards/{id}/clone
-		parts := strings.Split(path, "/")
-		id := parts[0]
-
-		// Check for clone operation
-		if len(parts) > 1 && parts[1] == "clone" && r.Method == http.MethodPost {
-			original, err := manager.GetDashboard(id)
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusNotFound)
-				return
-			}
-
-			// Create a copy
-			clone := *original
-			clone.ID = fmt.Sprintf("%s-clone-%d", id, time.Now().Unix())
-			clone.Name = fmt.Sprintf("%s (Copy)", original.Name)
-			clone.IsDefault = false
-
-			if err := manager.CreateDashboard(&clone); err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-				return
-			}
-
+// RegisterCustomDashboardChiRoutes registers custom dashboard API routes with chi router
+func RegisterCustomDashboardChiRoutes(r chi.Router, manager *CustomDashboardManager) {
+	r.Route("/dashboards", func(r chi.Router) {
+		// List all dashboards
+		r.Get("/", func(w http.ResponseWriter, r *http.Request) {
+			dashboards := manager.ListDashboards()
 			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusCreated)
-			json.NewEncoder(w).Encode(clone)
-			return
-		}
+			json.NewEncoder(w).Encode(dashboards)
+		})
 
-		// Handle specific dashboard operations
-		switch r.Method {
-		case http.MethodGet:
-			// Get specific dashboard
-			dashboard, err := manager.GetDashboard(id)
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusNotFound)
-				return
-			}
-
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(dashboard)
-
-		case http.MethodPut:
-			// Update existing dashboard
+		// Create new dashboard
+		r.Post("/", func(w http.ResponseWriter, r *http.Request) {
 			var dashboard CustomDashboard
 			if err := json.NewDecoder(r.Body).Decode(&dashboard); err != nil {
 				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
 			}
 
-			if err := manager.UpdateDashboard(id, &dashboard); err != nil {
+			if err := manager.CreateDashboard(&dashboard); err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
 
 			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusCreated)
 			json.NewEncoder(w).Encode(dashboard)
+		})
 
-		case http.MethodDelete:
+		// Dashboard-specific operations
+		r.Route("/{id}", func(r chi.Router) {
+			// Get specific dashboard
+			r.Get("/", func(w http.ResponseWriter, r *http.Request) {
+				id := chi.URLParam(r, "id")
+				dashboard, err := manager.GetDashboard(id)
+				if err != nil {
+					http.Error(w, err.Error(), http.StatusNotFound)
+					return
+				}
+
+				w.Header().Set("Content-Type", "application/json")
+				json.NewEncoder(w).Encode(dashboard)
+			})
+
+			// Update dashboard
+			r.Put("/", func(w http.ResponseWriter, r *http.Request) {
+				id := chi.URLParam(r, "id")
+				var dashboard CustomDashboard
+				if err := json.NewDecoder(r.Body).Decode(&dashboard); err != nil {
+					http.Error(w, err.Error(), http.StatusBadRequest)
+					return
+				}
+
+				if err := manager.UpdateDashboard(id, &dashboard); err != nil {
+					http.Error(w, err.Error(), http.StatusInternalServerError)
+					return
+				}
+
+				w.Header().Set("Content-Type", "application/json")
+				json.NewEncoder(w).Encode(dashboard)
+			})
+
 			// Delete dashboard
-			if err := manager.DeleteDashboard(id); err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-				return
-			}
+			r.Delete("/", func(w http.ResponseWriter, r *http.Request) {
+				id := chi.URLParam(r, "id")
+				if err := manager.DeleteDashboard(id); err != nil {
+					http.Error(w, err.Error(), http.StatusInternalServerError)
+					return
+				}
 
-			w.WriteHeader(http.StatusNoContent)
+				w.WriteHeader(http.StatusNoContent)
+			})
 
-		default:
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		}
+			// Clone dashboard
+			r.Post("/clone", func(w http.ResponseWriter, r *http.Request) {
+				id := chi.URLParam(r, "id")
+				original, err := manager.GetDashboard(id)
+				if err != nil {
+					http.Error(w, err.Error(), http.StatusNotFound)
+					return
+				}
+
+				// Create a copy
+				clone := *original
+				clone.ID = fmt.Sprintf("%s-clone-%d", id, time.Now().Unix())
+				clone.Name = fmt.Sprintf("%s (Copy)", original.Name)
+				clone.IsDefault = false
+
+				if err := manager.CreateDashboard(&clone); err != nil {
+					http.Error(w, err.Error(), http.StatusInternalServerError)
+					return
+				}
+
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusCreated)
+				json.NewEncoder(w).Encode(clone)
+			})
+		})
 	})
 }

@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/go-chi/chi/v5"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -1786,4 +1787,80 @@ func (kd *K8sDashboard) handleConsoleWebSocket(w http.ResponseWriter, r *http.Re
 	}
 
 	kd.vncProxy.HandleVNCWebSocket(w, r)
+}
+
+// RegisterChiHandlers registers Kubernetes-specific HTTP handlers with chi router
+func (kd *K8sDashboard) RegisterChiHandlers(r chi.Router) {
+	r.Route("/k8s", func(r chi.Router) {
+		// Main metrics
+		r.Get("/metrics", kd.handleK8sMetrics)
+		r.Get("/carbon", kd.handleCarbonStats)
+		r.Get("/cluster", kd.handleClusterInfo)
+		r.Get("/storage", kd.handleStorageStats)
+		r.Get("/vm-metrics", kd.handleVMMetrics)
+
+		// BackupJobs
+		r.Route("/backupjobs", func(r chi.Router) {
+			r.Get("/", kd.handleBackupJobs)
+			r.Get("/{id}", kd.handleBackupJobDetailChi)
+		})
+
+		// Backup schedules
+		r.Get("/backupschedules", kd.handleBackupSchedules)
+
+		// Restore jobs
+		r.Get("/restorejobs", kd.handleRestoreJobs)
+
+		// VMs
+		r.Route("/vms", func(r chi.Router) {
+			r.Get("/", kd.handleVMs)
+			r.Get("/{id}", kd.handleVMDetailChi)
+		})
+
+		// Templates and snapshots
+		r.Get("/templates", kd.handleTemplates)
+		r.Get("/snapshots", kd.handleSnapshots)
+
+		// Historical metrics
+		r.Get("/history", kd.handleMetricsHistory)
+		r.Get("/trends", kd.handleMetricsTrends)
+
+		// Multi-cluster management
+		r.Route("/clusters", func(r chi.Router) {
+			r.Get("/", kd.handleClusters)
+			r.Post("/", kd.handleClusterDetailChi) // For adding clusters
+			r.Get("/{id}", kd.handleClusterDetailChi)
+			r.Delete("/{id}", kd.handleClusterDetailChi)
+			r.Post("/switch", kd.handleClusterSwitch)
+		})
+
+		r.Get("/aggregated-metrics", kd.handleAggregatedMetrics)
+
+		// Console endpoints
+		r.Get("/console-sessions", kd.handleConsoleSessions)
+	})
+
+	// WebSocket endpoints (separate from /api prefix)
+	r.Get("/ws/k8s", kd.wsHub.HandleWebSocket)
+	r.Get("/ws/console", kd.handleConsoleWebSocket)
+}
+
+// Chi-compatible handlers that use chi.URLParam
+
+func (kd *K8sDashboard) handleBackupJobDetailChi(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	r.URL.Path = "/api/k8s/backupjobs/" + id
+	kd.handleBackupJobDetail(w, r)
+}
+
+func (kd *K8sDashboard) handleVMDetailChi(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	r.URL.Path = "/api/k8s/vms/" + id
+	kd.handleVMDetail(w, r)
+}
+
+func (kd *K8sDashboard) handleClusterDetailChi(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	r.URL.Path = "/api/k8s/clusters/" + id
+	kd.handleClusterDetail(w, r)
 }
