@@ -489,14 +489,36 @@ WS /ws/console?namespace=default&vm=my-vm&type=serial
 
 ---
 
-#### 4.4 VM Cloning from Snapshots
-**Estimated Effort**: 4-6 hours
+#### 4.4 VM Cloning from Snapshots ✅ **IMPLEMENTED**
+
+**Status**: ✅ **COMPLETE** (2026-02-05)
 
 **Features**:
-- Clone VM from snapshot
-- Instant clone (linked clone)
-- Clone to different storage class
-- Clone with customization
+```bash
+# Clone VM from snapshot
+hyperctl k8s -op vm-clone-from-snapshot -snapshot my-snapshot -target new-vm
+
+# With progress tracking
+hyperctl k8s -op vm-clone-from-snapshot -snapshot my-snapshot -target new-vm --wait --show-progress
+
+# Clone to different namespace
+hyperctl k8s -op vm-clone-from-snapshot -snapshot my-snapshot -target new-vm -namespace prod
+```
+
+**Implementation**:
+- ✅ CLI command for snapshot-based cloning
+- ✅ Extended CloneSpec with SnapshotRef field
+- ✅ VMOperation controller supports both VM and snapshot sources
+- ✅ PowerOnAfter flag for initial state control
+- ✅ Linked clone support (optional)
+- ✅ Cross-namespace cloning
+- ✅ Progress tracking integration
+
+**Use Cases**:
+- Disaster recovery (restore from snapshot)
+- Testing and development (clone prod to dev)
+- VM template instantiation
+- Point-in-time VM recovery
 
 ---
 
@@ -604,6 +626,7 @@ WS /ws/console?namespace=default&vm=my-vm&type=serial
 7. ✅ Historical trend data (DONE)
 8. ✅ Multi-cluster support (DONE)
 9. ✅ VNC/Serial console support (DONE)
+10. ✅ VM cloning from snapshots (DONE)
 
 ### Next: v2.2.1 - Testing & Quality
 **Focus: Verification & Testing**
