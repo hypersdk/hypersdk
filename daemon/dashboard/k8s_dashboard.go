@@ -219,17 +219,18 @@ type K8sVMResourceStats struct {
 
 // K8sDashboard extends the main dashboard with Kubernetes-specific features
 type K8sDashboard struct {
-	dashboard       *Dashboard
-	k8sClient       *kubernetes.Clientset
-	dynamicClient   *DynamicK8sClient
-	k8sConfig       *rest.Config
-	k8sMetrics      *K8sMetrics
-	k8sMetricsMu    sync.RWMutex
-	namespace       string
-	wsHub           *K8sWebSocketHub
-	metricsHistory  *MetricsHistory
-	multiCluster    *MultiClusterManager
+	dashboard        *Dashboard
+	k8sClient        *kubernetes.Clientset
+	dynamicClient    *DynamicK8sClient
+	k8sConfig        *rest.Config
+	k8sMetrics       *K8sMetrics
+	k8sMetricsMu     sync.RWMutex
+	namespace        string
+	wsHub            *K8sWebSocketHub
+	metricsHistory   *MetricsHistory
+	multiCluster     *MultiClusterManager
 	multiClusterMode bool
+	vncProxy         *VNCProxy
 }
 
 // NewK8sDashboard creates a new Kubernetes dashboard extension
@@ -301,6 +302,11 @@ func NewK8sDashboard(dashboard *Dashboard, kubeconfig string, namespace string) 
 	if err := k8sDash.connectToK8s(kubeconfig); err != nil {
 		// Non-fatal - dashboard can still show UI without live data
 		k8sDash.k8sMetrics.ClusterInfo.Connected = false
+	}
+
+	// Initialize VNC proxy if connected
+	if k8sDash.k8sClient != nil && k8sDash.k8sConfig != nil {
+		k8sDash.vncProxy = NewVNCProxy(k8sDash.k8sClient, k8sDash.k8sConfig)
 	}
 
 	return k8sDash, nil
@@ -941,6 +947,10 @@ func (kd *K8sDashboard) RegisterHandlers(mux *http.ServeMux) {
 	mux.HandleFunc("/api/k8s/clusters/", kd.handleClusterDetail)
 	mux.HandleFunc("/api/k8s/clusters/switch", kd.handleClusterSwitch)
 	mux.HandleFunc("/api/k8s/aggregated-metrics", kd.handleAggregatedMetrics)
+
+	// Console endpoints
+	mux.HandleFunc("/api/k8s/console-sessions", kd.handleConsoleSessions)
+	mux.HandleFunc("/ws/console", kd.handleConsoleWebSocket)
 
 	// WebSocket endpoint for real-time updates
 	mux.HandleFunc("/ws/k8s", kd.wsHub.HandleWebSocket)
@@ -1754,4 +1764,26 @@ func (kd *K8sDashboard) handleAggregatedMetrics(w http.ResponseWriter, r *http.R
 	
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(aggregated)
+}
+
+// Console handler functions
+
+// handleConsoleSessions returns active console sessions
+func (kd *K8sDashboard) handleConsoleSessions(w http.ResponseWriter, r *http.Request) {
+	if kd.vncProxy == nil {
+		http.Error(w, "Console proxy not available", http.StatusServiceUnavailable)
+		return
+	}
+
+	kd.vncProxy.HandleConsoleInfo(w, r)
+}
+
+// handleConsoleWebSocket handles console WebSocket connections
+func (kd *K8sDashboard) handleConsoleWebSocket(w http.ResponseWriter, r *http.Request) {
+	if kd.vncProxy == nil {
+		http.Error(w, "Console proxy not available", http.StatusServiceUnavailable)
+		return
+	}
+
+	kd.vncProxy.HandleVNCWebSocket(w, r)
 }
