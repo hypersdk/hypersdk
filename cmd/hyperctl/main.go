@@ -267,6 +267,9 @@ func main() {
 	k8sGPUVendor := k8sCmd.String("gpu-vendor", "nvidia", "GPU vendor (nvidia, amd, intel)")
 	k8sGPUModel := k8sCmd.String("gpu-model", "", "GPU model (e.g., Tesla V100)")
 	k8sGPUPassthrough := k8sCmd.Bool("gpu-passthrough", true, "Enable full GPU passthrough")
+	k8sUSBVendorID := k8sCmd.String("usb-vendor-id", "", "USB device vendor ID (e.g., 0x1234)")
+	k8sUSBProductID := k8sCmd.String("usb-product-id", "", "USB device product ID (e.g., 0x5678)")
+	k8sUSBHotplug := k8sCmd.Bool("usb-hotplug", true, "Enable USB hot-plug support")
 	k8sImage := k8sCmd.String("image", "", "VM image source")
 	k8sTemplate := k8sCmd.String("template", "", "VM template name")
 	k8sTargetVM := k8sCmd.String("target", "", "Target VM name (for clone)")
@@ -583,7 +586,7 @@ func main() {
 				pterm.Info.Println("Or:      hyperctl k8s -op vm-create --interactive")
 				os.Exit(1)
 			}
-			handleVMCreate(*k8sKubeconfig, *k8sNamespace, *k8sVMName, *k8sCPUs, *k8sMemory, *k8sImage, *k8sTemplate, *k8sOutput, *k8sInteractive, *k8sGPUCount, *k8sGPUVendor, *k8sGPUModel, *k8sGPUPassthrough)
+			handleVMCreate(*k8sKubeconfig, *k8sNamespace, *k8sVMName, *k8sCPUs, *k8sMemory, *k8sImage, *k8sTemplate, *k8sOutput, *k8sInteractive, *k8sGPUCount, *k8sGPUVendor, *k8sGPUModel, *k8sGPUPassthrough, *k8sUSBVendorID, *k8sUSBProductID, *k8sUSBHotplug)
 		case "vm-list":
 			handleVMList(*k8sKubeconfig, *k8sNamespace, *k8sAllNamespaces, *k8sOutput, *k8sWatch,
 				*k8sFilterStatus, *k8sFilterNode, *k8sFilterLabels, *k8sFilterMinCPUs, *k8sFilterMinMemory)

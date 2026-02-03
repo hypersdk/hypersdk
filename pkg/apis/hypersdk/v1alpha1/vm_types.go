@@ -26,6 +26,9 @@ type VirtualMachineSpec struct {
 	Memory string `json:"memory"`
 	GPUs   []VMGPU `json:"gpus,omitempty"`
 
+	// USB Devices
+	USBDevices []VMUSBDevice `json:"usbDevices,omitempty"`
+
 	// Disks
 	Disks []VMDisk `json:"disks,omitempty"`
 
@@ -103,6 +106,18 @@ type VMGPU struct {
 	VGPUID       string `json:"vgpuID,omitempty"`       // vGPU profile ID
 	Passthrough  bool   `json:"passthrough,omitempty"`  // Full GPU passthrough (default: true)
 	ResourceName string `json:"resourceName,omitempty"` // Kubernetes resource name for GPU
+}
+
+// VMUSBDevice represents a USB device assignment
+type VMUSBDevice struct {
+	Name       string `json:"name"`
+	VendorID   string `json:"vendorID,omitempty"`   // USB vendor ID (e.g., "0x1234")
+	ProductID  string `json:"productID,omitempty"`  // USB product ID (e.g., "0x5678")
+	Bus        string `json:"bus,omitempty"`        // USB bus number
+	Device     string `json:"device,omitempty"`     // USB device number
+	Serial     string `json:"serial,omitempty"`     // USB device serial number
+	Hotplug    bool   `json:"hotplug,omitempty"`    // Enable hot-plug support
+	DevicePath string `json:"devicePath,omitempty"` // Host device path (e.g., /dev/bus/usb/001/002)
 }
 
 // VMImage defines the VM image source

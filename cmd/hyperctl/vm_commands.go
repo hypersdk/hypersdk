@@ -26,7 +26,7 @@ import (
 )
 
 // handleVMCreate creates a new VM manifest
-func handleVMCreate(kubeconfig, namespace, name string, cpus int, memory, image, template, output string, interactive bool, gpuCount int, gpuVendor, gpuModel string, gpuPassthrough bool) {
+func handleVMCreate(kubeconfig, namespace, name string, cpus int, memory, image, template, output string, interactive bool, gpuCount int, gpuVendor, gpuModel string, gpuPassthrough bool, usbVendorID, usbProductID string, usbHotplug bool) {
 	// If interactive mode, prompt for all parameters
 	if interactive {
 		pterm.DefaultHeader.WithFullWidth().Println("Interactive VM Creation Wizard")
@@ -117,6 +117,40 @@ func handleVMCreate(kubeconfig, namespace, name string, cpus int, memory, image,
 				Help:    "Full passthrough gives the VM exclusive access to the GPU",
 			}
 			survey.AskOne(passthroughPrompt, &gpuPassthrough)
+		}
+
+		// Prompt for USB devices
+		addUSB := false
+		usbPrompt := &survey.Confirm{
+			Message: "Attach USB devices?",
+			Default: false,
+			Help:    "Pass through USB devices to the VM",
+		}
+		survey.AskOne(usbPrompt, &addUSB)
+
+		if addUSB {
+			if usbVendorID == "" {
+				vendorIDPrompt := &survey.Input{
+					Message: "USB Vendor ID:",
+					Help:    "USB device vendor ID in hex format (e.g., 0x1234)",
+				}
+				survey.AskOne(vendorIDPrompt, &usbVendorID)
+			}
+
+			if usbProductID == "" {
+				productIDPrompt := &survey.Input{
+					Message: "USB Product ID:",
+					Help:    "USB device product ID in hex format (e.g., 0x5678)",
+				}
+				survey.AskOne(productIDPrompt, &usbProductID)
+			}
+
+			hotplugPrompt := &survey.Confirm{
+				Message: "Enable USB hot-plug?",
+				Default: true,
+				Help:    "Allow USB devices to be plugged/unplugged while VM is running",
+			}
+			survey.AskOne(hotplugPrompt, &usbHotplug)
 		}
 
 		// Prompt for image source or template
@@ -248,6 +282,20 @@ func handleVMCreate(kubeconfig, namespace, name string, cpus int, memory, image,
 		}
 
 		pterm.Info.Printf("Added %d %s GPU(s) to VM spec\n", gpuCount, gpuVendor)
+	}
+
+	// Add USB devices if requested
+	if usbVendorID != "" && usbProductID != "" {
+		vm.Spec.USBDevices = []hypersdk.VMUSBDevice{
+			{
+				Name:      fmt.Sprintf("usb-%s-%s", usbVendorID, usbProductID),
+				VendorID:  usbVendorID,
+				ProductID: usbProductID,
+				Hotplug:   usbHotplug,
+			},
+		}
+
+		pterm.Info.Printf("Added USB device (Vendor: %s, Product: %s) to VM spec\n", usbVendorID, usbProductID)
 	}
 
 	// Add default network
