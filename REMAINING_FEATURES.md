@@ -465,13 +465,47 @@ hyperctl k8s -op vm-create --interactive
 
 ---
 
-#### 4.2 USB Device Passthrough
-**Estimated Effort**: 4-6 hours
+#### 4.2 USB Device Passthrough ✅ **IMPLEMENTED**
+
+**Status**: ✅ **COMPLETE** (2026-02-05)
 
 **Features**:
-- USB device assignment
-- Hot-plug support
-- Device filtering
+```bash
+# Create VM with USB device (hardware security key)
+hyperctl k8s -op vm-create -vm secure-vm --cpus 4 --memory 8Gi \
+  --usb-vendor-id 0x1050 --usb-product-id 0x0407
+
+# Create VM with USB device and hot-plug disabled
+hyperctl k8s -op vm-create -vm usb-vm \
+  --usb-vendor-id 0x0781 --usb-product-id 0x5583 --usb-hotplug=false
+
+# Interactive mode with USB prompts
+hyperctl k8s -op vm-create --interactive
+```
+
+**Implementation**:
+- ✅ USB device passthrough by vendor/product ID
+- ✅ Hot-plug support (attach/detach while running)
+- ✅ USB device filtering and identification
+- ✅ Multiple USB devices per VM
+- ✅ Serial number-based device matching
+- ✅ CLI flags for USB configuration
+- ✅ Interactive mode USB prompts
+- ✅ Host device path mapping
+
+**Device Identification**:
+- Vendor ID (hex format, e.g., 0x1234)
+- Product ID (hex format, e.g., 0x5678)
+- Optional: Bus/Device numbers
+- Optional: Serial number for unique matching
+
+**Use Cases**:
+- Hardware security keys (YubiKey, Titan Key)
+- USB dongles for software licensing
+- USB storage devices
+- USB-based authentication
+- Peripheral devices (printers, scanners)
+- Development boards and programmers
 
 ---
 
@@ -659,6 +693,7 @@ hyperctl k8s -op vm-clone-from-snapshot -snapshot my-snapshot -target new-vm -na
 9. ✅ VNC/Serial console support (DONE)
 10. ✅ VM cloning from snapshots (DONE)
 11. ✅ GPU passthrough support (DONE)
+12. ✅ USB device passthrough support (DONE)
 
 ### Next: v2.2.1 - Testing & Quality
 **Focus: Verification & Testing**
