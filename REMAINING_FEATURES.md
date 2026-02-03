@@ -272,19 +272,58 @@ GET /api/k8s/vms
 
 ---
 
-#### 2.3 Multi-Cluster Support
-**Estimated Effort**: 8-10 hours
+#### 2.3 Multi-Cluster Support ✅ **IMPLEMENTED**
+
+**Status**: ✅ **COMPLETE** (2026-02-05)
 
 **Features**:
-- Connect to multiple Kubernetes clusters
-- Unified dashboard view
-- Switch between clusters
-- Aggregate metrics across clusters
+```bash
+# List all clusters
+GET /api/k8s/clusters
+
+# Add new cluster
+POST /api/k8s/clusters
+Body: {"id": "prod", "name": "Production", "context": "prod-ctx", "namespace": "default"}
+
+# Get cluster metrics
+GET /api/k8s/clusters/{cluster-id}
+
+# Remove cluster
+DELETE /api/k8s/clusters/{cluster-id}
+
+# Switch primary cluster
+POST /api/k8s/clusters/switch
+Body: {"cluster_id": "prod"}
+
+# Get aggregated metrics (all clusters)
+GET /api/k8s/aggregated-metrics
+```
 
 **Implementation**:
-- Support multiple kubeconfig contexts
-- Cluster selector in UI
-- Per-cluster API endpoints
+- ✅ MultiClusterManager for central management
+- ✅ Dynamic cluster add/remove (no restart needed)
+- ✅ Kubeconfig context-based connections
+- ✅ Per-cluster metrics collection
+- ✅ Aggregated metrics across all clusters
+- ✅ Primary cluster selection
+- ✅ Parallel cluster updates (goroutines)
+- ✅ Per-cluster health monitoring
+- ✅ Graceful failure handling
+- ✅ Backwards compatible (optional feature)
+
+**Metrics Aggregation**:
+- Total VM/backup/restore counts across clusters
+- Combined resource statistics (CPUs, memory)
+- Merged lists (VMs, templates, snapshots)
+- Cluster-aware carbon tracking
+- Average calculations
+
+**Use Cases**:
+- Multi-region deployments
+- Dev/staging/prod separation
+- Disaster recovery monitoring
+- Federated cluster management
+- Centralized operations view
 
 ---
 
@@ -534,6 +573,7 @@ GET /api/k8s/vms
 5. ✅ Interactive mode for CLI (DONE)
 6. ✅ Export to CSV/JSON (DONE)
 7. ✅ Historical trend data (DONE)
+8. ✅ Multi-cluster support (DONE)
 
 ### Next: v2.2.1 - Testing & Quality
 **Focus: Verification & Testing**
