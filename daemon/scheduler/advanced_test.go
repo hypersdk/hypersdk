@@ -169,13 +169,13 @@ func TestJobQueue(t *testing.T) {
 
 	// Create test jobs with different priorities
 	job1 := &models.ScheduledJob{ID: "job1", Name: "Low Priority"}
-	config1 := &models.AdvancedScheduleConfig{Priority: 10}
+	config1 := &AdvancedScheduleConfig{Priority: 10}
 
 	job2 := &models.ScheduledJob{ID: "job2", Name: "High Priority"}
-	config2 := &models.AdvancedScheduleConfig{Priority: 90}
+	config2 := &AdvancedScheduleConfig{Priority: 90}
 
 	job3 := &models.ScheduledJob{ID: "job3", Name: "Medium Priority"}
-	config3 := &models.AdvancedScheduleConfig{Priority: 50}
+	config3 := &AdvancedScheduleConfig{Priority: 50}
 
 	// Add jobs
 	queue.Add(job1, config1)

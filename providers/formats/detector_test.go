@@ -5,7 +5,6 @@ package formats
 import (
 	"bytes"
 	"os"
-	"path/filepath"
 	"testing"
 )
 

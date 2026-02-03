@@ -63,7 +63,7 @@ func (l *Loader) Load(path string) (*Info, providers.ProviderFactory, error) {
 	}
 
 	// Validate factory type
-	factory, ok := factorySym.(func(providers.ProviderConfig, logger.Logger) (providers.Provider, error))
+	pluginFactory, ok := factorySym.(func(providers.ProviderConfig, logger.Logger) (providers.Provider, error))
 	if !ok {
 		return nil, nil, fmt.Errorf("NewProvider has wrong type: %T", factorySym)
 	}
@@ -79,6 +79,11 @@ func (l *Loader) Load(path string) (*Info, providers.ProviderFactory, error) {
 		"name", metadata.Name,
 		"version", metadata.Version,
 		"type", metadata.ProviderType)
+
+	// Wrap plugin factory to match ProviderFactory signature
+	factory := func(config providers.ProviderConfig) (providers.Provider, error) {
+		return pluginFactory(config, l.logger)
+	}
 
 	return info, factory, nil
 }
