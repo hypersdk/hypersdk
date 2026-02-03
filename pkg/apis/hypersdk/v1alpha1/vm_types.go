@@ -530,3 +530,76 @@ type VMSnapshotList struct {
 	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []VMSnapshot `json:"items"`
 }
+
+// +genclient
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+// VMBackupSchedule represents automated backup scheduling
+type VMBackupSchedule struct {
+	metav1.TypeMeta   `json:",inline"`
+	metav1.ObjectMeta `json:"metadata,omitempty"`
+
+	Spec   VMBackupScheduleSpec   `json:"spec"`
+	Status VMBackupScheduleStatus `json:"status,omitempty"`
+}
+
+// VMBackupScheduleSpec defines the backup schedule specification
+type VMBackupScheduleSpec struct {
+	VMSelector       VMSelector             `json:"vmSelector"`
+	Schedule         string                 `json:"schedule"` // Cron expression
+	SnapshotTemplate VMSnapshotTemplateSpec `json:"snapshotTemplate"`
+	RetentionPolicy  BackupRetentionPolicy  `json:"retentionPolicy"`
+	Paused           bool                   `json:"paused,omitempty"`
+	Timezone         string                 `json:"timezone,omitempty"` // Timezone for cron schedule
+}
+
+// VMSelector selects VMs for backup
+type VMSelector struct {
+	MatchLabels      map[string]string `json:"matchLabels,omitempty"`
+	MatchNames       []string          `json:"matchNames,omitempty"`
+	MatchNamespaces  []string          `json:"matchNamespaces,omitempty"`
+	ExcludeNames     []string          `json:"excludeNames,omitempty"`
+}
+
+// VMSnapshotTemplateSpec defines snapshot creation template
+type VMSnapshotTemplateSpec struct {
+	IncludeMemory bool                  `json:"includeMemory,omitempty"`
+	Quiesce       bool                  `json:"quiesce,omitempty"`
+	Destination   *SnapshotDestination  `json:"destination,omitempty"`
+	Labels        map[string]string     `json:"labels,omitempty"`
+	Annotations   map[string]string     `json:"annotations,omitempty"`
+}
+
+// BackupRetentionPolicy defines backup retention rules
+type BackupRetentionPolicy struct {
+	KeepLast     int32  `json:"keepLast,omitempty"`     // Keep last N backups
+	KeepDaily    int32  `json:"keepDaily,omitempty"`    // Keep daily backups for N days
+	KeepWeekly   int32  `json:"keepWeekly,omitempty"`   // Keep weekly backups for N weeks
+	KeepMonthly  int32  `json:"keepMonthly,omitempty"`  // Keep monthly backups for N months
+	KeepYearly   int32  `json:"keepYearly,omitempty"`   // Keep yearly backups for N years
+	MaxAge       string `json:"maxAge,omitempty"`       // Max age (e.g., "30d", "6m", "1y")
+	AutoDelete   bool   `json:"autoDelete,omitempty"`   // Auto-delete expired backups
+}
+
+// VMBackupScheduleStatus represents backup schedule status
+type VMBackupScheduleStatus struct {
+	LastBackupTime      *metav1.Time  `json:"lastBackupTime,omitempty"`
+	NextBackupTime      *metav1.Time  `json:"nextBackupTime,omitempty"`
+	LastBackupSnapshot  string        `json:"lastBackupSnapshot,omitempty"`
+	TotalBackups        int32         `json:"totalBackups,omitempty"`
+	ActiveBackups       int32         `json:"activeBackups,omitempty"`
+	FailedBackups       int32         `json:"failedBackups,omitempty"`
+	LastBackupStatus    string        `json:"lastBackupStatus,omitempty"`
+	LastBackupMessage   string        `json:"lastBackupMessage,omitempty"`
+	MatchedVMs          []string      `json:"matchedVMs,omitempty"`
+	Conditions          []VMCondition `json:"conditions,omitempty"`
+}
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+// VMBackupScheduleList contains a list of VMBackupSchedule
+type VMBackupScheduleList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitempty"`
+	Items           []VMBackupSchedule `json:"items"`
+}

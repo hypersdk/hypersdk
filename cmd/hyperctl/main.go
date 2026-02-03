@@ -245,7 +245,7 @@ func main() {
 
 	// Kubernetes Commands
 	k8sCmd := flag.NewFlagSet("k8s", flag.ExitOnError)
-	k8sOperation := k8sCmd.String("op", "status", "Operation: backup-list, backup-get, backup-create, backup-delete, schedule-list, schedule-create, restore-list, restore-create, vm-create, vm-list, vm-get, vm-delete, vm-start, vm-stop, vm-clone, vm-clone-from-snapshot, vm-snapshot-create, template-list, status")
+	k8sOperation := k8sCmd.String("op", "status", "Operation: backup-list, backup-get, backup-create, backup-delete, schedule-list, schedule-create, restore-list, restore-create, backup-schedule-create, backup-schedule-list, backup-schedule-delete, backup-schedule-get, vm-create, vm-list, vm-get, vm-delete, vm-start, vm-stop, vm-clone, vm-clone-from-snapshot, vm-snapshot-create, template-list, status")
 	k8sKubeconfig := k8sCmd.String("kubeconfig", "", "Path to kubeconfig file")
 	k8sNamespace := k8sCmd.String("namespace", "default", "Kubernetes namespace")
 	k8sName := k8sCmd.String("name", "", "Resource name")
@@ -260,6 +260,9 @@ func main() {
 	k8sSchedule := k8sCmd.String("schedule", "", "Cron schedule (e.g., '0 2 * * *')")
 	k8sBackupName := k8sCmd.String("backup", "", "BackupJob name (for restore)")
 	k8sPowerOn := k8sCmd.Bool("power-on", false, "Power on after restore")
+	k8sKeepLast := k8sCmd.Int("keep-last", 7, "Keep last N backups")
+	k8sIncludeMemoryBackup := k8sCmd.Bool("include-memory-backup", false, "Include memory in scheduled backups")
+	k8sQuiesceBackup := k8sCmd.Bool("quiesce-backup", true, "Quiesce filesystem before backup")
 	// VM-specific flags
 	k8sCPUs := k8sCmd.Int("cpus", 2, "Number of CPUs")
 	k8sMemory := k8sCmd.String("memory", "4Gi", "Memory size (e.g., 4Gi, 8Gi)")
@@ -575,6 +578,30 @@ func main() {
 				os.Exit(1)
 			}
 			handleK8sRestoreCreate(*k8sKubeconfig, *k8sNamespace, *k8sBackupName, *k8sVMName, *k8sProvider, *k8sPowerOn, *k8sJSON)
+
+		// Backup Schedule Operations
+		case "backup-schedule-create":
+			if *k8sName == "" || *k8sSchedule == "" {
+				pterm.Error.Println("Schedule name and cron expression required (-name, -schedule)")
+				pterm.Info.Println("Example: hyperctl k8s -op backup-schedule-create -name daily-backups -schedule '0 2 * * *' -vm my-vm --keep-last 7")
+				os.Exit(1)
+			}
+			handleBackupScheduleCreate(*k8sKubeconfig, *k8sNamespace, *k8sName, *k8sSchedule, *k8sVMName, *k8sKeepLast, *k8sIncludeMemoryBackup, *k8sQuiesceBackup, *k8sOutput)
+		case "backup-schedule-list":
+			handleBackupScheduleList(*k8sKubeconfig, *k8sNamespace, *k8sAllNamespaces, *k8sOutput)
+		case "backup-schedule-get":
+			if *k8sName == "" {
+				pterm.Error.Println("Schedule name required (-name)")
+				os.Exit(1)
+			}
+			handleBackupScheduleGet(*k8sKubeconfig, *k8sNamespace, *k8sName, *k8sOutput)
+		case "backup-schedule-delete":
+			if *k8sName == "" {
+				pterm.Error.Println("Schedule name required (-name)")
+				os.Exit(1)
+			}
+			handleBackupScheduleDelete(*k8sKubeconfig, *k8sNamespace, *k8sName, *k8sForce)
+
 		case "status":
 			handleK8sStatus(*k8sKubeconfig, *k8sNamespace, *k8sJSON)
 

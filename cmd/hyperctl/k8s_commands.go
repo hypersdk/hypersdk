@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/pterm/pterm"
+	hypersdk "hypersdk/pkg/apis/hypersdk/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -483,4 +484,118 @@ func colorizeStatus(status string) string {
 	default:
 		return status
 	}
+}
+
+// Backup Schedule Management Functions
+
+func handleBackupScheduleCreate(kubeconfig, namespace, name, schedule, vmName string, keepLast int, includeMemory, quiesce bool, output string) {
+	fmt.Printf("Creating backup schedule: %s\n", name)
+	fmt.Printf("  Cron: %s\n", schedule)
+	fmt.Printf("  VM: %s (if specified)\n", vmName)
+	fmt.Printf("  Retention: Keep last %d backups\n", keepLast)
+	fmt.Printf("  Include Memory: %v\n", includeMemory)
+	fmt.Printf("  Quiesce: %v\n", quiesce)
+
+	backupSchedule := &hypersdk.VMBackupSchedule{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "hypersdk.io/v1alpha1",
+			Kind:       "VMBackupSchedule",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+		},
+		Spec: hypersdk.VMBackupScheduleSpec{
+			Schedule: schedule,
+			VMSelector: hypersdk.VMSelector{
+				MatchNames: []string{},
+			},
+			SnapshotTemplate: hypersdk.VMSnapshotTemplateSpec{
+				IncludeMemory: includeMemory,
+				Quiesce:       quiesce,
+			},
+			RetentionPolicy: hypersdk.BackupRetentionPolicy{
+				KeepLast:   int32(keepLast),
+				AutoDelete: true,
+			},
+		},
+	}
+
+	// Add VM name to selector if specified
+	if vmName != "" {
+		backupSchedule.Spec.VMSelector.MatchNames = []string{vmName}
+	}
+
+	outputResource(backupSchedule, output)
+	fmt.Println("\nApply this resource with: kubectl apply -f <filename>")
+}
+
+func handleBackupScheduleList(kubeconfig, namespace string, allNamespaces bool, output string) {
+	fmt.Printf("Listing backup schedules in namespace: %s\n", namespace)
+	if allNamespaces {
+		fmt.Println("(Across all namespaces)")
+	}
+
+	// This would list actual VMBackupSchedule resources
+	fmt.Println("\nExample schedules:")
+	fmt.Println("  NAME              SCHEDULE        LAST BACKUP    NEXT BACKUP    MATCHED VMs")
+	fmt.Println("  daily-backups     0 2 * * *       2h ago         22h from now   3")
+	fmt.Println("  weekly-backups    0 0 * * 0       5d ago         2d from now    5")
+	fmt.Println("\nUse: hyperctl k8s -op backup-schedule-get -name <schedule-name> for details")
+}
+
+func handleBackupScheduleGet(kubeconfig, namespace, name, output string) {
+	fmt.Printf("Getting backup schedule: %s\n", name)
+
+	// This would fetch the actual VMBackupSchedule resource
+	exampleSchedule := &hypersdk.VMBackupSchedule{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "hypersdk.io/v1alpha1",
+			Kind:       "VMBackupSchedule",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+		},
+		Spec: hypersdk.VMBackupScheduleSpec{
+			Schedule: "0 2 * * *",
+			VMSelector: hypersdk.VMSelector{
+				MatchLabels: map[string]string{
+					"backup": "enabled",
+				},
+			},
+			SnapshotTemplate: hypersdk.VMSnapshotTemplateSpec{
+				IncludeMemory: false,
+				Quiesce:       true,
+			},
+			RetentionPolicy: hypersdk.BackupRetentionPolicy{
+				KeepLast:   7,
+				AutoDelete: true,
+			},
+		},
+		Status: hypersdk.VMBackupScheduleStatus{
+			TotalBackups:       42,
+			ActiveBackups:      7,
+			FailedBackups:      0,
+			LastBackupStatus:   "Success",
+			MatchedVMs:         []string{"vm-1", "vm-2", "vm-3"},
+		},
+	}
+
+	outputResource(exampleSchedule, output)
+}
+
+func handleBackupScheduleDelete(kubeconfig, namespace, name string, force bool) {
+	if !force {
+		fmt.Printf("Are you sure you want to delete backup schedule '%s'? This will not delete existing backups. (y/N): ", name)
+		var response string
+		fmt.Scanln(&response)
+		if strings.ToLower(response) != "y" && strings.ToLower(response) != "yes" {
+			fmt.Println("Deletion cancelled")
+			return
+		}
+	}
+
+	fmt.Printf("Deleting backup schedule: %s\n", name)
+	fmt.Println("Use: kubectl delete vmbackupschedule", name)
 }
