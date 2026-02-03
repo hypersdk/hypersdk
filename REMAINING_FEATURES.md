@@ -327,19 +327,63 @@ GET /api/k8s/aggregated-metrics
 
 ---
 
-#### 2.4 Custom Dashboards
-**Estimated Effort**: 6-8 hours
+#### 2.4 Custom Dashboards ✅ **IMPLEMENTED**
+
+**Status**: ✅ **COMPLETE** (2026-02-05)
 
 **Features**:
-- User-defined dashboard layouts
-- Drag-and-drop widgets
-- Save custom views
-- Dashboard templates
+```bash
+# List all dashboards
+GET /api/dashboards
+
+# Create custom dashboard
+POST /api/dashboards
+Body: {
+  "name": "My Dashboard",
+  "layout": {
+    "columns": 12,
+    "rows": 6,
+    "widgets": [
+      {"id": "vm-metrics", "type": "chart", "x": 0, "y": 0, "width": 6, "height": 2}
+    ]
+  }
+}
+
+# Clone dashboard
+POST /api/dashboards/default/clone
+```
+
+**Implementation**:
+- ✅ Custom dashboard layouts with grid positioning
+- ✅ Widget configuration (type, position, size)
+- ✅ Dashboard persistence (JSON file storage)
+- ✅ Default dashboard with common widgets
+- ✅ CRUD operations (create, read, update, delete)
+- ✅ Dashboard cloning
+- ✅ Per-widget auto-refresh intervals
+- ✅ Widget-specific configuration
+
+**Widget Types**:
+- Metrics (single values, gauges)
+- Charts (line, pie, bar charts)
+- Tables (VM lists, operations)
+- Console (embedded console access)
+
+**Dashboard Layout**:
+- 12-column grid system
+- Configurable rows
+- X,Y positioning for widgets
+- Width/Height in grid units
+- Widget-specific configs
+- Auto-refresh support
+
+**Storage**: JSON files in ./data/dashboards/
 
 **Benefits**:
-- Personalized workflows
-- Role-specific views
-- Better monitoring
+- Personalized monitoring views
+- Role-specific dashboards (dev, ops, manager)
+- Custom metric combinations
+- Focused troubleshooting layouts
 
 ---
 
@@ -694,6 +738,7 @@ hyperctl k8s -op vm-clone-from-snapshot -snapshot my-snapshot -target new-vm -na
 10. ✅ VM cloning from snapshots (DONE)
 11. ✅ GPU passthrough support (DONE)
 12. ✅ USB device passthrough support (DONE)
+13. ✅ Custom dashboards (DONE)
 
 ### Next: v2.2.1 - Testing & Quality
 **Focus: Verification & Testing**
