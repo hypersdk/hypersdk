@@ -219,15 +219,17 @@ type K8sVMResourceStats struct {
 
 // K8sDashboard extends the main dashboard with Kubernetes-specific features
 type K8sDashboard struct {
-	dashboard      *Dashboard
-	k8sClient      *kubernetes.Clientset
-	dynamicClient  *DynamicK8sClient
-	k8sConfig      *rest.Config
-	k8sMetrics     *K8sMetrics
-	k8sMetricsMu   sync.RWMutex
-	namespace      string
-	wsHub          *K8sWebSocketHub
-	metricsHistory *MetricsHistory
+	dashboard       *Dashboard
+	k8sClient       *kubernetes.Clientset
+	dynamicClient   *DynamicK8sClient
+	k8sConfig       *rest.Config
+	k8sMetrics      *K8sMetrics
+	k8sMetricsMu    sync.RWMutex
+	namespace       string
+	wsHub           *K8sWebSocketHub
+	metricsHistory  *MetricsHistory
+	multiCluster    *MultiClusterManager
+	multiClusterMode bool
 }
 
 // NewK8sDashboard creates a new Kubernetes dashboard extension
@@ -290,6 +292,10 @@ func NewK8sDashboard(dashboard *Dashboard, kubeconfig string, namespace string) 
 		metricsHistory, _ = NewMetricsHistory("", 30) // disabled
 	}
 	k8sDash.metricsHistory = metricsHistory
+
+	// Initialize multi-cluster manager
+	k8sDash.multiCluster = NewMultiClusterManager()
+	k8sDash.multiClusterMode = false // Disabled by default
 
 	// Try to connect to Kubernetes
 	if err := k8sDash.connectToK8s(kubeconfig); err != nil {
@@ -515,6 +521,12 @@ func (kd *K8sDashboard) updateMetrics(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
+			// Update multi-cluster metrics if enabled
+			if kd.multiClusterMode && kd.multiCluster.IsEnabled() {
+				kd.multiCluster.UpdateAllClusters(ctx)
+			}
+
+			// Update single cluster metrics
 			if kd.k8sClient == nil {
 				continue
 			}
@@ -923,6 +935,12 @@ func (kd *K8sDashboard) RegisterHandlers(mux *http.ServeMux) {
 	// Historical metrics endpoints
 	mux.HandleFunc("/api/k8s/history", kd.handleMetricsHistory)
 	mux.HandleFunc("/api/k8s/trends", kd.handleMetricsTrends)
+
+	// Multi-cluster endpoints
+	mux.HandleFunc("/api/k8s/clusters", kd.handleClusters)
+	mux.HandleFunc("/api/k8s/clusters/", kd.handleClusterDetail)
+	mux.HandleFunc("/api/k8s/clusters/switch", kd.handleClusterSwitch)
+	mux.HandleFunc("/api/k8s/aggregated-metrics", kd.handleAggregatedMetrics)
 
 	// WebSocket endpoint for real-time updates
 	mux.HandleFunc("/ws/k8s", kd.wsHub.HandleWebSocket)
@@ -1584,4 +1602,156 @@ func writeHistoryCSV(w http.ResponseWriter, history []HistoricalMetrics) error {
 	}
 
 	return nil
+}
+
+// Multi-cluster handler functions
+
+// handleClusters handles cluster listing and adding
+func (kd *K8sDashboard) handleClusters(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		// List all clusters
+		clusters := kd.multiCluster.ListClusters()
+		
+		type ClusterInfo struct {
+			ID          string    `json:"id"`
+			Name        string    `json:"name"`
+			Context     string    `json:"context"`
+			Server      string    `json:"server"`
+			Namespace   string    `json:"namespace"`
+			Connected   bool      `json:"connected"`
+			LastUpdated time.Time `json:"last_updated"`
+			Error       string    `json:"error,omitempty"`
+			IsPrimary   bool      `json:"is_primary"`
+		}
+		
+		infos := make([]ClusterInfo, 0, len(clusters))
+		for _, cluster := range clusters {
+			infos = append(infos, ClusterInfo{
+				ID:          cluster.ID,
+				Name:        cluster.Name,
+				Context:     cluster.Context,
+				Server:      cluster.Server,
+				Namespace:   cluster.Namespace,
+				Connected:   cluster.Connected,
+				LastUpdated: cluster.LastUpdated,
+				Error:       cluster.Error,
+				IsPrimary:   cluster.ID == kd.multiCluster.primary,
+			})
+		}
+		
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(infos)
+		
+	case http.MethodPost:
+		// Add new cluster
+		type AddClusterRequest struct {
+			ID        string `json:"id"`
+			Name      string `json:"name"`
+			Context   string `json:"context"`
+			Namespace string `json:"namespace"`
+		}
+		
+		var req AddClusterRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		
+		if err := kd.multiCluster.AddCluster(req.ID, req.Name, req.Context, req.Namespace); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		
+		// Enable multi-cluster mode
+		kd.multiClusterMode = true
+		
+		w.WriteHeader(http.StatusCreated)
+		json.NewEncoder(w).Encode(map[string]string{"status": "cluster added"})
+		
+	default:
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
+// handleClusterDetail handles individual cluster operations
+func (kd *K8sDashboard) handleClusterDetail(w http.ResponseWriter, r *http.Request) {
+	// Extract cluster ID from path
+	path := r.URL.Path[len("/api/k8s/clusters/"):]
+	clusterID := strings.TrimSuffix(path, "/")
+	
+	if clusterID == "" {
+		http.Error(w, "Cluster ID required", http.StatusBadRequest)
+		return
+	}
+	
+	switch r.Method {
+	case http.MethodGet:
+		// Get cluster metrics
+		cluster, err := kd.multiCluster.GetCluster(clusterID)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusNotFound)
+			return
+		}
+		
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(cluster.Metrics)
+		
+	case http.MethodDelete:
+		// Remove cluster
+		if err := kd.multiCluster.RemoveCluster(clusterID); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		
+		// Disable multi-cluster mode if no clusters left
+		if kd.multiCluster.GetClusterCount() == 0 {
+			kd.multiClusterMode = false
+		}
+		
+		w.WriteHeader(http.StatusNoContent)
+		
+	default:
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
+// handleClusterSwitch switches the primary cluster
+func (kd *K8sDashboard) handleClusterSwitch(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	
+	type SwitchRequest struct {
+		ClusterID string `json:"cluster_id"`
+	}
+	
+	var req SwitchRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	
+	if err := kd.multiCluster.SetPrimaryCluster(req.ClusterID); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"status": "primary cluster switched"})
+}
+
+// handleAggregatedMetrics returns aggregated metrics across all clusters
+func (kd *K8sDashboard) handleAggregatedMetrics(w http.ResponseWriter, r *http.Request) {
+	if !kd.multiClusterMode || !kd.multiCluster.IsEnabled() {
+		// Fall back to single cluster metrics
+		kd.handleK8sMetrics(w, r)
+		return
+	}
+	
+	aggregated := kd.multiCluster.GetAggregatedMetrics()
+	
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(aggregated)
 }
