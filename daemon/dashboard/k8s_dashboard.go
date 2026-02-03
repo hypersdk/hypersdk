@@ -219,14 +219,15 @@ type K8sVMResourceStats struct {
 
 // K8sDashboard extends the main dashboard with Kubernetes-specific features
 type K8sDashboard struct {
-	dashboard     *Dashboard
-	k8sClient     *kubernetes.Clientset
-	dynamicClient *DynamicK8sClient
-	k8sConfig     *rest.Config
-	k8sMetrics    *K8sMetrics
-	k8sMetricsMu  sync.RWMutex
-	namespace     string
-	wsHub         *K8sWebSocketHub
+	dashboard      *Dashboard
+	k8sClient      *kubernetes.Clientset
+	dynamicClient  *DynamicK8sClient
+	k8sConfig      *rest.Config
+	k8sMetrics     *K8sMetrics
+	k8sMetricsMu   sync.RWMutex
+	namespace      string
+	wsHub          *K8sWebSocketHub
+	metricsHistory *MetricsHistory
 }
 
 // NewK8sDashboard creates a new Kubernetes dashboard extension
@@ -279,6 +280,16 @@ func NewK8sDashboard(dashboard *Dashboard, kubeconfig string, namespace string) 
 
 	// Initialize WebSocket hub
 	k8sDash.wsHub = NewK8sWebSocketHub(k8sDash, 100)
+
+	// Initialize metrics history (30 days retention)
+	// Use ./data/metrics_history.db for storage
+	metricsHistory, err := NewMetricsHistory("./data/metrics_history.db", 30)
+	if err != nil {
+		// Non-fatal - just log and continue without history
+		fmt.Printf("Warning: Failed to initialize metrics history: %v\n", err)
+		metricsHistory, _ = NewMetricsHistory("", 30) // disabled
+	}
+	k8sDash.metricsHistory = metricsHistory
 
 	// Try to connect to Kubernetes
 	if err := k8sDash.connectToK8s(kubeconfig); err != nil {
@@ -491,6 +502,14 @@ func (kd *K8sDashboard) updateMetrics(ctx context.Context) {
 	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
 
+	// Snapshot ticker for historical data (every 5 minutes)
+	snapshotTicker := time.NewTicker(5 * time.Minute)
+	defer snapshotTicker.Stop()
+
+	// Cleanup ticker for old data (daily)
+	cleanupTicker := time.NewTicker(24 * time.Hour)
+	defer cleanupTicker.Stop()
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -501,6 +520,24 @@ func (kd *K8sDashboard) updateMetrics(ctx context.Context) {
 			}
 
 			kd.collectK8sMetrics(ctx)
+
+		case <-snapshotTicker.C:
+			// Record metrics snapshot for historical trends
+			if kd.metricsHistory != nil && kd.metricsHistory.IsEnabled() {
+				kd.k8sMetricsMu.RLock()
+				if err := kd.metricsHistory.RecordSnapshot(kd.k8sMetrics); err != nil {
+					fmt.Printf("Error recording metrics snapshot: %v\n", err)
+				}
+				kd.k8sMetricsMu.RUnlock()
+			}
+
+		case <-cleanupTicker.C:
+			// Cleanup old historical data
+			if kd.metricsHistory != nil && kd.metricsHistory.IsEnabled() {
+				if err := kd.metricsHistory.CleanupOldData(); err != nil {
+					fmt.Printf("Error cleaning up old metrics: %v\n", err)
+				}
+			}
 		}
 	}
 }
@@ -882,6 +919,10 @@ func (kd *K8sDashboard) RegisterHandlers(mux *http.ServeMux) {
 	mux.HandleFunc("/api/k8s/vm-metrics", kd.handleVMMetrics)
 	mux.HandleFunc("/api/k8s/templates", kd.handleTemplates)
 	mux.HandleFunc("/api/k8s/snapshots", kd.handleSnapshots)
+
+	// Historical metrics endpoints
+	mux.HandleFunc("/api/k8s/history", kd.handleMetricsHistory)
+	mux.HandleFunc("/api/k8s/trends", kd.handleMetricsTrends)
 
 	// WebSocket endpoint for real-time updates
 	mux.HandleFunc("/ws/k8s", kd.wsHub.HandleWebSocket)
@@ -1393,4 +1434,154 @@ func (kd *K8sDashboard) GetMetrics() K8sMetrics {
 	kd.k8sMetricsMu.RLock()
 	defer kd.k8sMetricsMu.RUnlock()
 	return *kd.k8sMetrics
+}
+
+// handleMetricsHistory serves historical metrics data
+func (kd *K8sDashboard) handleMetricsHistory(w http.ResponseWriter, r *http.Request) {
+	if kd.metricsHistory == nil || !kd.metricsHistory.IsEnabled() {
+		http.Error(w, "Metrics history not enabled", http.StatusServiceUnavailable)
+		return
+	}
+
+	// Parse time range parameters
+	timeRange := r.URL.Query().Get("timeRange")
+	var startTime, endTime time.Time
+	var err error
+
+	switch timeRange {
+	case "1h":
+		endTime = time.Now()
+		startTime = endTime.Add(-1 * time.Hour)
+	case "6h":
+		endTime = time.Now()
+		startTime = endTime.Add(-6 * time.Hour)
+	case "24h", "1d", "":
+		endTime = time.Now()
+		startTime = endTime.Add(-24 * time.Hour)
+	case "7d":
+		endTime = time.Now()
+		startTime = endTime.Add(-7 * 24 * time.Hour)
+	case "30d":
+		endTime = time.Now()
+		startTime = endTime.Add(-30 * 24 * time.Hour)
+	default:
+		// Parse custom start/end times
+		startStr := r.URL.Query().Get("start")
+		endStr := r.URL.Query().Get("end")
+		if startStr != "" && endStr != "" {
+			startTime, err = time.Parse(time.RFC3339, startStr)
+			if err != nil {
+				http.Error(w, "Invalid start time format", http.StatusBadRequest)
+				return
+			}
+			endTime, err = time.Parse(time.RFC3339, endStr)
+			if err != nil {
+				http.Error(w, "Invalid end time format", http.StatusBadRequest)
+				return
+			}
+		} else {
+			http.Error(w, "Invalid time range", http.StatusBadRequest)
+			return
+		}
+	}
+
+	// Get historical data
+	history, err := kd.metricsHistory.GetHistory(startTime, endTime)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Check for export format
+	format := r.URL.Query().Get("format")
+	download := r.URL.Query().Get("download")
+
+	switch format {
+	case "csv":
+		if download == "true" {
+			w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=metrics-history-%s.csv", time.Now().Format("2006-01-02")))
+		}
+		w.Header().Set("Content-Type", "text/csv")
+		if err := writeHistoryCSV(w, history); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+	default:
+		// Default to JSON
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(history)
+	}
+}
+
+// handleMetricsTrends serves aggregated trend data
+func (kd *K8sDashboard) handleMetricsTrends(w http.ResponseWriter, r *http.Request) {
+	if kd.metricsHistory == nil || !kd.metricsHistory.IsEnabled() {
+		http.Error(w, "Metrics history not enabled", http.StatusServiceUnavailable)
+		return
+	}
+
+	// Parse time range (default: 7 days)
+	timeRange := r.URL.Query().Get("timeRange")
+	endTime := time.Now()
+	var startTime time.Time
+
+	switch timeRange {
+	case "24h", "1d":
+		startTime = endTime.Add(-24 * time.Hour)
+	case "7d", "":
+		startTime = endTime.Add(-7 * 24 * time.Hour)
+	case "30d":
+		startTime = endTime.Add(-30 * 24 * time.Hour)
+	default:
+		startTime = endTime.Add(-7 * 24 * time.Hour)
+	}
+
+	// Get trend data
+	trend, err := kd.metricsHistory.GetTrend(startTime, endTime)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(trend)
+}
+
+// writeHistoryCSV writes historical metrics as CSV
+func writeHistoryCSV(w http.ResponseWriter, history []HistoricalMetrics) error {
+	writer := csv.NewWriter(w)
+	defer writer.Flush()
+
+	// Write header
+	header := []string{
+		"Timestamp", "Total VMs", "Running VMs", "Stopped VMs", "Failed VMs",
+		"Total Backups", "Completed Backups", "Failed Backups", "Total Restores",
+		"Total CPUs", "Total Memory (Gi)", "Avg Carbon Intensity", "Carbon-Aware VMs",
+	}
+	if err := writer.Write(header); err != nil {
+		return err
+	}
+
+	// Write data rows
+	for _, m := range history {
+		row := []string{
+			m.Timestamp.Format(time.RFC3339),
+			fmt.Sprintf("%d", m.TotalVMs),
+			fmt.Sprintf("%d", m.RunningVMs),
+			fmt.Sprintf("%d", m.StoppedVMs),
+			fmt.Sprintf("%d", m.FailedVMs),
+			fmt.Sprintf("%d", m.TotalBackups),
+			fmt.Sprintf("%d", m.CompletedBackups),
+			fmt.Sprintf("%d", m.FailedBackups),
+			fmt.Sprintf("%d", m.TotalRestores),
+			fmt.Sprintf("%d", m.TotalCPUs),
+			fmt.Sprintf("%.2f", m.TotalMemoryGi),
+			fmt.Sprintf("%.2f", m.AvgCarbonIntensity),
+			fmt.Sprintf("%d", m.CarbonAwareVMs),
+		}
+		if err := writer.Write(row); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
