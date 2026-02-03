@@ -26,7 +26,7 @@ import (
 )
 
 // handleVMCreate creates a new VM manifest
-func handleVMCreate(kubeconfig, namespace, name string, cpus int, memory, image, template, output string, interactive bool) {
+func handleVMCreate(kubeconfig, namespace, name string, cpus int, memory, image, template, output string, interactive bool, gpuCount int, gpuVendor, gpuModel string, gpuPassthrough bool) {
 	// If interactive mode, prompt for all parameters
 	if interactive {
 		pterm.DefaultHeader.WithFullWidth().Println("Interactive VM Creation Wizard")
@@ -75,6 +75,48 @@ func handleVMCreate(kubeconfig, namespace, name string, cpus int, memory, image,
 				Help:    "Memory size (e.g., 2Gi, 4Gi, 8Gi, 16Gi)",
 			}
 			survey.AskOne(memPrompt, &memory)
+		}
+
+		// Prompt for GPUs
+		if gpuCount == 0 {
+			gpuInput := ""
+			gpuPrompt := &survey.Input{
+				Message: "Number of GPUs:",
+				Default: "0",
+				Help:    "Number of GPUs to attach (0 for no GPU, 1-8 for GPU count)",
+			}
+			survey.AskOne(gpuPrompt, &gpuInput)
+			if gpuInput != "" {
+				if parsed, err := strconv.Atoi(gpuInput); err == nil {
+					gpuCount = parsed
+				}
+			}
+		}
+
+		// If GPUs are requested, prompt for vendor and model
+		if gpuCount > 0 {
+			vendorPrompt := &survey.Select{
+				Message: "GPU Vendor:",
+				Options: []string{"nvidia", "amd", "intel"},
+				Default: "nvidia",
+				Help:    "Select GPU vendor",
+			}
+			survey.AskOne(vendorPrompt, &gpuVendor)
+
+			if gpuModel == "" {
+				modelPrompt := &survey.Input{
+					Message: "GPU Model (optional):",
+					Help:    "GPU model name (e.g., Tesla V100, RTX 3090)",
+				}
+				survey.AskOne(modelPrompt, &gpuModel)
+			}
+
+			passthroughPrompt := &survey.Confirm{
+				Message: "Enable full GPU passthrough?",
+				Default: true,
+				Help:    "Full passthrough gives the VM exclusive access to the GPU",
+			}
+			survey.AskOne(passthroughPrompt, &gpuPassthrough)
 		}
 
 		// Prompt for image source or template
@@ -178,6 +220,34 @@ func handleVMCreate(kubeconfig, namespace, name string, cpus int, memory, image,
 			StorageClass: "standard",
 			BootOrder:    &bootOrder,
 		},
+	}
+
+	// Add GPUs if requested
+	if gpuCount > 0 {
+		// Determine resource name based on vendor
+		resourceName := fmt.Sprintf("%s.com/gpu", gpuVendor)
+		if gpuVendor == "nvidia" {
+			resourceName = "nvidia.com/gpu"
+		} else if gpuVendor == "amd" {
+			resourceName = "amd.com/gpu"
+		} else if gpuVendor == "intel" {
+			resourceName = "gpu.intel.com/i915"
+		}
+
+		vm.Spec.GPUs = []hypersdk.VMGPU{
+			{
+				Name:         fmt.Sprintf("gpu-%s", gpuVendor),
+				DeviceName:   resourceName,
+				Vendor:       gpuVendor,
+				Model:        gpuModel,
+				Count:        int32(gpuCount),
+				Passthrough:  gpuPassthrough,
+				VirtualGPU:   !gpuPassthrough,
+				ResourceName: resourceName,
+			},
+		}
+
+		pterm.Info.Printf("Added %d %s GPU(s) to VM spec\n", gpuCount, gpuVendor)
 	}
 
 	// Add default network

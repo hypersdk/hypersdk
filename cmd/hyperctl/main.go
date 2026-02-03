@@ -263,6 +263,10 @@ func main() {
 	// VM-specific flags
 	k8sCPUs := k8sCmd.Int("cpus", 2, "Number of CPUs")
 	k8sMemory := k8sCmd.String("memory", "4Gi", "Memory size (e.g., 4Gi, 8Gi)")
+	k8sGPUCount := k8sCmd.Int("gpus", 0, "Number of GPUs")
+	k8sGPUVendor := k8sCmd.String("gpu-vendor", "nvidia", "GPU vendor (nvidia, amd, intel)")
+	k8sGPUModel := k8sCmd.String("gpu-model", "", "GPU model (e.g., Tesla V100)")
+	k8sGPUPassthrough := k8sCmd.Bool("gpu-passthrough", true, "Enable full GPU passthrough")
 	k8sImage := k8sCmd.String("image", "", "VM image source")
 	k8sTemplate := k8sCmd.String("template", "", "VM template name")
 	k8sTargetVM := k8sCmd.String("target", "", "Target VM name (for clone)")
@@ -579,7 +583,7 @@ func main() {
 				pterm.Info.Println("Or:      hyperctl k8s -op vm-create --interactive")
 				os.Exit(1)
 			}
-			handleVMCreate(*k8sKubeconfig, *k8sNamespace, *k8sVMName, *k8sCPUs, *k8sMemory, *k8sImage, *k8sTemplate, *k8sOutput, *k8sInteractive)
+			handleVMCreate(*k8sKubeconfig, *k8sNamespace, *k8sVMName, *k8sCPUs, *k8sMemory, *k8sImage, *k8sTemplate, *k8sOutput, *k8sInteractive, *k8sGPUCount, *k8sGPUVendor, *k8sGPUModel, *k8sGPUPassthrough)
 		case "vm-list":
 			handleVMList(*k8sKubeconfig, *k8sNamespace, *k8sAllNamespaces, *k8sOutput, *k8sWatch,
 				*k8sFilterStatus, *k8sFilterNode, *k8sFilterLabels, *k8sFilterMinCPUs, *k8sFilterMinMemory)

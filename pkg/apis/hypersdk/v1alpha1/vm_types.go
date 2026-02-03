@@ -24,6 +24,7 @@ type VirtualMachineSpec struct {
 	// VM Resources
 	CPUs   int32  `json:"cpus"`
 	Memory string `json:"memory"`
+	GPUs   []VMGPU `json:"gpus,omitempty"`
 
 	// Disks
 	Disks []VMDisk `json:"disks,omitempty"`
@@ -89,6 +90,19 @@ type VMNetwork struct {
 	Type              string `json:"type,omitempty"` // pod-network, multus, bridge
 	MultusNetworkName string `json:"multusNetworkName,omitempty"`
 	MACAddress        string `json:"macAddress,omitempty"`
+}
+
+// VMGPU represents a GPU device assignment
+type VMGPU struct {
+	Name         string `json:"name"`
+	DeviceName   string `json:"deviceName,omitempty"`   // GPU device name (e.g., "nvidia.com/gpu")
+	Vendor       string `json:"vendor,omitempty"`       // nvidia, amd, intel
+	Model        string `json:"model,omitempty"`        // GPU model (e.g., "Tesla V100")
+	Count        int32  `json:"count,omitempty"`        // Number of GPUs (default: 1)
+	VirtualGPU   bool   `json:"virtualGPU,omitempty"`   // Use vGPU instead of full passthrough
+	VGPUID       string `json:"vgpuID,omitempty"`       // vGPU profile ID
+	Passthrough  bool   `json:"passthrough,omitempty"`  // Full GPU passthrough (default: true)
+	ResourceName string `json:"resourceName,omitempty"` // Kubernetes resource name for GPU
 }
 
 // VMImage defines the VM image source
@@ -194,6 +208,26 @@ type GuestAgentStatus struct {
 type VMResourceStatus struct {
 	CPU    *ResourceMetrics `json:"cpu,omitempty"`
 	Memory *ResourceMetrics `json:"memory,omitempty"`
+	GPUs   []GPUStatus      `json:"gpus,omitempty"`
+}
+
+// GPUStatus represents GPU device status
+type GPUStatus struct {
+	Name        string  `json:"name"`
+	Model       string  `json:"model,omitempty"`
+	UUID        string  `json:"uuid,omitempty"`
+	PCIAddress  string  `json:"pciAddress,omitempty"`
+	Utilization float64 `json:"utilization,omitempty"` // GPU utilization percentage
+	Memory      *GPUMemoryStatus `json:"memory,omitempty"`
+	Temperature int32   `json:"temperature,omitempty"` // GPU temperature in Celsius
+	PowerUsage  int32   `json:"powerUsage,omitempty"`  // Power usage in watts
+}
+
+// GPUMemoryStatus represents GPU memory status
+type GPUMemoryStatus struct {
+	Total string  `json:"total,omitempty"`
+	Used  string  `json:"used,omitempty"`
+	Free  string  `json:"free,omitempty"`
 }
 
 // ResourceMetrics for CPU/Memory
