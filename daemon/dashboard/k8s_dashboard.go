@@ -4,6 +4,7 @@ package dashboard
 
 import (
 	"context"
+	"encoding/csv"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -286,6 +287,93 @@ func NewK8sDashboard(dashboard *Dashboard, kubeconfig string, namespace string) 
 	}
 
 	return k8sDash, nil
+}
+
+// CSV Export Helper Functions
+
+// writeVMsCSV writes VM list as CSV
+func writeVMsCSV(w http.ResponseWriter, vms []K8sVMInfo) error {
+	writer := csv.NewWriter(w)
+	defer writer.Flush()
+
+	// Write header
+	header := []string{
+		"Name", "Namespace", "Phase", "CPUs", "Memory", "Node",
+		"IP Addresses", "Disks", "Networks", "Created",
+		"Carbon Intensity", "Guest Agent", "CPU Usage", "Memory Usage",
+	}
+	if err := writer.Write(header); err != nil {
+		return err
+	}
+
+	// Write data rows
+	for _, vm := range vms {
+		row := []string{
+			vm.Name,
+			vm.Namespace,
+			vm.Phase,
+			fmt.Sprintf("%d", vm.CPUs),
+			vm.Memory,
+			vm.NodeName,
+			strings.Join(vm.IPAddresses, ";"),
+			fmt.Sprintf("%d", vm.DiskCount),
+			fmt.Sprintf("%d", vm.NetworkCount),
+			vm.CreationTimestamp.Format(time.RFC3339),
+			fmt.Sprintf("%.2f", vm.CarbonIntensity),
+			fmt.Sprintf("%t", vm.GuestAgentConnected),
+			vm.CPUUsage,
+			vm.MemoryUsage,
+		}
+		if err := writer.Write(row); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// writeMetricsCSV writes metrics summary as CSV
+func writeMetricsCSV(w http.ResponseWriter, metrics *K8sMetrics) error {
+	writer := csv.NewWriter(w)
+	defer writer.Flush()
+
+	// Write header
+	header := []string{"Metric", "Value"}
+	if err := writer.Write(header); err != nil {
+		return err
+	}
+
+	// Write key metrics
+	rows := [][]string{
+		{"Timestamp", metrics.Timestamp.Format(time.RFC3339)},
+		{"Operator Status", metrics.OperatorStatus},
+		{"Operator Replicas", fmt.Sprintf("%d", metrics.OperatorReplicas)},
+		{"Total VMs", fmt.Sprintf("%d", metrics.VirtualMachines.Total)},
+		{"Running VMs", fmt.Sprintf("%d", metrics.VirtualMachines.Running)},
+		{"Stopped VMs", fmt.Sprintf("%d", metrics.VirtualMachines.Stopped)},
+		{"Failed VMs", fmt.Sprintf("%d", metrics.VirtualMachines.Failed)},
+		{"Total Backups", fmt.Sprintf("%d", metrics.BackupJobs.Total)},
+		{"Completed Backups", fmt.Sprintf("%d", metrics.BackupJobs.Completed)},
+		{"Failed Backups", fmt.Sprintf("%d", metrics.BackupJobs.Failed)},
+		{"Total Restores", fmt.Sprintf("%d", metrics.RestoreJobs.Total)},
+		{"Completed Restores", fmt.Sprintf("%d", metrics.RestoreJobs.Completed)},
+		{"Total Templates", fmt.Sprintf("%d", metrics.VMTemplates.Total)},
+		{"Total Snapshots", fmt.Sprintf("%d", metrics.VMSnapshots.Total)},
+		{"Total CPU Cores (VMs)", fmt.Sprintf("%d", metrics.VMResourceStats.TotalCPUs)},
+		{"Total Memory (VMs)", fmt.Sprintf("%.2f Gi", metrics.VMResourceStats.TotalMemoryGi)},
+		{"Avg Carbon Intensity (VMs)", fmt.Sprintf("%.2f gCO2/kWh", metrics.VMResourceStats.AvgCarbonIntensity)},
+		{"Carbon-Aware VMs", fmt.Sprintf("%d", metrics.VMResourceStats.CarbonAwareVMs)},
+		{"Carbon-Aware Backups", fmt.Sprintf("%d", metrics.CarbonStats.CarbonAwareBackups)},
+		{"Avg Carbon Intensity (Backups)", fmt.Sprintf("%.2f gCO2/kWh", metrics.CarbonStats.AvgIntensity)},
+	}
+
+	for _, row := range rows {
+		if err := writer.Write(row); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // connectToK8s establishes Kubernetes client connection
@@ -805,8 +893,24 @@ func (kd *K8sDashboard) handleK8sMetrics(w http.ResponseWriter, r *http.Request)
 	metrics := *kd.k8sMetrics
 	kd.k8sMetricsMu.RUnlock()
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(metrics)
+	// Check for export format
+	format := r.URL.Query().Get("format")
+	download := r.URL.Query().Get("download")
+
+	switch format {
+	case "csv":
+		if download == "true" {
+			w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=k8s-metrics-%s.csv", time.Now().Format("2006-01-02")))
+		}
+		w.Header().Set("Content-Type", "text/csv")
+		if err := writeMetricsCSV(w, &metrics); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+	default:
+		// Default to JSON
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(metrics)
+	}
 }
 
 // handleBackupJobs serves BackupJobs list
@@ -893,8 +997,24 @@ func (kd *K8sDashboard) handleVMs(w http.ResponseWriter, r *http.Request) {
 	vms := append(kd.k8sMetrics.RunningVMs, kd.k8sMetrics.StoppedVMs...)
 	kd.k8sMetricsMu.RUnlock()
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(vms)
+	// Check for export format
+	format := r.URL.Query().Get("format")
+	download := r.URL.Query().Get("download")
+
+	switch format {
+	case "csv":
+		if download == "true" {
+			w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=vms-%s.csv", time.Now().Format("2006-01-02")))
+		}
+		w.Header().Set("Content-Type", "text/csv")
+		if err := writeVMsCSV(w, vms); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+	default:
+		// Default to JSON
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(vms)
+	}
 }
 
 // handleVMDetail serves VirtualMachine details
