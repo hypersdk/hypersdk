@@ -5,6 +5,7 @@ go 1.24.0
 require (
 	cloud.google.com/go/compute v1.54.0
 	cloud.google.com/go/storage v1.59.1
+	github.com/AlecAivazis/survey/v2 v2.3.7
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.21.0
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.13.1
 	github.com/Azure/azure-sdk-for-go/sdk/keyvault/azsecrets v0.12.0
@@ -17,7 +18,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/config v1.32.7
 	github.com/aws/aws-sdk-go-v2/credentials v1.19.7
 	github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.21.0
-	github.com/aws/aws-sdk-go-v2/service/ec2 v1.281.0
+	github.com/aws/aws-sdk-go-v2/service/ec2 v1.289.0
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.95.1
 	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.41.1
 	github.com/charmbracelet/bubbletea v1.3.10
@@ -25,6 +26,7 @@ require (
 	github.com/charmbracelet/lipgloss v1.1.0
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/getkin/kin-openapi v0.133.0
+	github.com/go-chi/chi/v5 v5.2.4
 	github.com/google/uuid v1.6.0
 	github.com/gophercloud/gophercloud v1.14.1
 	github.com/gorilla/websocket v1.5.4-0.20250319132907-e064f32e3674
@@ -71,7 +73,6 @@ require (
 	cloud.google.com/go/compute/metadata v0.9.0 // indirect
 	cloud.google.com/go/iam v1.5.3 // indirect
 	cloud.google.com/go/monitoring v1.24.3 // indirect
-	github.com/AlecAivazis/survey/v2 v2.3.7 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/internal v1.11.2 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/keyvault/internal v0.7.1 // indirect
 	github.com/AzureAD/microsoft-authentication-library-for-go v1.6.0 // indirect
@@ -120,7 +121,6 @@ require (
 	github.com/evanphx/json-patch/v5 v5.9.0 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/fxamacker/cbor/v2 v2.7.0 // indirect
-	github.com/go-chi/chi/v5 v5.2.4 // indirect
 	github.com/go-jose/go-jose/v4 v4.1.3 // indirect
 	github.com/go-kit/log v0.2.1 // indirect
 	github.com/go-logfmt/logfmt v0.6.0 // indirect
