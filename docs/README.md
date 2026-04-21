@@ -4,6 +4,10 @@ Complete documentation for HyperSDK - A multi-cloud VM migration framework with 
 
 ## 📚 Documentation Navigation
 
+### Contact & security
+- **[Security policy](../SECURITY.md)** (repository root) — how to report vulnerabilities privately
+- **Maintainer:** Susant Sahani (ssahani@gmail.com) — see [Contributing](../CONTRIBUTING.md) for security reporting and maintainer topics
+
 ### New Users Start Here
 - **[Getting Started Guide](getting-started.md)** - Install and run your first migration (includes dashboard!)
 - **[Interactive Mode Guide](user-guides/01-interactive-mode.md)** - Learn the interactive TUI

@@ -1512,9 +1512,18 @@ Contributions welcome! Please:
 
 LGPL-3.0-or-later - see [LICENSE](LICENSE) file for details
 
-## 👤 Author
+## 💬 Support
 
-**Susant Sahani** <ssahani@gmail.com>
+### Community
+- **GitHub Issues**: [Report bugs](https://github.com/ssahani/hypersdk/issues)
+- **Documentation**: [docs/](docs/)
+- **Discussions**: [GitHub Discussions](https://github.com/ssahani/hypersdk/discussions)
+
+### Security
+Report vulnerabilities privately using the process in [SECURITY.md](SECURITY.md) (contact: **ssahani@gmail.com**).
+
+### Maintainer & enterprise
+**Susant Sahani** — [ssahani@gmail.com](mailto:ssahani@gmail.com) for security follow-ups, enterprise support, consulting, or custom development. See also [Contributing](CONTRIBUTING.md).
 
 ## 🔗 Related Projects
 
