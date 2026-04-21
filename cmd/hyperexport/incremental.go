@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/pterm/pterm"
 
@@ -162,7 +163,7 @@ func recordIncrementalExport(ctx context.Context, vmPath string, exportResult *v
 	metadata := &incremental.ExportMetadata{
 		VMID:         vmID,
 		VMName:       filepath.Base(vmPath),
-		ExportTime:   exportResult.StartTime,
+		ExportTime:   time.Now(),
 		SnapshotID:   snapshotID,
 		ExportPath:   exportResult.OutputDir,
 		TotalSize:    exportResult.TotalSize,
