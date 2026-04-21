@@ -139,7 +139,7 @@ var (
 	// Incremental export options
 	incrementalExport = flag.Bool("incremental", false, "Enable incremental export (only changed disks)")
 	forceFullExport   = flag.Bool("force-full", false, "Force full export even if incremental is available")
-	showIncrementalInfo = flag.Bool("incremental-info", false, "Show incremental export analysis without exporting")
+	incrementalInfoFlag = flag.Bool("incremental-info", false, "Show incremental export analysis without exporting")
 
 	// Email notification options
 	emailNotify       = flag.Bool("email-notify", false, "Send email notifications")
@@ -672,7 +672,7 @@ func run(ctx context.Context, cfg *config.Config, log logger.Logger) error {
 	}
 
 	// Display incremental export analysis if requested
-	if *showIncrementalInfo {
+	if *incrementalInfoFlag {
 		if *vmName == "" {
 			return fmt.Errorf("VM name required for --incremental-info (use -vm flag)")
 		}
