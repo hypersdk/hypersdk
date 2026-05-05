@@ -32,7 +32,7 @@ require (
 	github.com/gorilla/websocket v1.5.4-0.20250319132907-e064f32e3674
 	github.com/hashicorp/vault/api v1.22.0
 	github.com/mattn/go-sqlite3 v1.14.42
-	github.com/oracle/oci-go-sdk/v65 v65.106.1
+	github.com/oracle/oci-go-sdk/v65 v65.113.0
 	github.com/pkg/sftp v1.13.10
 	github.com/prometheus/client_golang v1.23.2
 	github.com/pterm/pterm v0.12.82
