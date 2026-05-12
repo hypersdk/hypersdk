@@ -30,7 +30,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/gophercloud/gophercloud v1.14.1
 	github.com/gorilla/websocket v1.5.4-0.20250319132907-e064f32e3674
-	github.com/hashicorp/vault/api v1.22.0
+	github.com/hashicorp/vault/api v1.23.0
 	github.com/mattn/go-sqlite3 v1.14.42
 	github.com/oracle/oci-go-sdk/v65 v65.113.0
 	github.com/pkg/sftp v1.13.10
