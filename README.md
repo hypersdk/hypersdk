@@ -9,7 +9,93 @@
 [![API Coverage](https://img.shields.io/badge/API%20handlers-100%25%20coverage-success)](https://github.com/ssahani/hypersdk)
 [![Version](https://img.shields.io/badge/version-2.2.0-blue)](https://github.com/ssahani/hypersdk/releases/tag/v2.2.0)
 
-> **🏢 Enterprise & production** — This repo is the **Community Edition** of HyperSDK. For SLAs, VMware exit programs, fleet-scale migrations, air-gapped deployments, and the full **[HyperSDK Platform](https://zyvor.dev/)** ([hyper2kvm](https://zyvor.dev/hyper2kvm) · [GuestKit](https://zyvor.dev/guestkit) · [v9s](https://zyvor.dev/v9s) · [PacketWolf](https://zyvor.dev/packetwolf) · [more →](https://zyvor.dev/docs/products)), contact **[Zyvor AI Labs](https://zyvor.dev/)**: [sales@zyvor.dev](mailto:sales@zyvor.dev) · [zyvor.dev/contact](https://zyvor.dev/contact)
+> **🏢 Enterprise & production** — This repo is the **Community Edition** of HyperSDK. For the full **Zeus** platform (12 products, SLAs, VMware exit), go to **[zyvor.dev](https://zyvor.dev/?utm_source=github&utm_medium=hypersdk)** · **[Contact sales](https://zyvor.dev/contact?utm_source=github&utm_medium=hypersdk)** · [sales@zyvor.dev](mailto:sales@zyvor.dev)
+
+[![Website](https://img.shields.io/badge/website-zyvor.dev-f97316?style=flat)](https://zyvor.dev/?utm_source=github&utm_medium=hypersdk)
+[![Contact sales](https://img.shields.io/badge/contact-sales@zyvor.dev-blue?style=flat)](mailto:sales@zyvor.dev)
+[![Schedule demo](https://img.shields.io/badge/demo-schedule-green?style=flat)](https://zyvor.dev/contact?intent=demo&utm_source=github&utm_medium=hypersdk)
+
+---
+
+## HyperSDK Platform · Zyvor AI Labs
+
+<p align="center">
+  <a href="https://zyvor.dev/?utm_source=github&utm_medium=hypersdk">
+    <img src="docs/img/zyvor-logo.webp" alt="Zyvor AI Labs — HyperSDK Platform" width="240">
+  </a>
+</p>
+
+**[hypersdk](https://github.com/hypersdk/hypersdk) (this repo)** is the open-source **Community Edition** export engine. **Production** workloads — supported releases, priority support, SLAs, security reviews, and the integrated platform — are sold and operated by **[Zyvor AI Labs](https://zyvor.dev/?utm_source=github&utm_medium=hypersdk)** on **[zyvor.dev](https://zyvor.dev/)** (published from [hypersdk-web](https://github.com/ssahani/hypersdk-web) → [zyvor.dev](https://zyvor.dev/)).
+
+### Platform at a glance
+
+| Metric | HyperSDK Platform (Zeus) |
+|--------|-------------------------|
+| **Products** | **12** — one API fabric |
+| **API endpoints** | **2,000+** |
+| **Dashboard views** | **400+** (web + TUI) |
+| **Cloud providers** | **10** (vSphere, AWS, Azure, GCP, Hyper-V, OCI, OpenStack, Alibaba, Proxmox, KubeVirt) |
+| **First-boot success** | **96.8%** |
+| **CLI commands** | **200+** |
+
+**One platform · one API · one operating model** — migration, virtualization, Kubernetes-era VM management, observability, GPU, and bare metal.
+
+### Lifecycle pipeline
+
+```
+Export → Convert → Inspect → Build → Deploy → Manage → Observe → Optimize → Provision
+HyperSDK Platform · hyper2kvm · GuestKit · VMRogue · Aether · v9s · PacketWolf · Forge · IronWolf · HyperCluster
+```
+
+### Contact sales & demos
+
+| | |
+|---|---|
+| **Schedule a demo** | **[zyvor.dev/contact?intent=demo](https://zyvor.dev/contact?intent=demo&utm_source=github&utm_medium=hypersdk)** |
+| **Contact sales** | **[zyvor.dev/contact](https://zyvor.dev/contact?utm_source=github&utm_medium=hypersdk)** · **[sales@zyvor.dev](mailto:sales@zyvor.dev)** |
+| **General inquiries** | **[info@zyvor.dev](mailto:info@zyvor.dev)** |
+| **Pricing & Enterprise** | **[zyvor.dev/pricing](https://zyvor.dev/pricing?utm_source=github&utm_medium=hypersdk)** |
+| **VMware exit** | **[zyvor.dev/vmware-exit](https://zyvor.dev/vmware-exit?utm_source=github&utm_medium=hypersdk)** |
+| **ROI calculator** | **[zyvor.dev/roi](https://zyvor.dev/roi?utm_source=github&utm_medium=hypersdk)** |
+
+### Full product suite
+
+Aligned with the [product comparison on zyvor.dev](https://zyvor.dev/docs/products?utm_source=github&utm_medium=hypersdk). Open-source engines marked **CE**; enterprise platform includes supported releases and SLAs.
+
+#### Migration & export
+
+| Product | What it does | Website |
+|---------|--------------|---------|
+| **HyperSDK Platform** | Multi-cloud VM export & management (10 providers) | [zyvor.dev/hypersdk](https://zyvor.dev/hypersdk?utm_source=github&utm_medium=hypersdk) · **CE:** this repo |
+| **hyper2kvm** | 7-stage conversion, VirtIO/boot fixes, 480+ APIs | [zyvor.dev/hyper2kvm](https://zyvor.dev/hyper2kvm?utm_source=github&utm_medium=hypersdk) · [CE on GitHub](https://github.com/hypersdk/hyper2kvm) |
+| **GuestKit** | Offline disk inspect, security profiles, AI diagnostics | [zyvor.dev/guestkit](https://zyvor.dev/guestkit?utm_source=github&utm_medium=hypersdk) · [CE on GitHub](https://github.com/hypersdk/guestkit) |
+
+#### Kubernetes & VM management
+
+| Product | What it does | Website |
+|---------|--------------|---------|
+| **v9s** | KubeVirt lifecycle — TUI + web dashboard | [zyvor.dev/v9s](https://zyvor.dev/v9s?utm_source=github&utm_medium=hypersdk) |
+| **VMRogue** | Declarative KubeVirt provisioning, 31 OS templates | [zyvor.dev/vmrogue](https://zyvor.dev/vmrogue?utm_source=github&utm_medium=hypersdk) |
+| **Ragnarok** | AI-powered VM management (6 agents) | [zyvor.dev/ragnarok](https://zyvor.dev/ragnarok?utm_source=github&utm_medium=hypersdk) |
+| **Machina** | libvirt/QEMU/KVM host management | [zyvor.dev/machina](https://zyvor.dev/machina?utm_source=github&utm_medium=hypersdk) |
+
+#### Infrastructure & observability
+
+| Product | What it does | Website |
+|---------|--------------|---------|
+| **Aether** | Universal runtime — Podman/K8s/bare metal | [zyvor.dev/aether](https://zyvor.dev/aether?utm_source=github&utm_medium=hypersdk) |
+| **PacketWolf** | eBPF network intelligence & observability | [zyvor.dev/packetwolf](https://zyvor.dev/packetwolf?utm_source=github&utm_medium=hypersdk) |
+| **Forge** | GPU fabric for AI/ML (95%+ utilization) | [zyvor.dev/forge](https://zyvor.dev/forge?utm_source=github&utm_medium=hypersdk) |
+| **IronWolf** | Bare-metal lifecycle operator | [zyvor.dev/ironwolf](https://zyvor.dev/ironwolf?utm_source=github&utm_medium=hypersdk) |
+| **HyperCluster** | Cluster-scale operations in the suite | [zyvor.dev/hypercluster](https://zyvor.dev/hypercluster?utm_source=github&utm_medium=hypersdk) |
+
+**Enterprise capabilities (via Zyvor):** SOC2-ready controls · RBAC/SSO · audit logging · air-gapped migration · carbon-aware scheduling · partner/MSP programs · professional services.
+
+→ **[Compare all products](https://zyvor.dev/docs/products?utm_source=github&utm_medium=hypersdk)** · **[Suite guides](https://zyvor.dev/docs/intro?utm_source=github&utm_medium=hypersdk#suite-product-guides)** · **[CE vs Enterprise](docs/ce-vs-enterprise.md)**
+
+**When to contact sales:** VMware exit or **100+ VMs** · regulated / air-gapped environments · need dashboard, multi-tenant ops, or SLA · pricing & partnerships — **do not use GitHub Issues for quotes.**
+
+---
 
 ## 🎯 Overview
 

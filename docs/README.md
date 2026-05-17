@@ -12,7 +12,7 @@ Complete documentation for HyperSDK - A multi-cloud VM migration framework with 
   </a>
 </p>
 
-> **🏢 Enterprise & production** — This documentation covers the **Community Edition**. For SLAs, VMware exit, fleet migrations, and the full platform, **approach [zyvor.dev](https://zyvor.dev/)** (not GitHub Issues): [sales@zyvor.dev](mailto:sales@zyvor.dev) · [zyvor.dev/contact](https://zyvor.dev/contact)
+> **🏢 Enterprise & production** — Community Edition docs only. Full **12-product Zeus suite**, pricing, and sales: **[zyvor.dev](https://zyvor.dev/?utm_source=github&utm_medium=hypersdk)** · **[sales@zyvor.dev](mailto:sales@zyvor.dev)** · **[Schedule demo](https://zyvor.dev/contact?intent=demo&utm_source=github&utm_medium=hypersdk)** · [Product suite](https://zyvor.dev/docs/products?utm_source=github&utm_medium=hypersdk)
 
 - **[Enterprise & platform suite](zyvor-enterprise.md)** — HyperSDK, hyper2kvm, GuestKit, v9s, PacketWolf, and full product matrix
 - **Platform:** [zyvor.dev](https://zyvor.dev/) · **Sales:** [sales@zyvor.dev](mailto:sales@zyvor.dev) · **Info:** [info@zyvor.dev](mailto:info@zyvor.dev)
