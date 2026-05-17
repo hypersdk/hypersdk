@@ -1,6 +1,6 @@
 # hypersdk — Developer & Community Edition guide
 
-> **Production, pricing, VMware exit, SLAs** → **[github.com/hypersdk](https://github.com/hypersdk)** · **[sales@zyvor.dev](mailto:sales@zyvor.dev)** · **[zyvor.dev/contact](https://zyvor.dev/contact?utm_source=github&utm_medium=hypersdk_repo)**
+> **▶ [Watch demo](https://zyvor.dev/demo?utm_source=github&utm_medium=hypersdk_repo)** first · Production / sales → **[sales@zyvor.dev](mailto:sales@zyvor.dev)** · **[github.com/hypersdk](https://github.com/hypersdk)**
 
 ---
 

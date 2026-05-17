@@ -12,12 +12,30 @@
 </p>
 
 <p align="center">
-  <a href="https://zyvor.dev/contact?intent=demo&utm_source=github&utm_medium=hypersdk_org"><img src="https://img.shields.io/badge/📞_Schedule_demo-22c55e?style=for-the-badge" alt="Schedule demo"></a>
+  <a href="https://zyvor.dev/demo?utm_source=github&utm_medium=hypersdk_org"><img src="https://img.shields.io/badge/▶_Watch_migration_demo-dc2626?style=for-the-badge" alt="Watch demo video"></a>
+  &nbsp;
+  <a href="https://zyvor.dev/contact?intent=demo&utm_source=github&utm_medium=hypersdk_org"><img src="https://img.shields.io/badge/📞_Schedule_guided_demo-22c55e?style=for-the-badge" alt="Schedule guided demo"></a>
   &nbsp;
   <a href="mailto:sales@zyvor.dev"><img src="https://img.shields.io/badge/✉️_sales@zyvor.dev-2563eb?style=for-the-badge" alt="Email sales"></a>
-  &nbsp;
-  <a href="https://zyvor.dev/pricing?utm_source=github&utm_medium=hypersdk_org"><img src="https://img.shields.io/badge/💰_Pricing-f97316?style=for-the-badge" alt="Pricing"></a>
 </p>
+
+<p align="center">
+  <sub><strong>Start here:</strong> <a href="https://zyvor.dev/demo?utm_source=github&utm_medium=hypersdk_org">zyvor.dev/demo</a> — migration video, live dashboard tour (400+ views), then book a 30‑min walkthrough</sub>
+</p>
+
+---
+
+## ▶ Watch the demo (no signup)
+
+See export → convert → monitor → deploy **before** you download Community Edition:
+
+| | |
+|---|---|
+| **Migration video** | **[zyvor.dev/demo](https://zyvor.dev/demo?utm_source=github&utm_medium=hypersdk_org)** |
+| **Live dashboard** | Same page — explore VMs, providers, jobs, system health |
+| **Guided walkthrough** | [Schedule 30 min with engineering](https://zyvor.dev/contact?intent=demo&utm_source=github&utm_medium=hypersdk_org) |
+
+**What the demo shows:** VM discovery across 10 providers · one-click export/conversion · real-time migration monitoring · KubeVirt deployment · carbon-aware scheduling
 
 ---
 
@@ -52,11 +70,12 @@ Repos under **[github.com/hypersdk](https://github.com/hypersdk)** are **free, u
 
 ---
 
-## Contact sales (start here)
+## Contact sales (after the demo)
 
 | | |
 |---|---|
-| **Schedule a demo** | **[zyvor.dev/contact?intent=demo](https://zyvor.dev/contact?intent=demo&utm_source=github&utm_medium=hypersdk_org)** |
+| **Watch demo** | **[zyvor.dev/demo](https://zyvor.dev/demo?utm_source=github&utm_medium=hypersdk_org)** |
+| **Schedule guided demo** | **[zyvor.dev/contact?intent=demo](https://zyvor.dev/contact?intent=demo&utm_source=github&utm_medium=hypersdk_org)** |
 | **Sales** | **[sales@zyvor.dev](mailto:sales@zyvor.dev)** |
 | **General** | **[info@zyvor.dev](mailto:info@zyvor.dev)** |
 | **Website** | **[zyvor.dev](https://zyvor.dev/?utm_source=github&utm_medium=hypersdk_org)** |
@@ -101,7 +120,9 @@ Also: [Machina](https://zyvor.dev/machina?utm_source=github&utm_medium=hypersdk_
 
 <p align="center">
   <strong>Ready to migrate for real?</strong><br>
-  <a href="https://zyvor.dev/contact?intent=demo&utm_source=github&utm_medium=hypersdk_org"><strong>Schedule a demo</strong></a>
+  <a href="https://zyvor.dev/demo?utm_source=github&utm_medium=hypersdk_org"><strong>▶ Watch demo</strong></a>
+  &nbsp;·&nbsp;
+  <a href="https://zyvor.dev/contact?intent=demo&utm_source=github&utm_medium=hypersdk_org"><strong>Schedule guided demo</strong></a>
   &nbsp;·&nbsp;
   <a href="mailto:sales@zyvor.dev"><strong>sales@zyvor.dev</strong></a>
 </p>

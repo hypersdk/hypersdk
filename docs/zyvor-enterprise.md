@@ -13,7 +13,8 @@ This repository ships the **Community Edition** of **HyperSDK**. For production 
 | | |
 |---|---|
 | **Platform** | **[zyvor.dev](https://zyvor.dev/)** |
-| **Sales & demos** | [sales@zyvor.dev](mailto:sales@zyvor.dev) |
+| **▶ Migration demo** | **[zyvor.dev/demo](https://zyvor.dev/demo?utm_source=github&utm_medium=hypersdk)** — video + live dashboard |
+| **Sales & guided demos** | [sales@zyvor.dev](mailto:sales@zyvor.dev) |
 | **General inquiries** | [info@zyvor.dev](mailto:info@zyvor.dev) |
 | **Contact form** | [zyvor.dev/contact](https://zyvor.dev/contact) |
 
