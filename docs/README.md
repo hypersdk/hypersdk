@@ -12,7 +12,7 @@ Complete documentation for HyperSDK - A multi-cloud VM migration framework with 
   </a>
 </p>
 
-- **Enterprise & commercial support:** [Zyvor AI Labs](https://zyvor.dev/) — [https://zyvor.dev/contact](https://zyvor.dev/contact)
+- **Enterprise & commercial support:** [Zyvor AI Labs](https://zyvor.dev/) — [Contact form](https://zyvor.dev/contact) · [sales@zyvor.dev](mailto:sales@zyvor.dev) · [info@zyvor.dev](mailto:info@zyvor.dev)
 - **[Security policy](../SECURITY.md)** (repository root) — how to report vulnerabilities privately
 - **Contributing:** see [Contributing](../CONTRIBUTING.md)
 
@@ -120,7 +120,7 @@ http://localhost:8080/web/dashboard/vm-console.html  # Console viewer
 - **Documentation Index**: See [00-INDEX.md](00-INDEX.md) for complete listing
 - **Issues**: Report issues on GitHub
 - **Examples**: Check [examples/](../examples/) directory
-- **Enterprise support**: [https://zyvor.dev/](https://zyvor.dev/) · [https://zyvor.dev/contact](https://zyvor.dev/contact)
+- **Enterprise support**: [https://zyvor.dev/](https://zyvor.dev/) · [Contact](https://zyvor.dev/contact) · [sales@zyvor.dev](mailto:sales@zyvor.dev) · [info@zyvor.dev](mailto:info@zyvor.dev)
 
 ## 📝 Contributing to Documentation
 
