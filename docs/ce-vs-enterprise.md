@@ -1,5 +1,7 @@
 # Community Edition vs Enterprise (Zyvor)
 
+> **Running production on CE without a contract?** Email **[sales@zyvor.dev](mailto:sales@zyvor.dev)** or [book a demo](https://zyvor.dev/contact?intent=demo&utm_source=github&utm_medium=hypersdk_repo) first.
+
 | | Community Edition (this repo) | Enterprise ([zyvor.dev](https://zyvor.dev/?utm_source=github&utm_medium=hypersdk)) |
 |---|------------------------------|-------------------------------------------------------------------------------------|
 | **Support** | GitHub Issues & Discussions | SLA, [sales@zyvor.dev](mailto:sales@zyvor.dev), professional services |

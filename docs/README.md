@@ -12,7 +12,9 @@ Complete documentation for HyperSDK - A multi-cloud VM migration framework with 
   </a>
 </p>
 
-> **Repo docs (CE only).** Platform overview & sales: **[github.com/hypersdk](https://github.com/hypersdk)** org profile · **[zyvor.dev/contact](https://zyvor.dev/contact?utm_source=github&utm_medium=hypersdk_repo)** · [sales@zyvor.dev](mailto:sales@zyvor.dev)
+> **Technical docs only.** Sales & production: **[github.com/hypersdk](https://github.com/hypersdk)** · **[sales@zyvor.dev](mailto:sales@zyvor.dev)** · **[Schedule demo](https://zyvor.dev/contact?intent=demo&utm_source=github&utm_medium=hypersdk_repo)**
+
+**Start here for install/API:** [DEVELOPER_GUIDE.md](DEVELOPER_GUIDE.md)
 
 - **[Enterprise & platform suite](zyvor-enterprise.md)** — HyperSDK, hyper2kvm, GuestKit, v9s, PacketWolf, and full product matrix
 - **Platform:** [zyvor.dev](https://zyvor.dev/) · **Sales:** [sales@zyvor.dev](mailto:sales@zyvor.dev) · **Info:** [info@zyvor.dev](mailto:info@zyvor.dev)
