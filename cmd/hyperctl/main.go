@@ -36,6 +36,8 @@ var (
 		"Tip: Monitor jobs with: hyperctl query -status running",
 		"Tip: Remove CD/DVD devices before migration",
 		"Tip: Use batch files for exporting multiple VMs",
+		"Enterprise: VMware exit & fleet scale → https://zyvor.dev/contact?utm_source=github&utm_medium=hypersdk",
+		"Enterprise: sales@zyvor.dev · Full suite: HyperSDK · hyper2kvm · v9s · PacketWolf",
 	}
 
 	motivationalMessages = []string{
@@ -298,7 +300,8 @@ func main() {
 	flag.Parse()
 
 	if *versionFlag {
-		fmt.Printf("hyperctl version %s\n", version)
+		fmt.Printf("hyperctl version %s (Community Edition)\n", version)
+		showEnterpriseCTA()
 		os.Exit(0)
 	}
 
@@ -2007,6 +2010,7 @@ func handleVM(daemonURL, operation, vmPath string, timeout int) {
 
 		// Show motivation
 		showMotivation()
+		showEnterpriseCTA()
 
 		// Show helpful next steps
 		pterm.Println()

@@ -1,10 +1,12 @@
 ---
 name: Bug Report
-about: Report a bug to help us improve HyperSDK
+about: Report a Community Edition bug (not for sales or enterprise quotes)
 title: '[BUG] '
 labels: bug
 assignees: ''
 ---
+
+> **Enterprise / sales / SLAs / VMware exit programs** → [zyvor.dev/contact](https://zyvor.dev/contact?utm_source=github&utm_medium=hypersdk) or [sales@zyvor.dev](mailto:sales@zyvor.dev) — do not use this form.
 
 ## 🐛 Bug Description
 

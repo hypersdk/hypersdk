@@ -1,10 +1,19 @@
 blank_issues_enabled: false
 contact_links:
+  - name: "🏢 Enterprise, sales & SLAs (Zyvor)"
+    url: https://zyvor.dev/contact?utm_source=github&utm_medium=hypersdk
+    about: Production migrations, VMware exit, licensing, and demos — not for GitHub Issues
+  - name: "📧 Email sales"
+    url: mailto:sales@zyvor.dev
+    about: sales@zyvor.dev — enterprise quotes and migration programs
+  - name: "📖 CE vs Enterprise"
+    url: https://github.com/hypersdk/hypersdk/blob/main/docs/ce-vs-enterprise.md
+    about: When to use Community Edition vs contact Zyvor
   - name: 💬 Discussions
-    url: https://github.com/ssahani/hypersdk/discussions
+    url: https://github.com/hypersdk/hypersdk/discussions
     about: Ask questions and discuss ideas with the community
   - name: 📚 Documentation
-    url: https://github.com/ssahani/hypersdk/tree/main/docs
+    url: https://github.com/hypersdk/hypersdk/tree/main/docs
     about: Read the comprehensive documentation
   - name: 🚀 Quick Start Guide
     url: https://github.com/ssahani/hypersdk/blob/main/docs/QUICK_START.md
