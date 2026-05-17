@@ -6,7 +6,7 @@
   </a>
 </p>
 
-This repository ships the **Community Edition** of **HyperSDK**. For production migrations, SLAs, and the full **Zeus** platform (12 products — see [zyvor.dev/docs/products](https://zyvor.dev/docs/products?utm_source=github&utm_medium=hypersdk)), contact **[Zyvor AI Labs](https://zyvor.dev/?utm_source=github&utm_medium=hypersdk)**. Marketing site source: [hypersdk-web](https://github.com/ssahani/hypersdk-web) (publishes [zyvor.dev](https://zyvor.dev/)).
+This repository ships the **Community Edition** of **HyperSDK**. For production migrations, SLAs, and the full **Zeus** platform (12 products — see [zyvor.dev/docs/products](https://zyvor.dev/docs/products?utm_source=github&utm_medium=hypersdk)), contact **[Zyvor AI Labs](https://zyvor.dev/?utm_source=github&utm_medium=hypersdk)**. Marketing site source: [hypersdk-web](https://github.com/hypersdk/hypersdk-web) (publishes [zyvor.dev](https://zyvor.dev/)).
 
 ## Contact Zyvor
 
@@ -54,4 +54,4 @@ Contact **sales@zyvor.dev** or [zyvor.dev/contact](https://zyvor.dev/contact) wh
 - Integrated platform features (dashboard, multi-tenant ops, full provider matrix)  
 - Demos, architecture reviews, or migration planning workshops  
 
-Community bugs and contributions stay on [GitHub Issues](https://github.com/ssahani/hypersdk/issues).
+Community bugs and contributions stay on [GitHub Issues](https://github.com/hypersdk/hypersdk/issues).

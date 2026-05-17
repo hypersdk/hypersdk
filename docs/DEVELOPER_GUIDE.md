@@ -287,7 +287,7 @@ See the [New Features Guide](docs/new-features-guide.md) for detailed usage and 
 
 ```bash
 # Clone repository
-git clone https://github.com/ssahani/hypersdk
+git clone https://github.com/hypersdk/hypersdk
 cd hypersdk
 
 # Build binaries

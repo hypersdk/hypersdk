@@ -45,7 +45,7 @@ git clone https://github.com/YOUR_USERNAME/hypersdk.git
 cd hypersdk
 
 # Add upstream remote
-git remote add upstream https://github.com/ssahani/hypersdk.git
+git remote add upstream https://github.com/hypersdk/hypersdk.git
 
 # Install dependencies
 go mod download
@@ -929,9 +929,9 @@ Thank you for contributing to HyperSDK! Your efforts help make VM migration easi
 
 ### Community
 
-- **Issues**: https://github.com/ssahani/hypersdk/issues
-- **Discussions**: https://github.com/ssahani/hypersdk/discussions
-- **Releases**: https://github.com/ssahani/hypersdk/releases
+- **Issues**: https://github.com/hypersdk/hypersdk/issues
+- **Discussions**: https://github.com/hypersdk/hypersdk/discussions
+- **Releases**: https://github.com/hypersdk/hypersdk/releases
 
 ---
 

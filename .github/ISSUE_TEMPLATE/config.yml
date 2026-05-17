@@ -19,11 +19,11 @@ contact_links:
     url: https://github.com/hypersdk/hypersdk/tree/main/docs
     about: Read the comprehensive documentation
   - name: 🚀 Quick Start Guide
-    url: https://github.com/ssahani/hypersdk/blob/main/docs/QUICK_START.md
+    url: https://github.com/hypersdk/hypersdk/blob/main/docs/QUICK_START.md
     about: Get started with HyperSDK in 5 minutes
   - name: ❓ FAQ
-    url: https://github.com/ssahani/hypersdk/blob/main/docs/FAQ.md
+    url: https://github.com/hypersdk/hypersdk/blob/main/docs/FAQ.md
     about: Check frequently asked questions (50+ Q&A)
   - name: 🔧 Troubleshooting
-    url: https://github.com/ssahani/hypersdk/blob/main/docs/TROUBLESHOOTING.md
+    url: https://github.com/hypersdk/hypersdk/blob/main/docs/TROUBLESHOOTING.md
     about: Find solutions to common problems
