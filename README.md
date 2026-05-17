@@ -9,6 +9,8 @@
 [![API Coverage](https://img.shields.io/badge/API%20handlers-100%25%20coverage-success)](https://github.com/ssahani/hypersdk)
 [![Version](https://img.shields.io/badge/version-2.2.0-blue)](https://github.com/ssahani/hypersdk/releases/tag/v2.2.0)
 
+> **🏢 Enterprise & production** — This repo is the **Community Edition** of HyperSDK. For SLAs, VMware exit programs, fleet-scale migrations, air-gapped deployments, and the full **[HyperSDK Platform](https://zyvor.dev/)** ([hyper2kvm](https://zyvor.dev/hyper2kvm) · [GuestKit](https://zyvor.dev/guestkit) · [v9s](https://zyvor.dev/v9s) · [PacketWolf](https://zyvor.dev/packetwolf) · [more →](https://zyvor.dev/docs/products)), contact **[Zyvor AI Labs](https://zyvor.dev/)**: [sales@zyvor.dev](mailto:sales@zyvor.dev) · [zyvor.dev/contact](https://zyvor.dev/contact)
+
 ## 🎯 Overview
 
 `hypersdk` is a high-performance, daemon-based VM export system that provides a **provider layer abstraction** for multiple clouds. It handles VM discovery, export, download, and metadata operations across different cloud platforms.
@@ -1520,31 +1522,61 @@ LGPL-3.0-or-later - see [LICENSE](LICENSE) file for details
   </a>
 </p>
 
-**HyperSDK** is engineered and supported by [Zyvor AI Labs](https://zyvor.dev/) as the migration and export core of the [HyperSDK Platform](https://zyvor.dev/) suite.
+**HyperSDK** is the **Community Edition** export and provider layer of the [HyperSDK Platform](https://zyvor.dev/) (Zeus suite), engineered by [Zyvor AI Labs](https://zyvor.dev/).
 
-### Community
+### Community Edition (this repository)
+
+Use GitHub for bugs, contributions, and community questions:
+
 - **GitHub Issues**: [Report bugs](https://github.com/ssahani/hypersdk/issues)
 - **Documentation**: [docs/](docs/)
 - **Discussions**: [GitHub Discussions](https://github.com/ssahani/hypersdk/discussions)
 
-### Enterprise & commercial support
-For enterprise support, consulting, demos, and migration planning:
+### 🏢 Enterprise — approach [zyvor.dev](https://zyvor.dev/)
+
+**Production workloads, enterprise licensing, VMware exit programs, SLAs, and platform integration are provided by Zyvor — not via GitHub Issues.**
 
 | | |
 |---|---|
-| **Website** | [https://zyvor.dev/](https://zyvor.dev/) |
-| **Contact form** | [https://zyvor.dev/contact](https://zyvor.dev/contact) |
-| **Sales** | [sales@zyvor.dev](mailto:sales@zyvor.dev) |
+| **Platform** | **[zyvor.dev](https://zyvor.dev/)** |
+| **Sales & demos** | [sales@zyvor.dev](mailto:sales@zyvor.dev) |
 | **General inquiries** | [info@zyvor.dev](mailto:info@zyvor.dev) |
+| **Contact form** | [zyvor.dev/contact](https://zyvor.dev/contact) |
+
+#### HyperSDK Platform products
+
+| Product | Enterprise focus |
+|---------|------------------|
+| **[HyperSDK Platform](https://zyvor.dev/hypersdk)** | Multi-cloud export (10+ providers), APIs, scheduling, dashboard |
+| **[hyper2kvm](https://zyvor.dev/hyper2kvm)** | Conversion, VirtIO/boot repair, validation at scale |
+| **[GuestKit](https://zyvor.dev/guestkit)** | Offline inspect/repair, security profiles, fix plans |
+| **[v9s](https://zyvor.dev/v9s)** | KubeVirt & VM fleet operations on Kubernetes |
+| **[PacketWolf](https://zyvor.dev/packetwolf)** | eBPF network observability & traffic intelligence |
+| **[VMRogue](https://zyvor.dev/vmrogue)** · **[Aether](https://zyvor.dev/aether)** · **[Machina](https://zyvor.dev/machina)** | Build → deploy → host pipeline |
+
+→ [Compare all products](https://zyvor.dev/docs/products) · [Schedule a demo](https://zyvor.dev/contact?intent=demo)
+
+**Enterprise via Zyvor:** SOC2-ready controls, RBAC/SSO, audit logging, SLA options, air-gapped migration, carbon-aware scheduling, partner/MSP programs, and professional services.
+
+**Reach out to Zyvor for:** 100+ VM migrations · regulated or air-gapped environments · enterprise support contracts · integrated platform (not CE-only) features.
+
+📄 [Full enterprise guide](docs/zyvor-enterprise.md)
 
 ### Security
 Report vulnerabilities privately using the process in [SECURITY.md](SECURITY.md).
 
 ## 🔗 Related Projects
 
-- [hyper2kvm](https://github.com/ssahani/hyper2kvm) - Python migration orchestrator
-- [govmomi](https://github.com/vmware/govmomi) - VMware vSphere Go SDK
-- [pterm](https://github.com/pterm/pterm) - Modern terminal UI library
+**Community Edition (GitHub)** · **Enterprise platform ([zyvor.dev](https://zyvor.dev/))**
+
+| CE repo | Enterprise product |
+|---------|-------------------|
+| HyperSDK (this repo) | [HyperSDK Platform](https://zyvor.dev/hypersdk) — multi-cloud export |
+| [hyper2kvm](https://github.com/ssahani/hyper2kvm) | [hyper2kvm](https://zyvor.dev/hyper2kvm) — conversion & validation |
+| [guestkit](https://github.com/ssahani/guestkit) | [GuestKit](https://zyvor.dev/guestkit) — guest disk tooling |
+| — | [v9s](https://zyvor.dev/v9s) · [PacketWolf](https://zyvor.dev/packetwolf) · [full suite](https://zyvor.dev/docs/products) |
+
+**Upstream libraries:** [govmomi](https://github.com/vmware/govmomi) · [pterm](https://github.com/pterm/pterm)
 
 ## 🎉 Acknowledgments
 
@@ -1556,6 +1588,6 @@ Built with ❤️ using:
 
 ---
 
-**Supported by [Zyvor AI Labs](https://zyvor.dev/)** — [sales@zyvor.dev](mailto:sales@zyvor.dev) · [info@zyvor.dev](mailto:info@zyvor.dev)
+**Enterprise & production → [zyvor.dev](https://zyvor.dev/)** · [sales@zyvor.dev](mailto:sales@zyvor.dev) · [info@zyvor.dev](mailto:info@zyvor.dev) · [Contact](https://zyvor.dev/contact)
 
-*Part of the hyper2kvm project family*
+*Community Edition — part of the hyper2kvm / HyperSDK Platform family*
