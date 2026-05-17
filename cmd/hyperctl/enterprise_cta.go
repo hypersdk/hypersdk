@@ -4,7 +4,7 @@ package main
 
 import "github.com/pterm/pterm"
 
-const repoUTM = "hypersdk"
+const repoUTM = "hypersdk_repo"
 
 func platformURL() string {
 	return "https://zyvor.dev/?utm_source=github&utm_medium=" + repoUTM
