@@ -1514,16 +1514,29 @@ LGPL-3.0-or-later - see [LICENSE](LICENSE) file for details
 
 ## 💬 Support
 
+<p align="center">
+  <a href="https://zyvor.dev/">
+    <img src="docs/img/zyvor-logo.webp" alt="Zyvor AI Labs" width="220">
+  </a>
+</p>
+
+**HyperSDK** is engineered and supported by [Zyvor AI Labs](https://zyvor.dev/) as the migration and export core of the [HyperSDK Platform](https://zyvor.dev/) suite.
+
 ### Community
 - **GitHub Issues**: [Report bugs](https://github.com/ssahani/hypersdk/issues)
 - **Documentation**: [docs/](docs/)
 - **Discussions**: [GitHub Discussions](https://github.com/ssahani/hypersdk/discussions)
 
-### Security
-Report vulnerabilities privately using the process in [SECURITY.md](SECURITY.md) (contact: **ssahani@gmail.com**).
+### Enterprise & commercial support
+For enterprise support, consulting, demos, and migration planning:
 
-### Maintainer & enterprise
-**Susant Sahani** — [ssahani@gmail.com](mailto:ssahani@gmail.com) for security follow-ups, enterprise support, consulting, or custom development. See also [Contributing](CONTRIBUTING.md).
+| | |
+|---|---|
+| **Website** | [https://zyvor.dev/](https://zyvor.dev/) |
+| **Contact** | [https://zyvor.dev/contact](https://zyvor.dev/contact) |
+
+### Security
+Report vulnerabilities privately using the process in [SECURITY.md](SECURITY.md).
 
 ## 🔗 Related Projects
 
@@ -1541,5 +1554,6 @@ Built with ❤️ using:
 
 ---
 
-**Made by Susant Sahani**
+**Supported by [Zyvor AI Labs](https://zyvor.dev/)** — [Contact](https://zyvor.dev/contact)
+
 *Part of the hyper2kvm project family*
