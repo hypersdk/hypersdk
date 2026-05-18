@@ -3,7 +3,7 @@ module hypersdk
 go 1.26.0
 
 require (
-	cloud.google.com/go/compute v1.54.0
+	cloud.google.com/go/compute v1.63.0
 	cloud.google.com/go/storage v1.62.1
 	github.com/AlecAivazis/survey/v2 v2.3.7
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.21.0
