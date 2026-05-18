@@ -41,7 +41,7 @@ require (
 	github.com/schollz/progressbar/v3 v3.19.0
 	github.com/stretchr/testify v1.11.1
 	github.com/vishvananda/netlink v1.3.1
-	github.com/vmware/govmomi v0.53.1
+	github.com/vmware/govmomi v0.54.0
 	go.opentelemetry.io/otel v1.43.0
 	go.opentelemetry.io/otel/exporters/jaeger v1.17.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.40.0
